@@ -1,0 +1,38 @@
+# --- Project-specific ------------------------------------------------------
+
+# Staged copy of the CBDB-Desktop distribution.  The zip ships a 1.2 GB
+# SQLite database and two ~30 MB Go binaries; nothing under work/ is ever
+# committed.  Recreate it with:  python -m cbdb_desktop.staging --stage
+work/
+
+# Per-run artefacts: pytest JSON reports, server logs, exported files the
+# app hands back during export tests.
+reports/_*
+reports/*.json
+!reports/coverage-floor.json
+artifacts/
+
+# Local environment pointing at the maintainer's zip / work dir.  Copy
+# .env.example -> .env and edit; .env is machine-specific.
+.env
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# --- Editor / OS -----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Claude / agents -------------------------------------------------------
+.claude/
+memory/

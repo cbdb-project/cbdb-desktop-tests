@@ -1,0 +1,8 @@
+# Test-suite dependencies.  Deliberately tiny: the application under test
+# is a self-contained Go binary plus a SQLite file, so the suite needs
+# only an HTTP client and pytest.  Staging, .env parsing and the SQLite
+# oracle all use the standard library.
+
+pytest>=7.4,<9
+pytest-json-report>=1.5,<2     # machine-readable run record for reports/
+requests>=2.31,<3              # HTTP client for the running cbdb.exe
