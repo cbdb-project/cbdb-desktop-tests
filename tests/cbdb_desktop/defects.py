@@ -210,6 +210,94 @@ _DEFECTS: tuple[Defect, ...] = (
                 "so the people file empties instead)"),
         tests=("test_another_form_does_not_empty_the_associations_export",),
     ),
+    Defect(
+        key="CBDB-D-005",
+        title="The release ships a previous session's working state",
+        severity="medium",
+        area="Shipped database (Data/CBDB.db)",
+        summary=(
+            "Fourteen ZZ_* scratch tables in the released database still "
+            "hold the results of somebody's working session.  The forms "
+            "read those tables on startup, so a fresh install opens with a "
+            "person already in its working list and exports that return a "
+            "stranger's data before the user has run anything."),
+        evidence=(
+            "On a fresh copy of the shipped database, before any request "
+            "that changes state: /api/kinship/person-count and "
+            "/api/networks/person-count both answer 1 (Ouyang Xiu, person "
+            "1384, sits in ZZ_SCRATCH_IMPORT_PEOPLE); store-count answers "
+            "2; /api/assocpairs/recall-ids returns Lv Daqi and Lv Zuqian; "
+            "the Entry export returns 123 rows and the Associations export "
+            "16, both from queries the user never ran.  ZZ_KIN_LIST (112 "
+            "rows), ZZ_SCRATCH_KINNET (111), ZZ_SCRATCH_PEOPLE (88), "
+            "ZZ_SCRATCH_ENTRY (123) and nine more are likewise populated."),
+        impact=(
+            "A new user's first Export gives them somebody else's result "
+            "with no indication that it is not theirs, and the Kinship and "
+            "Networks forms start with a person nobody selected.  It also "
+            "means the release was built from a database that had been "
+            "used, rather than from a clean one.  Self-limiting: every "
+            "form truncates its own scratch tables before writing, so the "
+            "state survives only until the user's first query -- which is "
+            "why this is medium rather than high."),
+        fix=(
+            "Empty the ZZ_* scratch tables before packaging, and add a "
+            "build-time assertion that they are empty.  Clearing them "
+            "costs nothing: every form truncates its own scratch tables "
+            "before writing to them anyway."),
+        source=("Data/CBDB.db",
+                "Code/kinship_form_backend.go:handlePersonCount",
+                "Code/entry_form_backend.go:handleExportResults"),
+        tests=("test_a_fresh_install_starts_with_no_working_state",),
+    ),
+    Defect(
+        key="CBDB-D-006",
+        title="A malformed ranking is accepted and applied to every person",
+        severity="high",
+        area="Index address rankings (/IndexAddr)",
+        summary=(
+            "POST /api/indexaddr/update declares its body as a nine-slot "
+            "array and validates nothing about its length.  Go's JSON "
+            "decoder zero-pads a shorter array and truncates a longer one "
+            "without error, so a request with the wrong number of slots is "
+            "accepted and applied -- and this is the one endpoint in the "
+            "application that rewrites CBDB data rather than scratch."),
+        evidence=(
+            "Against the shipped binary, on a private copy: a ranks array "
+            "of eight elements answers 200 'Rankings updated and BIOG_MAIN "
+            "rebuilt successfully' and installs address type 0 ('unknown') "
+            "at rank 9, changing the number of people with an index address "
+            "from 383,322 to 379,051.  An eleven-element array is accepted "
+            "too, with the last two types silently discarded.  The bodies "
+            "that are refused are refused for unrelated reasons: a string "
+            "fails in the JSON decoder, while a two-element array and an "
+            "absent field are zero-padded and then caught by the "
+            "duplicate-type check, because padding leaves several slots "
+            "holding address type 0.  Eight slots leave only one, so "
+            "nothing catches them."),
+        impact=(
+            "A client that sends the wrong number of slots -- an older or "
+            "newer page, a script, a partially-filled form -- silently "
+            "reconfigures the index address of every person in the "
+            "database and ranks 'unknown' as a real address type.  Nothing "
+            "reports it, and the previous ranking is gone; only /reset "
+            "restores the shipped order -- and only to the shipped "
+            "default, so a ranking the user had configured is gone for "
+            "good.  This is why it is rated alongside the export defect: "
+            "it silently destroys persistent, user-visible configuration "
+            "across every person in the database."),
+        fix=(
+            "Decode the ranks into a slice and reject a body that does not "
+            "carry exactly nine slots, and reject address types that are "
+            "not in BIOG_ADDR_CODES (0 is a real row, 'unknown', which is "
+            "why the padding goes unnoticed)."),
+        source=("Code/indexaddr_form_backend.go:69 (Ranks is a fixed [9]int)",
+                "Code/indexaddr_form_backend.go:182 (decode, then no length "
+                "check)",
+                "Code/indexaddr_form_backend.go:199 (the duplicate check "
+                "that accidentally catches the other bad bodies)"),
+        tests=("test_a_ranking_of_the_wrong_length_is_refused",),
+    ),
 )
 
 DEFECTS: dict[str, Defect] = {defect.key: defect for defect in _DEFECTS}
@@ -221,4 +309,6 @@ BY_NAME: dict[str, Defect] = {
     "qbe-phantom-columns": DEFECTS["CBDB-D-002"],
     "orphan-name": DEFECTS["CBDB-D-003"],
     "associations-export-clobbered": DEFECTS["CBDB-D-004"],
+    "shipped-scratch-state": DEFECTS["CBDB-D-005"],
+    "unvalidated-ranking": DEFECTS["CBDB-D-006"],
 }

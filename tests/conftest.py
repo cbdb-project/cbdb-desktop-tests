@@ -214,6 +214,11 @@ def sqlite_conn(layout: AppLayout, config: Config):
     invariants and cross-checks.  Never read ``ZZ_*`` tables, and never
     reproduce a backend's join/filter chain here -- that would test the
     transcription instead of the application.
+
+    One deliberate exception: ``test_a_fresh_install_starts_with_no_working
+    _state`` reads the ``ZZ_*`` tables precisely because their *contents in
+    the shipped file* are what it is about (CBDB-D-005).  That is a
+    question about the artefact, not about what a handler computed.
     """
     wal = layout.db.with_name(layout.db.name + "-wal")
     if config.app_dir_override is not None:
