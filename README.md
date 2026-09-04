@@ -80,8 +80,24 @@ exception only after confirming the exact known signature. The known
 failure is tolerated; a *different* failure of the same test is still a
 failure; and a fix turns the test green-unexpectedly, which pytest
 reports as an error so the marker gets removed.
-`reports/generate_report.py` then writes the issues report from the
-registry plus the outcomes of an actual run.
+`reports/generate_report.py` then writes both language editions from
+that registry plus the outcomes of an actual run — so a report cannot
+claim a defect the tests no longer show, and the two translations cannot
+drift from each other either.
+
+```powershell
+python reports\generate_report.py                # .md + .docx + .pdf, both languages
+python reports\generate_report.py --format md    # Markdown only
+python reports\generate_report.py --lang zh      # Chinese only
+```
+
+The `.md` files are committed; the `.docx` and `.pdf` are generated on
+demand and gitignored, because their internal timestamps change on every
+regeneration and would dirty the tree on every run. The PDF is produced
+by Word itself through COM: these documents are bilingual, and Word
+already has the CJK fonts and line-breaking rules. Without Word the
+Markdown and Word files are still written and the generator says which
+format it could not produce.
 
 ### Staging
 
@@ -148,8 +164,9 @@ cbdb-desktop-tests/
 ├── stage.py                  # stage the archive without running pytest
 ├── run_tests.ps1             # stage → test → report, in one command
 ├── reports/
-│   ├── generate_report.py    # run + defect registry → issues report
-│   └── CBDB_Desktop_Issues.md
+│   ├── generate_report.py    # run + defect registry → both reports
+│   ├── CBDB_Desktop_Issues_EN.md
+│   └── CBDB_Desktop_Issues_ZH-Hant.md
 └── work/                     # gitignored — the staged distribution
 ```
 

@@ -5,12 +5,18 @@
 # committed.  Recreate it with:  python -m cbdb_desktop.staging --stage
 work/
 
-# Per-run artefacts.  The issues report IS committed -- it is the
-# deliverable, and its history is the record of what each build did --
-# but the raw JSON it is generated from, and the archive of previous
-# runs, are not.
+# Per-run artefacts.  The Markdown issue reports ARE committed -- they
+# are the deliverable, and their history is the record of what each build
+# did.  The .docx and .pdf are generated from the same source on demand
+# and are deliberately NOT committed: their internal timestamps change on
+# every regeneration, so committing them would dirty the tree on every
+# run for no added information.  Run reports/generate_report.py to
+# produce them.
 reports/_*
 reports/*.json
+reports/*.docx
+reports/*.pdf
+reports/*.new
 reports/runs/
 artifacts/
 

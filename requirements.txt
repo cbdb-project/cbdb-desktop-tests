@@ -6,3 +6,13 @@
 pytest>=7.4,<9
 pytest-json-report>=1.5,<2     # machine-readable run record for reports/
 requests>=2.31,<3              # HTTP client for the running cbdb.exe
+
+# -- reports --------------------------------------------------------------
+# The issue reports are written in English and Traditional Chinese, as
+# Markdown, Word and PDF.  python-docx writes the .docx; the .pdf is
+# produced by Word itself through COM, because these documents are
+# bilingual and Word already has the CJK fonts and line-breaking rules.
+# Without pywin32 (or without Word) the .md and .docx are still written
+# and the generator reports which formats it could not produce.
+python-docx>=1.1,<2
+pywin32>=305 ; sys_platform == "win32"

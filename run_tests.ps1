@@ -67,7 +67,9 @@ if ($DryRun) {
 # or pytest then fails -- and the report is the deliverable.
 Step "Archiving the previous run"
 New-Item -ItemType Directory -Force -Path $ARCHIVE | Out-Null
-foreach ($name in @("pytest_report.json", "CBDB_Desktop_Issues.md")) {
+foreach ($name in @("pytest_report.json",
+                    "CBDB_Desktop_Issues_EN.md",
+                    "CBDB_Desktop_Issues_ZH-Hant.md")) {
     $previous = Join-Path $REPORTS $name
     if (Test-Path $previous) {
         $kept = Join-Path $ARCHIVE ("{0}-{1}" -f $STAMP, $name)
@@ -96,13 +98,18 @@ if ($Filter)  { $pytestArgs += @("-k", "`"$Filter`"") }
 
 $testCode = Run ("python -m pytest " + ($pytestArgs -join " "))
 
-# ---- 4. write the report -------------------------------------------------
-Step "Writing the issues report"
+# ---- 4. write the reports ------------------------------------------------
+# English and Traditional Chinese, each as Markdown, Word and PDF.
+Step "Writing the issue reports"
 if ($Fast) {
     Write-Host "  skipped: -Fast leaves out the app tests, so the report would say nothing about the build" -ForegroundColor Yellow
 } else {
     $code = Run "python `"$ROOT\reports\generate_report.py`""
-    if ($code -ne 0) { throw "the issues report could not be written" }
+    # A missing Word installation costs the .pdf, not the run: the
+    # generator still writes .md and .docx and says what it could not do.
+    if ($code -ne 0) {
+        Write-Host "  some report formats could not be written (see above)" -ForegroundColor Yellow
+    }
 }
 
 # ---- 5. say what happened ------------------------------------------------
@@ -119,7 +126,8 @@ if (-not $DryRun -and -not $Fast) {
     }
     Write-Host ("  {0} passed, {1} xfailed, {2} skipped, {3} failed, {4} error(s)" -f `
         (Count "passed"), (Count "xfailed"), (Count "skipped"), (Count "failed"), (Count "error"))
-    Write-Host ("  issues report: {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues.md"))
+    Write-Host ("  issue reports: {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues_EN.*"))
+    Write-Host ("                 {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues_ZH-Hant.*"))
 
     if ((Count "xpassed") -gt 0) {
         Write-Host ("  {0} test(s) passed unexpectedly: a recorded defect may have been fixed." -f (Count "xpassed")) -ForegroundColor Yellow
