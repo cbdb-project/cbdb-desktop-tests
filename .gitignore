@@ -2,7 +2,7 @@
 
 # Staged copy of the CBDB-Desktop distribution.  The zip ships a 1.2 GB
 # SQLite database and two ~30 MB Go binaries; nothing under work/ is ever
-# committed.  Recreate it with:  python -m cbdb_desktop.staging --stage
+# committed.  Recreate it with:  python stage.py
 work/
 
 # Per-run artefacts.  The Markdown issue reports ARE committed -- they

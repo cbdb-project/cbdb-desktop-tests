@@ -192,7 +192,7 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "The Query Builder",
      "Its whitelist, the SQL it shows the user, and its guards"),
     ("test_form_queries.py",
-     "The six read-only forms",
+     "The six single-query forms",
      "Entry, office, status, texts, associations, places — queries and exports"),
     ("test_stateful_forms.py",
      "The forms that remember",
@@ -200,6 +200,9 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_index_addr.py",
      "Index-address rankings",
      "The only endpoints that rewrite CBDB data rather than scratch"),
+    ("test_defect_registry.py",
+     "This report's own sources",
+     "That every issue below still cites real code, in both languages"),
 )
 
 COVERAGE_ZH: dict[str, tuple[str, str]] = {
@@ -210,7 +213,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                        "從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
     "test_qbe.py": ("查詢建構器", "白名單、顯示給使用者的 SQL，以及各項防護"),
-    "test_form_queries.py": ("六個唯讀表單",
+    "test_form_queries.py": ("六個單次查詢的表單",
                              "入仕、官職、社會地位、著述、社會關係、地點"
                              "——查詢與匯出"),
     "test_stateful_forms.py": ("具狀態的表單",
@@ -218,6 +221,9 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "——工作清單"),
     "test_index_addr.py": ("索引地址排序",
                            "唯一會改寫 CBDB 正式資料（而非暫存表）的端點"),
+    "test_defect_registry.py": ("本報告自身的依據",
+                                "以下每一項問題所引用的程式位置仍然存在，"
+                                "且中英文皆已填寫"),
 }
 
 STATUS_TEXT = {

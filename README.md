@@ -13,12 +13,15 @@ shipped database, a second endpoint of the same app, or a frozen golden
 — never a hand-written transcription of the Go logic, which would only
 test the transcription.
 
-**On the 2026-09-01 build it finds six defects**, two of them high
+**On the 2026-09-01 build it finds six defects**, three of them high
 severity: one breaks the main way of finding a person, one silently hands
 the user an empty export, and one lets a malformed request rewrite the
-index address of every person in the database. See
-[`reports/CBDB_Desktop_Issues.md`](./reports/CBDB_Desktop_Issues.md),
-which is regenerated from every run.
+index address of every person in the database.
+
+The findings are reported in English and Traditional Chinese, as
+Markdown, Word and PDF, all regenerated from every run:
+[`CBDB_Desktop_Issues_EN.md`](./reports/CBDB_Desktop_Issues_EN.md) ·
+[`CBDB_Desktop_Issues_ZH-Hant.md`](./reports/CBDB_Desktop_Issues_ZH-Hant.md).
 
 ---
 
@@ -46,7 +49,10 @@ documented inline (work directory, timeouts, browser suppression, or
 the tests with a JSON report, and regenerates the issues report. Useful
 flags: `-Restage`, `-Fast` (skip everything needing the running app),
 `-Filter <k>` (pass `-k` to pytest), `-DryRun`. Or drive pytest directly
-with `python -m pytest tests -q` (~70 s; `-m "not slow"` skips the index-address rebuilds and runs in ~25 s).
+with `python -m pytest tests -q` (~68 s; `-m "not slow"` runs in ~28 s,
+leaving out the index-address rebuilds and the master's `quick_check`).
+The full `run_tests.ps1` takes ~87 s — the extra is report generation,
+most of it Word starting twice to write the PDFs.
 
 ---
 
@@ -59,9 +65,10 @@ with `python -m pytest tests -q` (~70 s; `-m "not slow"` skips the index-address
 | `test_routes.py` | all 141 registered routes, pages, navigation, pickers, static |
 | `test_lookups.py` | the code and address lists the forms offer before a query |
 | `test_qbe.py` | the Query Builder: whitelist, generated SQL, and its guards |
-| `test_form_queries.py` | the six read-only form queries and their exports |
+| `test_form_queries.py` | the six forms that keep no working list: queries and exports |
 | `test_stateful_forms.py` | kinship, networks, association pairs, group data — the forms that keep a working list |
 | `test_index_addr.py` | index-address rankings: the only endpoints that rewrite CBDB data |
+| `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
 
 The route list is not maintained by hand: `cbdb_desktop/routes.py` reads
 the registrations out of the shipped `Code/*.go` and the tests drive
@@ -138,8 +145,9 @@ those committed frames without a word.
 
 The staged tree is never run against. Each session copies
 `Data/CBDB.db` into `work/run/<id>/` and points the app there, because
-every form query rewrites the shared `ZZ_SCRATCH_*` tables in whatever
-database the app was given. That split keeps the master byte-stable
+a form query can rewrite the shared `ZZ_SCRATCH_*` tables in whatever
+database the app was given — entry and associations do during a query,
+and the stateful forms do far more. That split keeps the master byte-stable
 (usable as an oracle, and comparable to the archive) and stops one
 session's scratch state from contaminating the next. Set
 `CBDB_KEEP_RUN_DIR=1` to keep a session's copy for post-mortem.
@@ -152,7 +160,7 @@ session's scratch state from contaminating the next. Set
 cbdb-desktop-tests/
 ├── .env.example              # every setting, documented
 ├── tests/
-│   ├── cbdb_desktop/         # infrastructure only — no query logic
+│   ├── cbdb_desktop/         # infrastructure only — no oracle SQL
 │   │   ├── config.py         # .env / environment resolution
 │   │   ├── staging.py        # cached, crash-safe unpack + integrity check
 │   │   ├── app.py            # launches and drives the real cbdb.exe
@@ -161,6 +169,8 @@ cbdb-desktop-tests/
 │   │   └── defects.py        # the registry of what has been found
 │   ├── conftest.py           # session fixtures: layout, app_db, app, oracle
 │   └── test_*.py
+├── AGENTS.md                 # context for future agent sessions
+├── docs/skills/              # read the relevant one before starting
 ├── stage.py                  # stage the archive without running pytest
 ├── run_tests.ps1             # stage → test → report, in one command
 ├── reports/
@@ -169,6 +179,28 @@ cbdb-desktop-tests/
 │   └── CBDB_Desktop_Issues_ZH-Hant.md
 └── work/                     # gitignored — the staged distribution
 ```
+
+---
+
+## Working on this suite
+
+[`AGENTS.md`](./AGENTS.md) is the context file for anyone — human or
+agent — picking this up: what the system under test is, the landmines
+that have already cost time here, and the workflow after a new
+distribution zip.
+
+Four repo-local skills in [`docs/skills/`](./docs/skills):
+
+| Skill | Read it before |
+|---|---|
+| [`oracle-discipline.md`](./docs/skills/oracle-discipline.md) | writing or reviewing any assertion |
+| [`cbdb-desktop-probe.md`](./docs/skills/cbdb-desktop-probe.md) | driving the real binary, or writing a probe script |
+| [`issue-report-maintainer.md`](./docs/skills/issue-report-maintainer.md) | adding, changing or retiring a defect |
+| [`programmer-self-review-template.md`](./docs/skills/programmer-self-review-template.md) | reporting any change back |
+
+`oracle-discipline.md` is the one that matters most. Two oracles in this
+repo were written, reviewed, and only then found to be true by
+construction; that skill is how to spot the shape before it is committed.
 
 ---
 

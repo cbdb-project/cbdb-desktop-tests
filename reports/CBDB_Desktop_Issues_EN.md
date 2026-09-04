@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: cbdb-desktop_20260901.zip_
 
-_Generated 2026-09-04 11:57 UTC from a run of 234 tests (65s)._
+_Generated 2026-09-04 12:38 UTC from a run of 253 tests (71s)._
 
 Dear maintainer,
 
@@ -16,7 +16,7 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 
 | outcome | count |
 | --- | --- |
-| passed | 193 |
+| passed | 212 |
 | xfailed (a known defect, still present) | 41 |
 
 ## What the suite covers
@@ -28,9 +28,10 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 | Every registered route | 17 | All 141 routes read out of the shipped Go source, driven for real |
 | The code and address lists | 34 | The dropdowns each form offers before a query is run |
 | The Query Builder | 50 | Its whitelist, the SQL it shows the user, and its guards |
-| The six read-only forms | 49 | Entry, office, status, texts, associations, places — queries and exports |
+| The six single-query forms | 49 | Entry, office, status, texts, associations, places — queries and exports |
 | The forms that remember | 13 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 9 | The only endpoints that rewrite CBDB data rather than scratch |
+| This report's own sources | 19 | That every issue below still cites real code, in both languages |
 
 ## Summary
 
@@ -316,7 +317,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 234 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 253 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 
