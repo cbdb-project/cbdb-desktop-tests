@@ -235,6 +235,59 @@ def sqlite_conn(layout: AppLayout, config: Config):
 
 
 @pytest.fixture(scope="session")
+def app(layout: AppLayout, app_db: Path, config: Config, artifacts_dir: Path):
+    """The real cbdb.exe, running against this session's database copy.
+
+    Session-scoped: startup opens a 1.2 GB database, so one server serves
+    the whole run.  It depends on ``app_db`` (not merely on ``layout``)
+    so that pytest tears the server down *before* the run directory that
+    holds its database -- the other order leaves a locked file behind.
+
+    The log goes to ``artifacts/``, not into the run directory: the run
+    directory is deleted at teardown, which would destroy the post-mortem
+    record moments after writing it.
+    """
+    from cbdb_desktop.app import AppError, CbdbApp
+
+    log_path = artifacts_dir / f"cbdb-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}.log"
+    server = CbdbApp(layout, app_db, config, log_path=log_path)
+    try:
+        server.start()
+    except (AppError, OSError) as exc:
+        pytest.fail(f"could not start the application under test: {exc}",
+                    pytrace=False)
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Remember each test's outcome so teardown can stay quiet on failure."""
+    outcome = yield
+    setattr(item, f"_report_{call.when}", outcome.get_result())
+
+
+@pytest.fixture(autouse=True)
+def _app_still_alive(request):
+    """Turn "the server died three tests ago" into a failure that says so.
+
+    Only speaks up for a test that otherwise passed: a test that already
+    failed does not need the same news reported twice, and the request
+    path folds ``check_alive`` into its own errors anyway.
+    """
+    yield
+    server = request.node.funcargs.get("app")
+    if server is None:
+        return
+    report = getattr(request.node, "_report_call", None)
+    if report is not None and not report.passed:
+        return
+    server.check_alive()
+
+
+@pytest.fixture(scope="session")
 def artifacts_dir() -> Path:
     """Committed-artifact-free directory for payloads worth inspecting."""
     path = REPO_ROOT / "artifacts"
