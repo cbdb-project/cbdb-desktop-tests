@@ -22,7 +22,7 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
 
 pytestmark = pytest.mark.app
@@ -107,13 +107,8 @@ def test_every_offered_table_exists_in_the_database(qbe_schema, db_catalogue):
     assert not missing, f"the grid offers tables the database lacks: {missing}"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT: Data/qbe_schema.json offers 30 columns across 8 views "
-    "that do not exist in Data/CBDB.db.  HasColumn (qbe_schema.go) validates "
-    "a request against the JSON whitelist alone and never against the "
-    "database, so each of them passes validation and then fails as a 500 "
-    "'no such column' in front of the user.  Code/gen_qbe_schema.py "
-    "regenerates the file from the live schema."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["qbe-phantom-columns"].reason)
 def test_every_offered_column_exists_in_the_database(qbe_schema, db_catalogue):
     """The whitelist must not offer a column that cannot be selected.
 
@@ -142,10 +137,8 @@ def test_every_offered_column_exists_in_the_database(qbe_schema, db_catalogue):
 # running queries
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT: four of the 99 whitelisted tables offer c_personid as "
-    "their first column although the view does not have it, so counting it "
-    "gives a 500.  Part of the phantom-column defect above."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["qbe-phantom-columns"].reason)
 def test_every_offered_table_can_actually_be_queried(app: CbdbApp, qbe_schema):
     """Count the first column of all 99 tables through the running app.
 
@@ -178,9 +171,8 @@ def test_every_offered_table_can_actually_be_queried(app: CbdbApp, qbe_schema):
     for table, columns in sorted(PHANTOM_COLUMNS.items())
     for column in columns
 ])
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT: this column is offered by the Query Builder but does "
-    "not exist in the view, so selecting it answers 500 'no such column'."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["qbe-phantom-columns"].reason)
 def test_a_phantom_column_gives_the_user_a_server_error(app: CbdbApp, table: str,
                                                         column: str):
     """What the defect looks like from the grid: a 500, not a validation error.

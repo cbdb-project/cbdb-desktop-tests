@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
 
 pytestmark = pytest.mark.app
 
@@ -372,12 +372,8 @@ def test_a_short_search_finds_the_person_it_names(app: CbdbApp):
                 f"searching {full!r} matched more people than {term!r}"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT (minor): person 100382 has names in ZZZ_NAMES but no row "
-    "in BIOG_MAIN, so the name is indexed for somebody the database does not "
-    "contain.  ZZZ_NAMES is derived from BIOG_MAIN and ALTNAME_DATA at build "
-    "time (CBDBSetUpCode/zzznames_backend.go), so this is a row the "
-    "derivation kept after its source dropped it."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["orphan-name"].reason)
 def test_every_name_belongs_to_a_person_who_exists(sqlite_conn):
     """No name may be indexed for a person the database does not contain.
 
@@ -405,16 +401,8 @@ def test_every_name_belongs_to_a_person_who_exists(sqlite_conn):
     ("Su Shi", 1),
     ("王安石", 1),   # the same person, in Chinese
 ])
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT: person search finds nothing for any term of three or "
-    "more characters.  ZZZ_NAMES_FTS is an external-content FTS5 table over "
-    "ZZZ_NAMES (866 011 rows) whose index was never populated -- "
-    "ZZZ_NAMES_FTS_data holds 2 rows and ZZZ_NAMES_FTS_idx is empty.  "
-    "SQLite uses the trigram index for LIKE patterns of 3+ characters and "
-    "scans the content table below that, so one- and two-character searches "
-    "work while every realistic search returns nothing.  Fix: run "
-    "INSERT INTO ZZZ_NAMES_FTS(ZZZ_NAMES_FTS) VALUES('rebuild') when the "
-    "database is built."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["name-search"].reason)
 def test_searching_people_by_name_finds_them(app: CbdbApp, term: str,
                                              expected_minimum: int):
     """The main way a user finds a person in the browser.
@@ -436,13 +424,8 @@ def test_searching_people_by_name_finds_them(app: CbdbApp, term: str,
         f"search {term!r} found {payload['total']} people"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect, reason=(
-    "SHIPPED DEFECT: ZZZ_NAMES_FTS indexes none of the 866 011 names in "
-    "ZZZ_NAMES.  The FTS5 table and its sync triggers were created but the "
-    "populate step was never run, leaving ZZZ_NAMES_FTS_docsize empty.  This "
-    "is the root cause of the person-search failure above; running "
-    "INSERT INTO ZZZ_NAMES_FTS(ZZZ_NAMES_FTS) VALUES('rebuild') takes about "
-    "4 seconds and fixes both."))
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["name-search"].reason)
 def test_the_name_search_index_is_populated(sqlite_conn):
     """The root cause of the search defect, asserted where it lives.
 
