@@ -17,3 +17,15 @@ requests>=2.31,<3              # HTTP client for the running cbdb.exe
 python-docx>=1.1,<2
 pywin32>=305 ; sys_platform == "win32"
 py7zr>=1.0
+
+# Drives the shipped pages in a real Chromium, for the defects that live
+# in the pages' own JavaScript and are invisible over HTTP: a control
+# that stays greyed out with its precondition met, a page that throws
+# during load.  Needs its own browser download:
+#
+#     python -m playwright install chromium
+#
+# Without it, tests/test_ui_pages.py skips with that instruction rather
+# than failing -- a suite that goes red on a missing optional browser
+# teaches people to ignore it.
+playwright>=1.40

@@ -215,6 +215,117 @@ FORMS: tuple[FormSpec, ...] = (
 
 FORMS_BY_NAME = {form.name: form for form in FORMS}
 
+
+# ---------------------------------------------------------------------------
+# the adjustable options, and what turning each one on must do
+# ---------------------------------------------------------------------------
+#
+# Codes, dynasty, years and address are the filters with values; these
+# are the ones with a switch.  Between them the six forms offer 21 of
+# them, and before this table the suite drove exactly two.
+#
+# What makes them testable without an oracle is that each one has a
+# *direction*.  A switch that widens the query can only add rows; one
+# that narrows it can only remove them.  Neither claim needs to know
+# what the data holds, and neither can be satisfied by a handler that
+# ignores the switch -- that would leave the two results identical, and
+# an identical result is asserted against too, because a switch that
+# changes nothing on data chosen to make it matter is a switch that is
+# not wired up.
+#
+# The direction is read off the request struct's own meaning, not
+# guessed: "includeSubUnits" cannot remove people, "mainSourceOnly"
+# cannot add texts.  Where a switch legitimately does neither -- it
+# changes which *columns* come back, or which of two modes runs -- the
+# direction is "differs", and only the "it did something" half applies.
+
+WIDENS = "widens"        #: turning it on can only add rows
+NARROWS = "narrows"      #: turning it on can only remove rows
+DIFFERS = "differs"      #: it changes the result, in no fixed direction
+
+
+@dataclass(frozen=True)
+class Toggle:
+    """One boolean or mode option on a form, and what it must do."""
+
+    form: str
+    #: The request field this switch sets.  Named ``option`` and not
+    #: ``field`` because ``dataclasses.field`` is in scope here and a
+    #: dataclass attribute shadowing it reads like a bug even when it is
+    #: not one.
+    option: str
+    direction: str
+    #: The value that is "on".  Almost always True; ``queryMode`` and
+    #: friends take a string.
+    on: Any = True
+    off: Any = False
+    #: True when the option only reaches the query in combination with
+    #: another field -- ``filterBac`` does nothing without ``bacCodes``
+    #: -- and the test must therefore send both.
+    needs: dict[str, Any] = field(default_factory=dict)
+    notes: str = ""
+
+    @property
+    def id(self) -> str:
+        return f"{self.form}-{self.option}"
+
+
+TOGGLES: tuple[Toggle, ...] = (
+    # -- entry ------------------------------------------------------------
+    Toggle(form="entry", option="addrSubUnits", direction=WIDENS,
+           needs={"addrIds": "@address"},
+           notes="an address plus its sub-units is a superset of the "
+                 "address alone"),
+    # addressFrame picks *which* address a row is filtered on -- the
+    # person's index address (1) or the entry's own (2) -- so neither
+    # result contains the other.
+    Toggle(form="entry", option="addressFrame", direction=DIFFERS,
+           on=2, off=1, needs={"addrIds": "@address"}),
+
+    # -- office -----------------------------------------------------------
+    Toggle(form="office", option="peopleAddrSubUnits", direction=WIDENS,
+           needs={"peopleAddrIds": "@address"}),
+    Toggle(form="office", option="officeAddrSubUnits", direction=WIDENS,
+           needs={"officeAddrIds": "@address"},
+           notes="the office's own location, not the person's"),
+
+    # -- status -----------------------------------------------------------
+    Toggle(form="status", option="includeSubUnits", direction=WIDENS,
+           needs={"addrIds": "@address"}),
+
+    # -- texts ------------------------------------------------------------
+    Toggle(form="texts", option="includeSubUnits", direction=WIDENS,
+           needs={"addrIds": "@address"}),
+    Toggle(form="texts", option="mainSourceOnly", direction=NARROWS),
+    Toggle(form="texts", option="selfBioOnly", direction=NARROWS),
+    # "both" runs the source query and the role query; "source" runs only
+    # the first, so both is a superset.
+    Toggle(form="texts", option="queryMode", direction=WIDENS,
+           on="both", off="source"),
+
+    # -- associations -----------------------------------------------------
+    Toggle(form="associations", option="includeSubUnits", direction=WIDENS,
+           needs={"addrIds": "@address"}),
+
+    # -- places -----------------------------------------------------------
+    Toggle(form="places", option="includeSubUnits", direction=WIDENS),
+    # The Places form's seven branch switches: each adds a category of
+    # person to the result, so each can only widen it.
+    Toggle(form="places", option="includeBiog", direction=WIDENS),
+    Toggle(form="places", option="includeAssocPlace", direction=WIDENS),
+    Toggle(form="places", option="includeAssocPerson", direction=WIDENS),
+    Toggle(form="places", option="includeEntry", direction=WIDENS),
+    Toggle(form="places", option="includeKinship", direction=WIDENS),
+    Toggle(form="places", option="includeOffice", direction=WIDENS),
+    Toggle(form="places", option="includeInst", direction=WIDENS),
+    # filterBac restricts the biography branch to named address types,
+    # so it can only remove rows -- and only when it is given types.
+    Toggle(form="places", option="filterBac", direction=NARROWS,
+           needs={"bacCodes": "@bac", "includeBiog": True}),
+)
+
+TOGGLES_BY_ID = {toggle.id: toggle for toggle in TOGGLES}
+
 #: How to empty every working list the application keeps, as
 #: ``(path, body)`` pairs.  One entry per list, because since the
 #: 2026-09-07 build there is one list per form: clearing through

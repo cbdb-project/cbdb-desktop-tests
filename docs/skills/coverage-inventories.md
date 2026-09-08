@@ -25,7 +25,7 @@ of, and there was no mechanism that could notice the difference.
 
 ---
 
-## The four inventories
+## The inventories
 
 | module | enumerates | from | gate |
 |---|---|---|---|
@@ -33,6 +33,12 @@ of, and there was no mechanism that could notice the difference.
 | `cbdb_desktop/exports.py` | every endpoint that hands the user a file | the same routes, name-filtered | `test_exports.py::test_every_export_route_is_driven` |
 | `cbdb_desktop/controls.py` | every `<button>` and the endpoints its click can reach | `Templates/**/*.html` | `test_zz_controls.py` |
 | `cbdb_desktop/discovery.py` | populated `(code, dynasty)`, `(code, half-century)`, `(code, address)` combinations | the shipped database's row counts | `test_query_matrix.py::test_the_discovered_matrix_covers_every_form_and_dimension` |
+| `forms.TOGGLES` | every boolean and mode option, with the direction it must move the result | the request structs' own meaning | the switch sweep, plus its skips |
+| `test_ui_pages.PRECONDITIONS` | what un-greys each control that ships disabled | driven in a real Chromium | `test_every_disabled_control_has_a_declared_precondition`, over `UNDECLARED` |
+
+Two of those are newer and shaped differently, so they get their own
+notes below: the switch sweep (§ *Options as well as values*) and the
+browser layer (§ *When only a browser can see it*).
 
 ## What to do, by what you are adding
 
@@ -62,12 +68,18 @@ copy of the database in `test_index_addr.py`. `ENDPOINTS_NOT_DRIVEN` is
 currently empty and should stay that way: an entry there is a hole in
 the gate.
 
-**A new filter or parameter on a form.** Add its field name to
-`FormSpec` (`year_filter_field`, `addr_field`, `subunit_field` and
-friends exist because every form spells the same filter differently),
-add a dimension to `discovery.py`, and add the property the filter must
-have to `test_query_matrix.py`. Do not write a test that drives one
-hand-chosen value.
+**A new filter or parameter on a form.** If it takes a *value*, add its
+field name to `FormSpec` (`year_filter_field`, `addr_field`,
+`subunit_field` and friends exist because every form spells the same
+filter differently), add a dimension to `discovery.py`, and add the
+property it must have to `test_query_matrix.py`. If it is a *switch*,
+add a `Toggle` to `forms.TOGGLES` with its direction. Either way: do not
+write a test that drives one hand-chosen value.
+
+**A new control that ships disabled.** Add a `Precondition` to
+`test_ui_pages.py` saying what un-greys it, or add it to `UNDECLARED`
+and be honest that nothing checks it. The count is asserted, so a new
+build's new control cannot pass unnoticed either way.
 
 **A new page.** `controls.py::_pages` picks up form templates, pickers
 and QBE automatically; the button count and the endpoint gate will fail
@@ -146,3 +158,72 @@ the same thing untested. If you find yourself deciding *which* buttons
 to press, *which* codes to use, or *which* endpoints matter — stop.
 That decision belongs in an inventory the next run inherits. Your
 judgement is the part that does not survive to the next build.
+
+---
+
+## Options as well as values
+
+`forms.TOGGLES` declares each of the 21 boolean and mode options with a
+**direction**: `WIDENS`, `NARROWS`, or `DIFFERS`. The sweep runs the
+query with the option off and on and checks two things:
+
+1. the direction holds — a widening switch cannot lose rows;
+2. **the two results differ.** This is the one that catches an option
+   the handler decodes and never uses; the direction check alone is
+   satisfied by such an option for ever, in both directions.
+
+The direction comes from what the field *means* in the request struct,
+never from running the handler and writing down what it did. That would
+be a transcription, and it would ratify the bug.
+
+### A skip is a lead
+
+When both positions give the same result the test skips, because from
+one switch "the option is ignored" and "this data has nothing on the
+other side of it" are indistinguishable. **Read those skips.** Five of
+the Places form's seven category switches skipped on every input tried.
+
+What settled it was not a better input but a different question: turn
+*all* of them off. A user who has selected no categories has asked for
+nothing, so nothing is the only defensible answer, whatever the data
+holds — and that found CBDB-D-014 in a single request.
+
+Generalise that move. When a per-option sweep cannot decide, look for
+the combination whose correct answer is fixed *regardless of the data*:
+
+- every switch off, or every switch on;
+- a filter value nothing in the database matches;
+- two windows that cannot overlap;
+- the same query twice.
+
+Each of those has an answer you know without consulting CBDB, which is
+exactly what makes it an oracle.
+
+---
+
+## When only a browser can see it
+
+`cbdb_desktop/browser.py` drives the shipped pages in a real Chromium.
+Use it for the two questions HTTP cannot ask — does the page throw on
+load, and is a control enabled once its precondition is met — and for
+nothing else. It is two orders of magnitude slower than a request and
+it fails for reasons that have nothing to do with the application.
+
+Three rules, each paid for:
+
+- **`127.0.0.1`, never `localhost`.** A Chromium resolving the name to
+  `::1` against an IPv4 server reports `ERR_CONNECTION_REFUSED`, which
+  reads exactly like a broken application. `open_page` rewrites it.
+- **Check `location.href` before believing a DOM.** Chrome's own error
+  page has a `document`, and reading it gives you "every element
+  missing, every function undefined" — which looks like a catastrophic
+  application bug and is nothing at all.
+- **A headless browser with `accept_downloads=True` is not the user's
+  browser.** It accepts every download, so Chrome's multiple-download
+  permission never engages. Anything that turns on a browser
+  *permission* has to be established another way, and saying which half
+  of a defect was reproduced how belongs in the defect's evidence.
+
+And skip, never fail, when Chromium is absent: `browser.available()`
+returns the reason, and a suite that goes red on a missing optional
+browser is a suite people learn to ignore.

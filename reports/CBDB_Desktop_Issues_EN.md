@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260907.7z_
 
-_Generated 2026-09-08 08:59 UTC from a run of 789 tests (174s)._
+_Generated 2026-09-08 10:18 UTC from a run of 822 tests (292s)._
 
 Dear maintainer,
 
@@ -16,9 +16,9 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 
 | outcome | count |
 | --- | --- |
-| passed | 670 |
-| xfailed (a known defect, still present) | 84 |
-| skipped | 35 |
+| passed | 688 |
+| xfailed (a known defect, still present) | 86 |
+| skipped | 48 |
 
 ## What the suite covers
 
@@ -32,7 +32,7 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
 | The forms that remember | 16 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
-| This report's own sources | 22 | That every issue below still cites real code, in both languages |
+| This report's own sources | 28 | That every issue below still cites real code, in both languages |
 
 ## Summary
 
@@ -42,6 +42,8 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 | CBDB-D-010 | P0 | CONFIRMED | Two browser tabs, or two copies of the application, share one result |
 | CBDB-D-011 | P0 | CONFIRMED | Every exported CSV is UTF-8 without a byte-order mark, so Excel shows Chinese names as mojibake |
 | CBDB-D-012 | P0 | CONFIRMED | A multi-file export saves only the first file and reports that it saved them all |
+| CBDB-D-013 | P0 | CONFIRMED | Run Query stays greyed out on the Networks form after the page is reopened |
+| CBDB-D-014 | P0 | CONFIRMED | Unticking every category on the Places form still returns biographical addresses |
 | CBDB-D-002 | P2 | CONFIRMED | The Query Builder offers 30 columns that do not exist |
 | CBDB-D-008 | P2 | CONFIRMED | Three of the Networks form's export buttons always fail |
 | CBDB-D-009 | P2 | CONFIRMED | The Associations form's Neo4j export always fails |
@@ -52,6 +54,8 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 - [CBDB-D-010 — Two browser tabs, or two copies of the application, share one result](#cbdb-d-010--two-browser-tabs-or-two-copies-of-the-application-share-one-result)
 - [CBDB-D-011 — Every exported CSV is UTF-8 without a byte-order mark, so Excel shows Chinese names as mojibake](#cbdb-d-011--every-exported-csv-is-utf-8-without-a-byte-order-mark-so-excel-shows-chinese-names-as-mojibake)
 - [CBDB-D-012 — A multi-file export saves only the first file and reports that it saved them all](#cbdb-d-012--a-multi-file-export-saves-only-the-first-file-and-reports-that-it-saved-them-all)
+- [CBDB-D-013 — Run Query stays greyed out on the Networks form after the page is reopened](#cbdb-d-013--run-query-stays-greyed-out-on-the-networks-form-after-the-page-is-reopened)
+- [CBDB-D-014 — Unticking every category on the Places form still returns biographical addresses](#cbdb-d-014--unticking-every-category-on-the-places-form-still-returns-biographical-addresses)
 - [CBDB-D-002 — The Query Builder offers 30 columns that do not exist](#cbdb-d-002--the-query-builder-offers-30-columns-that-do-not-exist)
 - [CBDB-D-008 — Three of the Networks form's export buttons always fail](#cbdb-d-008--three-of-the-networks-forms-export-buttons-always-fail)
 - [CBDB-D-009 — The Associations form's Neo4j export always fails](#cbdb-d-009--the-associations-forms-neo4j-export-always-fails)
@@ -203,11 +207,11 @@ Write EF BB BF at the start of every text export whose consumer is a spreadsheet
 
 #### Description
 
-An export that produces several files downloads them by creating one hidden <a download> per file and clicking each in turn, all inside a single user gesture.  Browsers permit one automatic download per gesture and block the rest, so the first file is saved and the others are not.  The page then reports the number of files the *server* returned -- "2 file(s) ready" -- because it counts the response, not the downloads.  After the block is triggered the browser refuses subsequent exports from the page as well, which is why pressing Export a second time appears to do nothing.
+An export that produces several files downloads them by creating one hidden <a download> per file and clicking each in turn, all inside a single user gesture.  Browsers permit one automatic download per gesture and block the rest, so the first file is saved and the others are not, unless the user has granted the site permission to download several files at once.  The page then reports the number of files the *server* returned -- "2 file(s) ready" -- because it counts the response and never asks what the browser did.  That second half is a defect on its own: the message is wrong whenever the browser declines, and the page has no way to know that it is.
 
 #### Evidence
 
-Reproduced by the maintainer against a running build at http://localhost:8042/LookAtEntry: Export Results reported "Query results export complete - 2 file(s) ready" and one file arrived; pressing Export again saved nothing at all.  The mechanism is in the shipped templates.  Entry's two multi-file handlers fire their clicks in one tick -- `(j.files || []).forEach(f => triggerDownload(f.url, f.name))` -- and then report `(j.files || []).length`.  Four pages do the same; Associations and Networks stagger their clicks by 150 ms per file, which is an attempt at the same problem and still one gesture.  Group Data's Neo4j export returns ten files this way.
+Three separate observations, and it matters which is which.  (1) The maintainer, in Chrome, at http://localhost:8042/LookAtEntry: Export Results reported "Query results export complete - 2 file(s) ready", one file arrived, and pressing Export again saved nothing at all.  (2) The mechanism, in the shipped templates: Entry's two multi-file handlers fire their clicks in one tick -- `(j.files || []).forEach(f => triggerDownload(f.url, f.name))` -- and then report `(j.files || []).length`, which is the server's count and not the browser's.  Four pages do the same; Associations and Networks stagger their clicks by 150 ms per file, which is an attempt at the same problem and still one gesture.  Group Data's Neo4j export returns ten files this way.  (3) Driving the real page in headless Chromium with downloads auto-accepted: the page attempts two downloads per press and the browser accepts **both**, on both presses.  So the count-reporting half is confirmed by automation and the blocking half is not reproducible that way -- an automated browser with a download policy of "always accept" is not the user's browser.  Chrome treats several programmatic downloads from one gesture as automatic multiple downloads, which is a per-site permission that defaults to asking, and once it is not granted the page's later exports save nothing.
 
 #### Impact
 
@@ -218,7 +222,7 @@ The file that goes missing is the second one, and on every form that is the peop
 1. Open the Entry form (/LookAtEntry), pick an entry code and press Query.
 2. Press Export Results.  The status line reads "Query results export complete - 2 file(s) ready".
 3. Look in the download folder: one file, not two.
-4. Press Export Results again.  Nothing is saved, and the status line says the same thing.
+4. Press Export Results again.  Nothing is saved, and the status line says the same thing.  (If Chrome has been granted "automatic downloads" for the site, both files arrive and only the misreported count remains -- which is how an automated browser sees it.)
 5. The same happens for Neo4j on Entry, Association Pairs and Group Data, where the file sets are six, four and ten files.
 
 #### Suggested fix
@@ -235,6 +239,91 @@ Two independent halves.  (1) Deliver a multi-file export as **one** download: a 
 #### Demonstrated by
 
 - 1 × xfailed (a known defect, still present): `test_no_page_asks_the_browser_for_more_than_one_download`
+
+## CBDB-D-013 — Run Query stays greyed out on the Networks form after the page is reopened
+
+**Affected area:** Networks form (/LookAtNetworks)
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+The Networks page decides whether Run Query may be pressed in one function, checkRunCriteria(), which reads the flags that say whether a person or a place has been selected.  Five places set those flags and four of them call that function afterwards.  The fifth is the page's own restore path, which runs on load: it asks the server how many people are in the working list, sets the flag, enables the All People button -- and never re-runs the check.  So a user who returns to the form with a person already selected has met the precondition, can see the person count on screen, and cannot press Run Query until they happen to touch one of the checkboxes.
+
+#### Evidence
+
+Reproduced in a real browser (Chromium, driven by tests/test_ui_pages.py).  With person 1762 registered on the server and the page reloaded: gUsePersonID is true, gPersonCount is 1, the person count is displayed, All People is enabled -- and btn-run is disabled.  Ticking any of the four relation checkboxes fires its onchange, which calls checkRunCriteria(), and Run Query enables immediately.  The asymmetry is visible in the source: the restore path sets the flag and enables one button, while every other flag-setting path ends in checkRunCriteria().
+
+#### Impact
+
+The user has done everything the form asks and the button does not work, with nothing on screen to explain why -- the person is listed, the filters are set, and Run Query is grey.  There is no error and no hint that touching an unrelated checkbox would fix it.  Reported by the maintainer as "I entered a person, chose the relations and the dynasty, and Run Query is always grey".
+
+#### Steps to reproduce
+
+1. Open the Networks form (/LookAtNetworks) and select a person with Select Person.  Run Query enables, as it should.
+2. Navigate away and come back, or simply reload the page.
+3. The person count is still shown and All People is enabled, so the selection survived.
+4. Tick Kinship Relations, Non-Kinship Relations, Male and Female. Run Query is still grey.
+5. Untick and re-tick any one of those checkboxes: Run Query enables. Nothing else changed.
+
+#### Suggested fix
+
+Call checkRunCriteria() at the end of the restore path, as the other four flag-setting paths already do.  Worth doing the same in reverse: have the *only* writer of btn-run.disabled be that one function, so a future path cannot set the flag and forget -- the bug is not the missing line so much as its being possible to omit.
+
+#### Where it lives in the build
+
+- `Templates/networks/index.html`
+
+#### Demonstrated by
+
+- 3 × passed: `test_a_control_is_enabled_once_its_precondition_is_met[networks-btn-run+chk-kin-param]`, `test_a_control_is_enabled_once_its_precondition_is_met[entry-btnExportResults+btnGIS+btnNeo4j+btnStoreIDs]`, `test_a_control_is_enabled_once_its_precondition_is_met[kinship-btn-export-results+btn-tab+btn-kml+btn-neo4j+btn-pajek+btn-gephi+btn-uci-net]`
+- 1 × xfailed (a known defect, still present): `test_a_control_is_enabled_once_its_precondition_is_met[networks-btn-run]`
+
+## CBDB-D-014 — Unticking every category on the Places form still returns biographical addresses
+
+**Affected area:** Places form (/LookAtPlace)
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+The Places form offers seven category checkboxes -- Biography, Association Place, Association Person, Entry, Kinship, Office, Institution -- and the query handler substitutes Biography when it finds all seven switched off (places_form_backend.go:204-206).  As a guard against an empty request that is reasonable.  What makes it a defect is that the page lets a user get there: nothing requires at least one category, so unticking all seven and pressing Query returns the biographical addresses the user has just excluded, with no message saying so.
+
+#### Evidence
+
+For address code 5121, all seven off returns 60 rows and Biography alone returns the same 60; all seven on returns 69.  The five categories that contribute nothing for that code are indistinguishable from ignored options in a one-switch-at-a-time sweep, which is what made the all-off case the decisive experiment.  In the page, ``inc-biog`` merely starts checked and no code path prevents the empty selection.
+
+#### Impact
+
+Narrow.  A user has to untick all seven categories, which is an odd thing to do deliberately -- but it is what somebody does when they want to start from nothing and add one back, and the result they get is silently not what they asked for.  Recorded because it is cheap to fix and because "the form returned a category I excluded" is the kind of thing that costs a historian a day when they eventually notice.
+
+#### Steps to reproduce
+
+1. Open the Places form (/LookAtPlace) and select an address with a few dozen people.
+2. Untick all seven category checkboxes, Biography included.
+3. Press Run Query.
+4. Rows come back, and they are exactly the ones Biography alone returns.
+
+#### Suggested fix
+
+Either honour the empty selection (return nothing, which is what was asked) or refuse it in the page -- keep Run Query disabled until at least one category is ticked, the way the Networks form gates on its relation checkboxes.  The second is the smaller change and gives the user an explanation instead of a surprise.  Leave the backend's fallback where it is: it is a sensible guard for a request that arrives empty from somewhere else.
+
+#### Where it lives in the build
+
+- `Code/places_form_backend.go:204`
+- `Templates/places/index.html`
+
+#### Demonstrated by
+
+- 1 × xfailed (a known defect, still present): `test_turning_every_category_off_returns_nothing`
 
 ## CBDB-D-002 — The Query Builder offers 30 columns that do not exist
 
@@ -387,7 +476,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 789 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 822 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

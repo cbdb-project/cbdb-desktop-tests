@@ -13,25 +13,33 @@ shipped database, a second endpoint of the same app, or a frozen golden
 — never a hand-written transcription of the Go logic, which would only
 test the transcription.
 
-**On the 2026-09-07 build it finds seven defects.** Four of the six it
+**On the 2026-09-07 build it finds nine defects.** Four of the six it
 reported against 2026-09-01 are fixed; one is not, for a reason the
-remediation could not have found by the method it used. The seven:
+remediation could not have found by the method it used. The nine:
 
 - every exported CSV is UTF-8 with no byte-order mark, so Excel opens it
   in the system code page and every Chinese name is mojibake;
 - a multi-file export saves only the first file and reports that it
   saved them all;
+- Run Query stays greyed out on the Networks form after the page is
+  reopened, with the person still selected;
 - four export buttons fail on every input (three on Networks, one on
   Associations);
 - two KML exports produce a file no mapping tool will open;
 - thirty Query Builder columns do not exist under the names it offers;
-- two browser tabs share one result.
+- two browser tabs share one result;
+- unticking every category on the Places form still returns
+  biographical addresses.
 
-Six of the seven are about exports, and that is the reason the suite now
-enumerates its own coverage instead of trusting a test plan: runs
-against the previous build reported no export problems while driving 6
-of the 42 file-producing endpoints. The first run that pressed the other
-36 found four defect families in one go.
+Where they cluster is the point. Six are about exports and three are in
+the pages' own JavaScript — the two places the suite had no coverage at
+all, and between them most of where a user's experience of the
+application actually happens. Runs against the previous build reported
+no export problems while driving 6 of the 42 file-producing endpoints;
+the first run that pressed the other 36 found four defect families in
+one go. So the suite now enumerates its own coverage from the build
+rather than trusting a test plan, and drives the pages in a real browser
+for the layer HTTP cannot reach.
 
 The findings are reported in English and Traditional Chinese, as
 Markdown, Word and PDF, all regenerated from every run:
@@ -87,6 +95,7 @@ most of it Word starting twice to write the PDFs.
 | `test_query_matrix.py` | every form × dynasty × half-century × address combination the shipped data has rows for, discovered rather than hand-picked |
 | `test_scratch_tables.py` | who owns each `ZZ_*` table, and whether the code's declarations match the database |
 | `test_sessions.py` | what happens when the application is used from two tabs, or launched twice |
+| `test_ui_pages.py` | the pages in a real Chromium: do they load without throwing, and does each control un-grey when its precondition is met |
 | `test_zz_controls.py` | every button in every template, and whether this run actually requested what each can reach |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
 
