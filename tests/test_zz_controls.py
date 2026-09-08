@@ -27,6 +27,7 @@ certify coverage -- and it is why ``run_tests.ps1`` runs unfiltered.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -159,19 +160,80 @@ def test_every_endpoint_the_pages_call_is_a_route_the_build_registers(layout,
 # the gate
 # ---------------------------------------------------------------------------
 
-def _run_was_filtered(config) -> str | None:
-    """Why this run cannot certify coverage, or None if it can."""
-    if config.getoption("keyword"):
-        return f'-k {config.getoption("keyword")!r}'
-    if config.getoption("markexpr"):
-        return f'-m {config.getoption("markexpr")!r}'
-    if config.getoption("last_failed", default=False):
+def run_was_filtered(arguments: list[str], *, keyword: str = "",
+                     markexpr: str = "", last_failed: bool = False
+                     ) -> str | None:
+    """Why a run cannot certify coverage, or None if it can.
+
+    Takes its inputs rather than reading ``config`` so that it can be
+    unit-tested, which it needs to be: the first version compared
+    ``config.args`` against the literal ``["tests"]``, and
+    ``run_tests.ps1`` invokes pytest with an **absolute** path.  So the
+    gate declared every canonical run "filtered" and skipped -- the one
+    outcome that looks exactly like success.  Two cold runs went green
+    with no coverage measured at all, and the only reason it was noticed
+    is that ``artifacts/endpoint_coverage.json`` was missing.
+
+    A gate that can silently not run is not a gate.  Hence
+    ``test_the_filter_predicate_recognises_the_canonical_run`` below.
+    """
+    if keyword:
+        return f"-k {keyword!r}"
+    if markexpr:
+        return f"-m {markexpr!r}"
+    if last_failed:
         return "--lf"
-    # An explicit path argument means a subset of files was collected.
-    arguments = [str(argument) for argument in config.args]
-    if arguments and arguments != ["tests"]:
-        return f"explicit test paths: {arguments}"
+    if not arguments:
+        return None                      # bare `pytest`: testpaths applies
+
+    tests_dir = (REPO_ROOT / "tests").resolve()
+    for argument in arguments:
+        # A path argument is unfiltered only if it *is* the tests
+        # directory; anything inside it selects a subset.  Split off a
+        # "::node" selector first, which is always a subset.
+        if "::" in argument:
+            return f"explicit test selection: {argument}"
+        try:
+            resolved = Path(argument).resolve()
+        except OSError:
+            return f"unreadable test path: {argument}"
+        if resolved != tests_dir:
+            return f"explicit test path: {argument}"
     return None
+
+
+def _run_was_filtered(config) -> str | None:
+    return run_was_filtered(
+        [str(argument) for argument in config.args],
+        keyword=config.getoption("keyword") or "",
+        markexpr=config.getoption("markexpr") or "",
+        last_failed=bool(config.getoption("last_failed", default=False)),
+    )
+
+
+def test_the_filter_predicate_recognises_the_canonical_run():
+    """The gate must not mistake ``run_tests.ps1`` for a filtered run.
+
+    Deliberately a test of the predicate and not of the gate: the gate's
+    own failure mode is *skipping*, which no assertion inside it can
+    catch.  This is the only thing standing between "coverage is
+    measured every run" and "coverage was silently never measured", and
+    the second is what actually happened for two runs.
+    """
+    tests_dir = str((REPO_ROOT / "tests").resolve())
+
+    # The two ways the suite is really invoked.
+    assert run_was_filtered([]) is None
+    assert run_was_filtered([tests_dir]) is None
+    assert run_was_filtered(["tests"]) is None, \
+        "a relative path to the same directory must count as unfiltered"
+
+    # And the ways it is filtered.
+    assert run_was_filtered([tests_dir], keyword="export")
+    assert run_was_filtered([tests_dir], markexpr="not slow")
+    assert run_was_filtered([tests_dir], last_failed=True)
+    assert run_was_filtered([str(REPO_ROOT / "tests" / "test_exports.py")])
+    assert run_was_filtered([f"{tests_dir}::test_thing"])
 
 
 def test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run(

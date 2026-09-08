@@ -123,6 +123,16 @@ That test refuses to judge a filtered run (`-k`, `-m`, an explicit path)
 and skips with an explanation, because a subset run legitimately has a
 short record. Coverage is certified by `.\run_tests.ps1`.
 
+**And a gate that can skip itself needs a test of its own decision.**
+The first version of that predicate compared pytest's path argument
+against the literal `"tests"`, while `run_tests.ps1` passes an absolute
+path — so the gate skipped in every canonical run, two cold runs went
+green with nothing measured, and the only trace was a missing
+`artifacts/endpoint_coverage.json`. No assertion inside a skipping test
+can catch that, which is why `run_was_filtered` is now a plain function
+with `test_the_filter_predicate_recognises_the_canonical_run` over it.
+Any test that decides whether to run needs the same treatment.
+
 ### 4. Choosing an input is allowed; predicting an answer is not
 
 `discovery.py` joins base tables to `BIOG_MAIN` — the same shape a
