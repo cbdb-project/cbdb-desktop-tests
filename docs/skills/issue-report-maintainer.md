@@ -52,6 +52,28 @@ this suite its credibility. The bar:
 4. **Get numbers.** "Search is broken" is a complaint. "`Wang` returns 0
    of 50,493, `wa` returns 56,504 correctly, the cutoff is exactly three
    characters" is a bug report.
+5. **Decide the origin, by experiment.** Every entry carries one of
+   `software`, `data` or `release` (`ORIGINS` in `defects.py`), and it
+   decides who the finding is *sent to*. The maintainer of this repo
+   fixes data problems himself, in the CBDB source, and does not want
+   them going to the application developers.
+
+   The experiment is always: **would this survive a rebuild of the
+   database from the current CBDB source, using this same code?** Yes →
+   `software`. A clean rebuild makes it disappear → `data` or
+   `release`. Run it; do not reason about it. Two of the six defects in
+   the 2026-09-01 build were settled this way and both went the way the
+   symptom did *not* suggest.
+
+   The trap is a data problem that looks like a code problem because the
+   application handles it badly, and its mirror image. CBDB-D-009 dies
+   scanning `ADDR_CODES.c_admin_type` into an integer; that column has
+   held text in every build and the schema declares `varchar(255)`, so
+   no refresh will ever make the scan succeed. Origin `software`, one
+   `Scan` to fix. CBDB-D-003 looked like a bug in the name derivation
+   and was a snapshot taken after a `BIOG_MAIN` row was deleted; the
+   derivation cannot invent an orphan, because every row it writes is
+   read out of `BIOG_MAIN`. Origin `data`.
 
 ## Adding a defect
 
@@ -157,6 +179,27 @@ anything yet.
 
 Never retire a defect because it became inconvenient, and never widen a
 marker to make an unrelated failure go away.
+
+**Delete it; do not mark it fixed.** The registry describes the build in
+front of you, not the project's history. An entry that says "resolved in
+2026-09-07" pollutes the report for every reader who has to work out
+which half applies to them, and the git history of `defects.py` is a
+better record than a list nobody re-reads. `AGENTS.md` keeps a short
+table of what was retired and how, which is where a reader of an older
+report is pointed.
+
+The inverse has teeth too: **never drop a finding because a previous
+build called it fixed, or because a previous report did not mention it.**
+Judge each build on its own run and its own source. CBDB-D-008 — three
+Networks export buttons that answer HTTP 500 on every input — predates
+every build this suite has seen, survived a remediation session aimed at
+the very tables it touches, and would have been reasoned away by anyone
+diffing against the last report.
+
+**A fixed defect leaves its test behind.** The assertion stays as an
+ordinary regression test, and where the origin was `release` or `data`
+that test is the *only* thing that would notice a recurrence — a process
+fix is exactly the kind that quietly stops being followed.
 
 ## When the numbers change
 

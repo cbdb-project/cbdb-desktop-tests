@@ -1,4 +1,4 @@
-"""Unpack the CBDB-Desktop distribution zip into a reusable work directory.
+"""Unpack the CBDB-Desktop distribution archive into a reusable work directory.
 
 The archive is ~430 MB compressed and ~1.3 GB unpacked (``Data/CBDB.db``
 alone is 1.2 GB), so staging is *content-addressed and cached*: a zip is
@@ -45,11 +45,11 @@ import sys
 import time
 import uuid
 import warnings
-import zipfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
+from .archives import Archive, ArchiveError
 from .config import Config, load_config
 
 MANIFEST_NAME = "_stage_manifest.json"
@@ -98,29 +98,56 @@ class AppLayout:
     ``root`` is the *pristine master*: tests launch the application
     against a per-session copy of ``db`` (see ``conftest.app_db``) so the
     master stays byte-stable and can serve as an oracle.
+
+    The distribution has not kept one shape.  The zip builds put both
+    executables in ``Bin/`` and named the database ``Data/CBDB.db``; the
+    2026-09-07 7z ships ``cbdb.exe`` at the tree root with an empty
+    ``Bin/``, and a lower-case ``Data/cbdb.db``.  Each piece is therefore
+    *looked up* among the shapes that have shipped, case-insensitively,
+    rather than assumed -- so the suite tests the build it was given
+    instead of failing to find it.  Windows would forgive the casing and
+    Linux would not; the lookup makes both behave the same.
     """
 
     root: Path
 
+    def _resolve(self, *candidates: str) -> Path:
+        """First candidate that exists, else the first -- so errors name it.
+
+        Matching falls back to a case-insensitive scan of the parent
+        directory, which is where the build's casing has actually varied.
+        """
+        for relative in candidates:
+            path = self.root.joinpath(*relative.split("/"))
+            if path.exists():
+                return path
+            parent = path.parent
+            if parent.is_dir():
+                wanted = path.name.lower()
+                for sibling in sorted(parent.iterdir()):
+                    if sibling.name.lower() == wanted:
+                        return sibling
+        return self.root.joinpath(*candidates[0].split("/"))
+
     @property
     def exe(self) -> Path:
-        return self.root / "Bin" / "cbdb.exe"
+        return self._resolve("Bin/cbdb.exe", "cbdb.exe")
 
     @property
     def setup_exe(self) -> Path:
-        return self.root / "Bin" / "CBDBsetup.exe"
+        return self._resolve("Bin/CBDBsetup.exe", "CBDBsetup.exe")
 
     @property
     def db(self) -> Path:
-        return self.root / "Data" / "CBDB.db"
+        return self._resolve("Data/CBDB.db")
 
     @property
     def schema_json(self) -> Path:
-        return self.root / "Data" / "qbe_schema.json"
+        return self._resolve("Data/qbe_schema.json")
 
     @property
     def schema_sql(self) -> Path:
-        return self.root / "Data" / "CBDB.db.schema.sql"
+        return self._resolve("Data/CBDB.db.schema.sql")
 
     @property
     def templates_dir(self) -> Path:
@@ -139,8 +166,20 @@ class AppLayout:
         return self.root / "CBDBSetUpCode"
 
     def go_sources(self) -> list[Path]:
-        """The application's Go sources, sorted -- the code under test."""
-        return sorted(self.code_dir.glob("*.go"))
+        """The application's Go sources, sorted -- the code under test.
+
+        ``*_test.go`` is excluded: ``go build`` leaves those out, so they
+        are not part of the shipped binary and must not be read as if
+        they described it.  The 2026-09-07 build ships one
+        (``qbe_schema_test.go``, the developers' own guardrail for
+        CBDB-D-002); ``go_test_sources`` returns those separately.
+        """
+        return sorted(p for p in self.code_dir.glob("*.go")
+                      if not p.name.endswith("_test.go"))
+
+    def go_test_sources(self) -> list[Path]:
+        """The Go tests shipped alongside the source, sorted."""
+        return sorted(self.code_dir.glob("*_test.go"))
 
     def form_templates(self) -> dict[str, Path]:
         """``{form directory name: index.html}`` for every form page."""
@@ -179,17 +218,53 @@ class AppLayout:
 # archive fingerprinting
 # ---------------------------------------------------------------------------
 
-def _entries(zf: zipfile.ZipFile) -> list[dict[str, object]]:
+#: Trees already staged in this process, and which of them were staged
+#: with ``force``.  See :func:`stage_once`.
+_STAGED_ONCE: dict[tuple[str, str, str], "AppLayout"] = {}
+_FORCED_ONCE: set[tuple[str, str, str]] = set()
+
+
+def stage_once(config: Config, *, force: bool = False,
+               quiet: bool = True) -> "AppLayout":
+    """:func:`stage`, at most once per process for a given archive.
+
+    Two callers need the staged tree at two different moments of a
+    pytest run and must not stage it twice: the ``layout`` fixture, and
+    ``test_query_matrix.py``'s collection hook, which has to read the
+    database before pytest decides which tests exist.
+
+    Calling :func:`stage` twice is not merely wasteful.  With ``force``
+    it re-extracts 1.3 GB, and on Windows the second pass renames the
+    tree the first pass just installed -- which failed with
+    ``PermissionError: [WinError 5]`` mid-swap and errored all 678 tests
+    in a run.  A directory rename is not safe against a handle that was
+    open inside the tree moments earlier, and "moments earlier" is
+    exactly what a second staging in the same process means.
+
+    ``force`` is honoured the first time and ignored afterwards: one
+    ``--restage`` per run is a restage, not two.
+    """
+    key = (str(config.zip_path), str(config.app_dir_override),
+           str(config.work_dir))
+    if key in _STAGED_ONCE and (not force or key in _FORCED_ONCE):
+        return _STAGED_ONCE[key]
+    layout = stage(config, force=force, quiet=quiet)
+    _STAGED_ONCE[key] = layout
+    if force:
+        _FORCED_ONCE.add(key)
+    return layout
+
+
+def _entries(archive: Archive) -> list[dict[str, object]]:
     """Manifest rows for every file member, volatile ones flagged."""
     return [
         {
-            "name": i.filename,
-            "size": i.file_size,
-            "crc": i.CRC,
-            "volatile": is_volatile(i.filename),
+            "name": m.name,
+            "size": m.size,
+            "crc": m.crc,
+            "volatile": is_volatile(m.name),
         }
-        for i in zf.infolist()
-        if not i.is_dir()
+        for m in archive.members
     ]
 
 
@@ -221,10 +296,10 @@ def content_fingerprint(zip_path: Path) -> str:
 def archive_identity(zip_path: Path) -> tuple[str, list[dict[str, object]]]:
     """``(fingerprint, entries)`` for one distribution archive."""
     try:
-        with zipfile.ZipFile(zip_path) as zf:
-            entries = _entries(zf)
-    except zipfile.BadZipFile as exc:
-        raise StagingError(f"{zip_path} is not a readable zip archive: {exc}") from exc
+        with Archive.open(zip_path) as archive:
+            entries = _entries(archive)
+    except ArchiveError as exc:
+        raise StagingError(str(exc)) from exc
     return content_fingerprint(zip_path), entries
 
 
@@ -342,8 +417,11 @@ def integrity_mismatches(layout: AppLayout, manifest: dict,
     # is opened, so those exact paths are allowed back.  The allowance is
     # by full path, not by basename: a stray "Templates/entry/CBDB.db"
     # is an injected file like any other.
+    # Case-insensitively: the 2026-09-07 build renamed it to "cbdb.db",
+    # and missing it here would report the database's own -wal as a file
+    # that is "not part of the distribution".
     db_name = next((str(e["name"]) for e in manifest["entries"]
-                    if str(e["name"]).endswith("CBDB.db")), "Data/CBDB.db")
+                    if str(e["name"]).lower().endswith("cbdb.db")), "Data/CBDB.db")
     expected_names |= {db_name, db_name + "-wal", db_name + "-shm"}
     for path in sorted(layout.root.rglob("*")):
         if not path.is_file():
@@ -432,20 +510,6 @@ def _rmtree(path: Path, *, attempts: int = 5) -> None:
             time.sleep(0.5 * (attempt + 1))
 
 
-def _safe_extract(zf: zipfile.ZipFile, dest: Path) -> None:
-    """Extract every member, refusing any that would escape ``dest``."""
-    dest_resolved = dest.resolve()
-    for info in zf.infolist():
-        name = info.filename
-        parts = Path(name).parts
-        if name.startswith("/") or "\\" in name or ".." in parts:
-            raise StagingError(f"Refusing to extract unsafe archive member: {name!r}")
-        target = (dest / name).resolve()
-        if target != dest_resolved and dest_resolved not in target.parents:
-            raise StagingError(f"Refusing to extract outside the work dir: {name!r}")
-    zf.extractall(dest)
-
-
 def _settle_database(tree: Path) -> bool:
     """Fold any shipped write-ahead log into the database, then drop sidecars.
 
@@ -457,7 +521,7 @@ def _settle_database(tree: Path) -> bool:
 
     Returns True if a non-empty WAL had to be checkpointed.
     """
-    db = tree / "Data" / "CBDB.db"
+    db = AppLayout(tree).db
     wal = db.with_name(db.name + "-wal")
     checkpointed = False
 
@@ -494,8 +558,8 @@ def _settle_database(tree: Path) -> bool:
             )
         checkpointed = True
 
-    for name in _DISCARD_AFTER_EXTRACT:
-        sidecar = tree / name
+    for suffix in ("-wal", "-shm"):
+        sidecar = db.with_name(db.name + suffix)
         if sidecar.exists():
             sidecar.unlink()
     return checkpointed
@@ -656,11 +720,14 @@ def stage(config: Config, *, force: bool = False, quiet: bool = False) -> AppLay
 
     superseded: Path | None = None
     try:
-        with zipfile.ZipFile(zip_path) as zf:
-            _safe_extract(zf, partial)
+        try:
+            with Archive.open(zip_path) as archive:
+                archive.extract_to(partial)
+        except ArchiveError as exc:
+            raise StagingError(str(exc)) from exc
 
         checkpointed = _settle_database(partial)
-        master_db_sha256 = file_sha256(partial / "Data" / "CBDB.db")
+        master_db_sha256 = file_sha256(AppLayout(partial).db)
 
         st = zip_path.stat()
         manifest = {

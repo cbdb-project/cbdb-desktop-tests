@@ -39,15 +39,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO = Path(r"C:\Users\how612\Documents\GitHub\cbdb-desktop-tests")
+REPO = Path(__file__).resolve().parents[2]   # or the repo root, however you got here
 sys.path.insert(0, str(REPO / "tests"))
 
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import load_config
-from cbdb_desktop.staging import stage
+from cbdb_desktop.staging import stage_once
 
 cfg = load_config()
-layout = stage(cfg, quiet=True)
+layout = stage_once(cfg)     # stage_once, not stage: never stage twice
+                             # in one process (see staging.stage_once)
 
 # A fresh copy every time, outside the repo.  Reusing a leftover
 # probe.db inherits the last run's ZZ_SCRATCH_* state and produces a

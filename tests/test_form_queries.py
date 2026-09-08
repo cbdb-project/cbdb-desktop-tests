@@ -14,9 +14,11 @@ sometimes one, and the difference is worth stating:
   logging and skipping any insert that fails; ``export-results`` then
   dumps that table.  Comparing the two therefore checks a 54-column
   insert list against a 54-field struct, and would notice dropped rows.
-* **associations** re-reads ``ZZ_SOCIAL_NETWORK``, which is also where
-  its query read from -- same table, same order.  That catches format
-  and scan losses, not much else.
+* **associations** re-reads ``ZZ_SN_ASSOC``, which is also where its
+  query read from -- same table, same order.  That catches format and
+  scan losses, not much else.  (It was ``ZZ_SOCIAL_NETWORK``, shared
+  with three other forms, until the 2026-09-07 build gave each form its
+  own copy: that sharing was CBDB-D-004.)
 * **office, status, texts, places** post the grid back to a formatter
   that serialises exactly what it was given.  Row counts cannot differ.
   What that pair *does* pin is that the export struct's JSON tags still
@@ -25,11 +27,17 @@ sometimes one, and the difference is worth stating:
 
 **Order dependence is real, but not where it first appears.**  Of these
 six, only entry (``ZZ_SCRATCH_ENTRY``) and associations
-(``ZZ_SOCIAL_NETWORK``, ``ZZ_SCRATCH_PEOPLE``) write anything during a
-query; the other four build their result in a single SELECT.  Cross-form
-leakage is therefore not something these six can do to each other -- but
-three *other* forms clobber the tables associations exports from, which
-is a real defect and is tested at the end of this file.
+(``ZZ_SN_ASSOC``, ``ZZ_SP_ASSOC``) write anything during a query; the
+other four build their result in a single SELECT.  Cross-form leakage is
+therefore not something these six can do to each other -- and, since the
+per-form split, not something Association Pairs, Networks or Kinship can
+do to Associations either.  The test at the end of this file drives all
+three of them anyway: "each form has its own table" is exactly the kind
+of property a later refactor re-shares by accident, and nothing but the
+table's *name* now keeps them apart.
+
+What none of this covers is two requests from two browser tabs, which
+share everything: CBDB-D-010, in ``test_sessions.py``.
 
 Every test issues its own query before exporting, so the file is safe
 under ``-k`` selection and in any file order.
@@ -49,7 +57,6 @@ from collections import Counter
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
 from cbdb_desktop.forms import FORMS, FORMS_BY_NAME, FormSpec
 
 pytestmark = pytest.mark.app
@@ -402,23 +409,46 @@ def test_the_same_query_twice_gives_the_same_answer(app: CbdbApp, form: FormSpec
 # cross-form interference
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["associations-export-clobbered"].reason)
+@pytest.mark.parametrize("interfering", [
+    # The three forms that used to clear the table the Associations
+    # export reads.  All three, not one: CBDB-D-004 was originally filed
+    # against Association Pairs and Networks and Kinship did it too, and
+    # a fix that gave only one of them its own table would look correct
+    # against a single-form test.
+    ("assocpairs", "/api/assocpairs/query",
+     {"personId1": 1762, "personId2": 0, "useList": False,
+      "includeKinship": False, "use2ndOrder": False,
+      "yearFilterType": "none", "allDynasties": True}),
+    ("networks", "/api/networks/query",
+     {"usePersonID": True, "useKin": True, "useNonKin": True,
+      "useMale": True, "useFemale": True, "maxLoop": 1, "maxNodeDist": 1,
+      "kinParam": True, "maxUp": 1, "maxDwn": 1, "maxCol": 1, "maxMar": 1}),
+    ("kinship", "/api/kinship/query",
+     {"maxUp": 1, "maxDown": 1, "maxCol": 1, "maxMarr": 1,
+      "mourningCircle": False}),
+], ids=lambda param: param[0])
 def test_another_form_does_not_empty_the_associations_export(
-        app: CbdbApp, cheap_codes):
-    """Associations exports whatever is in ZZ_SOCIAL_NETWORK *now*.
+        app: CbdbApp, cheap_codes, interfering):
+    """Another form's query must not touch the Associations export.
 
-    Its export takes no body and no lock: it re-reads the scratch table
-    the query filled.  Three other forms -- Association Pairs, Networks
-    and Kinship -- delete from that same table as part of their own
-    queries.  So visiting one of them between pressing Query and pressing
-    Export replaces the user's result with an empty file, with no error
-    and no indication that anything was lost.
+    This was CBDB-D-004 in the 2026-09-01 build: the export took no
+    request body and no lock, re-reading ``ZZ_SOCIAL_NETWORK``, and
+    Association Pairs, Networks and Kinship each cleared that same table
+    as part of their own query.  Visiting one of them between pressing
+    Query and pressing Export replaced the user's result with an empty
+    file, with no error and no sign anything had been lost.
 
-    This is the increment's real order-dependence: not the six read-only
-    forms interfering with each other (four of them write nothing), but
-    the forms that share this table with them.
+    The 2026-09-07 build gives each form its own copy
+    (``ZZ_SN_ASSOC``/``ZZ_SP_ASSOC`` for this one), so the test is now
+    an ordinary assertion rather than an xfail -- and it stays, driving
+    all three of the forms that used to interfere, because "each form
+    has its own table" is exactly the kind of property a later
+    refactor re-shares by accident.
+
+    What it cannot check is two *requests* to the same form: that is
+    CBDB-D-010, and it has its own test in test_sessions.py.
     """
+    _form, path, body = interfering
     associations = FORMS_BY_NAME["associations"]
     payload = _query(app, associations, cheap_codes(associations))
     rows = associations.rows(payload)
@@ -428,17 +458,12 @@ def test_another_form_does_not_empty_the_associations_export(
     assert len(before) - 1 == len(rows), "the export did not match the query"
 
     # A perfectly ordinary thing for a user to do next.
-    other = app.post("/api/assocpairs/query", json={
-        "personId1": 1762, "personId2": 0, "useList": False,
-        "includeKinship": False, "use2ndOrder": False,
-        "yearFilterType": "none", "allDynasties": True})
+    other = app.post(path, json=body)
     assert other.status_code == 200, other.text[:200]
 
     after = _csv_rows(_export(app, associations, payload)[0]["url"])
-    if len(after) - 1 == 0:
-        raise KnownShippedDefect(
-            f"an Association Pairs query emptied the Associations export: "
-            f"{len(before) - 1} rows before, {len(after) - 1} after")
     assert len(after) - 1 == len(rows), (
-        f"the Associations export changed after an unrelated query: "
+        f"a {_form} query changed the Associations export: "
         f"{len(before) - 1} rows before, {len(after) - 1} after")
+    assert after == before, \
+        f"a {_form} query changed the content of the Associations export"

@@ -10,6 +10,7 @@ guarantee every other test in the suite rests on.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -24,6 +25,7 @@ from cbdb_desktop.config import (
     load_config,
 )
 from cbdb_desktop import staging
+from cbdb_desktop.archives import Archive, ArchiveError, common_root
 from cbdb_desktop.staging import (
     MANIFEST_NAME,
     VOLATILE_ENTRIES,
@@ -89,6 +91,34 @@ def _fake_distribution(zip_path: Path,
         for name, body in members.items():
             zf.writestr(name, body)
     return zip_path
+
+
+#: The members every fake distribution carries, whatever the container.
+_DISTRIBUTION_MEMBERS: dict[str, str] = {
+    "Bin/cbdb.exe": "MZ-not-really",
+    "Bin/CBDBsetup.exe": "MZ-not-really-either",
+    "Data/CBDB.db": "SQLite format 3\x00",
+    "Data/qbe_schema.json": '{"tables":[]}',
+    "Data/CBDB.db.schema.sql": "CREATE TABLE BIOG_MAIN(c_personid INTEGER);",
+    "Templates/navigation/index.html": "<html></html>",
+    "Static/cbdb_styles.css": "body{}",
+    "Code/main.go": "package main",
+}
+
+
+def _fake_distribution_7z(path: Path, *, root: str | None) -> Path:
+    """The same minimal distribution, in a 7z, optionally wrapped in ``root``."""
+    py7zr = pytest.importorskip("py7zr")
+    staged = path.parent / (path.stem + "-src")
+    base = staged / root if root else staged
+    for name, body in _DISTRIBUTION_MEMBERS.items():
+        member = base / name
+        member.parent.mkdir(parents=True, exist_ok=True)
+        member.write_text(body, encoding="utf-8")
+    with py7zr.SevenZipFile(path, "w") as archive:
+        for child in sorted(staged.iterdir()):
+            archive.writeall(child, child.name)
+    return path
 
 
 def _config(tmp_path: Path, zip_path: Path | None, **kw) -> Config:
@@ -578,35 +608,101 @@ def test_backslash_members_are_refused(tmp_path: Path):
     reading a central directory, so this shape cannot be delivered through
     a real ZipFile on Windows -- but a hostile archive can still carry it,
     and the guard is what stops "..\\x" and UNC paths from being treated
-    as ordinary relative names.  Driving _safe_extract directly is the
-    only way to hold that branch honest.
+    as ordinary relative names.  Driving the archive layer with a forged
+    member list is the only way to hold that branch honest.
     """
-    class ForgedZip:
+    class ForgedArchive(Archive):
         def __init__(self, names):
-            self.infos = []
-            for n in names:
-                info = zipfile.ZipInfo("placeholder")
-                info.filename = n
-                self.infos.append(info)
+            super().__init__(tmp_path / "forged.zip")
+            self.names = names
             self.extracted = False
 
-        def infolist(self):
-            return self.infos
+        def _open(self):
+            pass
 
-        def extractall(self, dest):  # pragma: no cover - must never run
+        def _raw_members(self):
+            for name in self.names:
+                yield name, 0, 0
+
+        def _extractall(self, dest):  # pragma: no cover - must never run
             self.extracted = True
 
     for hostile in ("..\\escaped.txt", "\\\\server\\share\\escaped.txt",
                     "sub\\..\\..\\escaped.txt"):
-        forged = ForgedZip([hostile])
-        with pytest.raises(StagingError, match="unsafe archive member"):
-            staging._safe_extract(forged, tmp_path / "dest")
+        forged = ForgedArchive([hostile])
+        with pytest.raises(ArchiveError, match="unsafe archive member"):
+            forged.extract_to(tmp_path / "dest")
         assert not forged.extracted, "extraction started despite a hostile member"
 
     # A member that is merely unusual, not hostile, still extracts.
-    ok = ForgedZip(["Data/CBDB.db", "Templates/entry/index.html"])
-    staging._safe_extract(ok, tmp_path / "dest")
+    ok = ForgedArchive(["Data/CBDB.db", "Templates/entry/index.html"])
+    ok.extract_to(tmp_path / "dest")
     assert ok.extracted
+
+
+# ---------------------------------------------------------------------------
+# archive containers: the distribution has shipped as both .zip and .7z
+# ---------------------------------------------------------------------------
+
+def test_a_seven_zip_distribution_stages_like_a_zip(tmp_path: Path):
+    """The container is an implementation detail above the archive layer.
+
+    The 2026-09-07 build switched from .zip to .7z *and* moved the tree
+    under a ``CBDB-Desktop/`` wrapper.  Staging must produce the same
+    layout from either -- otherwise every path-shaped assertion in the
+    suite silently starts describing a directory one level up.
+    """
+    seven = _fake_distribution_7z(tmp_path / "dist.7z", root="CBDB-Desktop")
+    layout = stage(_config(tmp_path, seven), quiet=True)
+
+    layout.verify()
+    assert not (layout.root / "CBDB-Desktop").exists(), "the wrapper was not stripped"
+    assert layout.db.read_bytes().startswith(b"SQLite format 3")
+
+    manifest = read_manifest(layout.root)
+    names = {str(e["name"]) for e in manifest["entries"]}
+    assert "Data/CBDB.db" in names
+    assert not any(n.startswith("CBDB-Desktop/") for n in names)
+    # And the cached tree is re-verifiable, which is the property the
+    # CRCs in the manifest exist for.
+    assert integrity_mismatches(layout, manifest) == []
+
+
+def test_an_unwrapped_seven_zip_is_staged_as_it_stands(tmp_path: Path):
+    """Only a *lone* common root is stripped, and only when it is one."""
+    seven = _fake_distribution_7z(tmp_path / "flat.7z", root=None)
+    layout = stage(_config(tmp_path, seven), quiet=True)
+    layout.verify()
+    assert (layout.root / "Data").is_dir()
+
+
+def test_a_root_level_file_beside_the_wrapper_is_not_stripped():
+    """A file at the archive root means there is no wrapper to strip.
+
+    Stripping on a prefix match instead would drop that file from both
+    the member list and the staged tree, with nothing to notice it.
+    """
+    assert common_root(["CBDB-Desktop/Data/CBDB.db",
+                        "CBDB-Desktop/cbdb.exe"]) == "CBDB-Desktop"
+    assert common_root(["CBDB-Desktop/Data/CBDB.db", "CBDB-Desktop"]) is None
+    assert common_root(["CBDB-Desktop/a", "Other/b"]) is None
+    assert common_root(["cbdb.exe", "Data/CBDB.db"]) is None
+    assert common_root(["../escaped.txt"]) is None
+    assert common_root([]) is None
+
+
+def test_a_corrupt_seven_zip_is_reported_not_crashed(tmp_path: Path):
+    bad = tmp_path / "bad.7z"
+    bad.write_bytes(b"7z\xbc\xaf\x27\x1c" + b"not really" * 40)
+    with pytest.raises(StagingError, match="7z"):
+        stage(_config(tmp_path, bad), quiet=True)
+
+
+def test_an_unknown_archive_type_is_refused(tmp_path: Path):
+    rar = tmp_path / "dist.rar"
+    rar.write_bytes(b"Rar!\x1a\x07\x00")
+    with pytest.raises(StagingError, match="unsupported distribution archive type"):
+        stage(_config(tmp_path, rar), quiet=True)
 
 
 def test_app_dir_override_skips_staging(tmp_path: Path):
@@ -965,7 +1061,10 @@ def test_staged_distribution_matches_the_archive(layout: AppLayout, config: Conf
     # future build renames or nests it, the volatile flag would silently
     # stop matching and this test would fail confusingly on the second run.
     volatile = {e["name"] for e in manifest["entries"] if e.get("volatile")}
-    assert any(name.endswith("CBDB.db") for name in volatile), volatile
+    # Case-insensitively: the 2026-09-07 build ships "Data/cbdb.db", the
+    # zip builds shipped "Data/CBDB.db", and Windows treats the two as
+    # the same file while this comparison would not.
+    assert any(name.lower().endswith("cbdb.db") for name in volatile), volatile
     assert not any(name.endswith(".go") or name.endswith(".exe") for name in volatile)
 
     mismatches = integrity_mismatches(layout, manifest)
@@ -1002,8 +1101,12 @@ def test_master_database_is_clean_and_valid(layout: AppLayout, sqlite_conn):
     If a ``-wal`` shows up beside the master, something ran the app
     against the pristine tree instead of a per-session copy.
     """
-    assert not layout.db.with_name("CBDB.db-wal").exists()
-    assert not layout.db.with_name("CBDB.db-shm").exists()
+    # By the shipped database's own name, whatever the build calls it:
+    # the 2026-09-07 build renamed it to lower case, and a hard-coded
+    # "CBDB.db-wal" would look for a sidecar that could never exist and
+    # pass without checking anything.
+    assert not layout.db.with_name(layout.db.name + "-wal").exists()
+    assert not layout.db.with_name(layout.db.name + "-shm").exists()
     assert layout.db.stat().st_size > 1024**3
 
     assert sqlite_conn.execute("PRAGMA quick_check").fetchone()[0] == "ok"
@@ -1014,21 +1117,37 @@ def test_master_database_is_clean_and_valid(layout: AppLayout, sqlite_conn):
 
 
 def test_app_gets_a_writable_copy_that_cannot_touch_the_master(
-        app_db: Path, layout: AppLayout):
-    """Writes to the working copy must leave the master untouched.
+        app_db: Path, layout: AppLayout, tmp_path: Path):
+    """Writes to a working copy must leave the master untouched.
 
     This is the property the whole pristine-master design rests on: the
     application writes ZZ_SCRATCH_* on every query, and none of it may
     reach the tree the oracle and the provenance check read.
+
+    The writing is done to a **fresh** copy taken here rather than to
+    the session's ``app_db``.  An earlier version wrote to the session
+    copy and asserted its size still matched the master's, which made
+    the test order-dependent for no benefit: by the time this file runs,
+    the application has legitimately filled the session copy's scratch
+    tables, and whether that changes the file's size is up to SQLite's
+    page reuse.  It passed against the 2026-09-01 build and failed
+    against 2026-09-07 without either build doing anything wrong.
+
+    ``app_db`` is still requested, because the property under test is
+    about the design of that fixture -- that it hands out a copy and not
+    the master.
     """
     import sqlite3 as _sqlite3
 
     assert app_db.resolve() != layout.db.resolve()
-    assert app_db.stat().st_size == layout.db.stat().st_size
+
+    private = tmp_path / layout.db.name
+    shutil.copyfile(layout.db, private)
+    assert private.stat().st_size == layout.db.stat().st_size
 
     before = (layout.db.stat().st_size, layout.db.stat().st_mtime_ns)
 
-    conn = _sqlite3.connect(app_db)
+    conn = _sqlite3.connect(private)
     try:
         conn.execute("CREATE TABLE IF NOT EXISTS ZZ_TEST_ISOLATION(x INTEGER)")
         conn.execute("INSERT INTO ZZ_TEST_ISOLATION VALUES (1)")
@@ -1040,4 +1159,4 @@ def test_app_gets_a_writable_copy_that_cannot_touch_the_master(
         conn.close()
 
     assert (layout.db.stat().st_size, layout.db.stat().st_mtime_ns) == before
-    assert not layout.db.with_name("CBDB.db-wal").exists()
+    assert not layout.db.with_name(layout.db.name + "-wal").exists()

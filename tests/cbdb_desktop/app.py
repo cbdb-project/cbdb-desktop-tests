@@ -396,8 +396,28 @@ class CbdbApp:
     def post(self, path: str, json: Any = None, **kwargs: Any) -> requests.Response:
         return self.request("POST", path, json=json, **kwargs)
 
+    #: Every ``(method, path)`` any instance has requested in this
+    #: process, with numeric path segments folded to ``{id}``.  A class
+    #: attribute on purpose: the coverage gate in test_controls.py has
+    #: to see the whole session, and three separate ``CbdbApp`` objects
+    #: serve one run (the session's, the index-address file's, and the
+    #: ones the driver tests start and stop).
+    #:
+    #: Recording here rather than counting on each test to declare what
+    #: it drives is the difference between measured coverage and claimed
+    #: coverage.  It costs one set insertion per request.
+    requested: set[tuple[str, str]] = set()
+
+    @staticmethod
+    def _coverage_key(method: str, path: str) -> tuple[str, str]:
+        base = path.split("?", 1)[0]
+        folded = "/".join("{id}" if segment.isdigit() else segment
+                          for segment in base.split("/"))
+        return method.upper(), folded
+
     def request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         """One HTTP call, with the application's health folded into errors."""
+        CbdbApp.requested.add(self._coverage_key(method, path))
         kwargs.setdefault("timeout", self.config.http_timeout)
         try:
             return self._session.request(method, self.url(path), **kwargs)

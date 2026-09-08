@@ -7,18 +7,24 @@ several, clear), and the query then runs over whatever that list holds.
 A second, separate list -- the stored person ids -- is how one form hands
 a result to another.
 
-Both lists are single and global.  There is one
-``ZZ_SCRATCH_IMPORT_PEOPLE`` and one ``ZZ_STORE_PERSON_ID`` for the whole
-application, shared by every form, which is why:
+The two lists stopped being the same kind of thing in the 2026-09-07
+build:
 
-* Kinship and Networks always report the same ``person-count``: they are
-  two views of one table, and that agreement is a free cross-form
-  invariant worth asserting.
-* Any form's ``store-person-ids`` replaces every other form's stored
-  list -- except that Kinship and Networks refuse with 409 when the list
-  is not empty, while the other six overwrite it silently.  That
-  asymmetry is pinned below; it is the sort of thing that is nobody's bug
-  and everybody's surprise.
+* **The working list is now per form.**  It used to be one global
+  ``ZZ_SCRATCH_IMPORT_PEOPLE``, so Kinship and Networks were two views
+  of one table and always reported the same ``person-count``.  Splitting
+  it into ``ZZ_SIP_KINSHIP`` / ``ZZ_SIP_NETWORK`` / ``ZZ_SIP_ASSOC_PAIR``
+  was part of the CBDB-D-004 remediation, and it changes what a user
+  sees: people imported on the Networks form are no longer waiting on
+  the Kinship form.  The isolation is asserted in both directions below
+  -- a later refactor that re-shared one of these tables would
+  otherwise pass every other test here.
+* **The stored list is still global.**  One ``ZZ_STORE_PERSON_ID`` for
+  the whole application, which is now the only cross-form channel and
+  therefore how a result travels between forms.  Kinship and Networks
+  refuse with 409 when it is not empty while the other six overwrite it
+  silently; that asymmetry is pinned below, being the sort of thing that
+  is nobody's bug and everybody's surprise.
 
 These tests therefore run as explicit sequences and set up their own
 state rather than inheriting it.  This file is deliberately last
@@ -34,7 +40,7 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.forms import STORE_RESET, WORKING_LIST_RESETS
 
 pytestmark = pytest.mark.app
 
@@ -58,23 +64,22 @@ def egos(sqlite_conn) -> list[int]:
 
 @pytest.fixture
 def clean_lists(app: CbdbApp, egos):
-    """Empty both shared lists before the test, and again afterwards.
+    """Empty every list before the test, and again afterwards.
 
     Without this each test inherits whatever the previous one left --
     including, on a fresh install, whatever the release was packaged with
-    (see CBDB-D-005).
+    (CBDB-D-005, in the 2026-09-01 build).
 
-    This resets the two *lists*, not the dozen scratch tables the queries
+    This resets the *lists*, not the dozen scratch tables the queries
     fill.  Those are left as they are deliberately: every query truncates
     the tables it reads before writing them, so the tests that read a
     result always re-seed it.  Nothing here restores the application to
     its shipped state, and no test should assume it does.
     """
     def reset():
-        app.post("/api/networks/clear-person", json={})
-        # The store has no "clear"; storing an empty list is how the
-        # forms that overwrite silently empty it.
-        app.post("/api/places/store-person-ids", json={"personIds": []})
+        for path, body in WORKING_LIST_RESETS:
+            app.post(path, json=body)
+        app.post(STORE_RESET[0], json=STORE_RESET[1])
 
     reset()
     yield
@@ -89,8 +94,6 @@ def _count(app: CbdbApp, path: str) -> int:
 # what the release ships with
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["shipped-scratch-state"].reason)
 def test_a_fresh_install_starts_with_no_working_state(app: CbdbApp, sqlite_conn):
     """A new user's application should be empty until they use it.
 
@@ -98,6 +101,14 @@ def test_a_fresh_install_starts_with_no_working_state(app: CbdbApp, sqlite_conn)
     by the time this test runs other tests have legitimately put things
     in the session's copy.  What is being asserted is a property of the
     artefact that was shipped.
+
+    This was CBDB-D-005 in the 2026-09-01 build, where fourteen scratch
+    tables arrived holding a previous session's work.  Its origin was
+    the release process, not the code -- the database sent out was a
+    working copy rather than one built through the provisioning pipeline
+    -- so nothing was patched and this test is the only thing that would
+    notice it happening again.  Which is the reason to keep it: a
+    process fix is exactly the kind that quietly stops being followed.
     """
     populated = {}
     for row in sqlite_conn.execute(
@@ -113,48 +124,131 @@ def test_a_fresh_install_starts_with_no_working_state(app: CbdbApp, sqlite_conn)
         if count:
             populated[name] = count
 
-    if populated:
-        raise KnownShippedDefect(
-            f"{len(populated)} scratch tables in the shipped database still "
-            f"hold a previous session's work: "
-            f"{dict(sorted(populated.items())[:6])}")
-    assert not populated
+    assert not populated, (
+        f"{len(populated)} scratch tables in the shipped database hold a "
+        f"previous session's work: {dict(sorted(populated.items())[:6])}.  "
+        "The release was assembled from a working copy rather than from a "
+        "database built through the provisioning pipeline.")
 
 
 # ---------------------------------------------------------------------------
 # the working list
 # ---------------------------------------------------------------------------
 
-def test_setting_and_clearing_the_working_list(app: CbdbApp, egos, clean_lists):
-    """Set one person, import several, clear: the count follows.
+@pytest.mark.parametrize("form", ["kinship", "networks"])
+def test_setting_and_filling_the_working_list(app: CbdbApp, egos,
+                                              clean_lists, form: str):
+    """Set one person, then import several: the count follows.
 
-    Deliberately mixes the two forms -- Kinship sets, Networks imports
-    and clears, and both are asked for the count -- because the list is
-    one table behind two form's endpoints.  Asserting only that the two
-    counts *agree* would prove nothing: both handlers run the same SELECT
-    against the same table.  What is worth checking is that a write
-    through one form is visible through the other.
+    Driven through one form at a time, which is the shape the lists now
+    have.  Until 2026-09-07 this test deliberately mixed the two --
+    Kinship set, Networks imported and cleared -- because there was one
+    table behind both forms' endpoints, and the property worth checking
+    was that a write through one was visible through the other.  That
+    property is now false by design, and asserted false in the next
+    test rather than quietly dropped.
     """
-    assert _count(app, "/api/networks/person-count") == 0
+    assert _count(app, f"/api/{form}/person-count") == 0
 
-    assert app.json("POST", "/api/kinship/set-person",
+    assert app.json("POST", f"/api/{form}/set-person",
                     json={"personId": egos[0]})["count"] == 1
-    assert _count(app, "/api/networks/person-count") == 1, \
-        "a person set on the Kinship form is not on the Networks form"
+    assert _count(app, f"/api/{form}/person-count") == 1
 
-    imported = app.json("POST", "/api/networks/import-people",
+    # Both list-filling endpoints truncate first, so importing three
+    # people over one person leaves three, not four.
+    imported = app.json("POST", f"/api/{form}/import-people",
                         json={"personIds": egos[:3]})
     assert imported["count"] == 3
-    assert _count(app, "/api/kinship/person-count") == 3, \
-        "people imported on the Networks form are not on the Kinship form"
+    assert _count(app, f"/api/{form}/person-count") == 3
 
-    assert app.json("POST", "/api/networks/clear-person", json={})["count"] == 0
-    assert _count(app, "/api/kinship/person-count") == 0
+    # Emptying it is deliberately *not* done through import-people here:
+    # the two forms disagree about what an empty import means, and that
+    # disagreement has its own test below.  Each form's own documented
+    # reset is used instead -- the one the fixtures use.
+    path, body = next((p, b) for p, b in WORKING_LIST_RESETS
+                      if p.startswith(f"/api/{form}/"))
+    assert app.post(path, json=body).status_code == 200
+    assert _count(app, f"/api/{form}/person-count") == 0
+
+
+def test_the_two_forms_disagree_about_importing_an_empty_list(
+        app: CbdbApp, egos, clean_lists):
+    """Kinship's empty import clears the list; Networks' does not.
+
+    Pinned as behaviour rather than filed, and the asymmetry is the
+    whole content of it. Both endpoints answer ``{"count": 0}``:
+
+    * Kinship truncates and then inserts nothing, so the answer is
+      true;
+    * Networks short-circuits on an empty list and returns before it
+      clears anything, so the answer is a count of a list that still
+      holds three people.
+
+    Not a defect report, because the page cannot reach it: an empty
+    import means a file that parsed to no ids, and the frontend does
+    not send that. It is here because it cost a run — a fixture that
+    reset the working lists this way left three people behind and the
+    next test read them as its own — and because "the count a form
+    reports is not the count it has" is the kind of thing worth having
+    written down before somebody trusts it.
+    """
+    assert app.json("POST", "/api/networks/import-people",
+                    json={"personIds": egos[:3]})["count"] == 3
+    assert app.json("POST", "/api/networks/import-people",
+                    json={"personIds": []})["count"] == 0
+    assert _count(app, "/api/networks/person-count") == 3, \
+        "Networks' empty import now clears the list -- update this test " \
+        "and cbdb_desktop.forms.WORKING_LIST_RESETS, which works around it"
+
+    assert app.json("POST", "/api/kinship/import-people",
+                    json={"personIds": egos[:3]})["count"] == 3
+    assert app.json("POST", "/api/kinship/import-people",
+                    json={"personIds": []})["count"] == 0
+    assert _count(app, "/api/kinship/person-count") == 0, \
+        "Kinship's empty import no longer clears the list, which is how " \
+        "the fixtures empty it"
+
+
+def test_each_forms_working_list_is_its_own(app: CbdbApp, egos, clean_lists):
+    """Filling one form's working list must not touch another's.
+
+    The user-visible half of the CBDB-D-004 remediation, and the half a
+    later refactor is most likely to undo: the three tables are named
+    per form (``ZZ_SIP_KINSHIP``, ``ZZ_SIP_NETWORK``,
+    ``ZZ_SIP_ASSOC_PAIR``) and nothing but the name keeps them apart.
+
+    Asserted in both directions and with *different* people in each
+    list, so it cannot pass by the two counts happening to agree --
+    which is precisely what the previous, shared implementation did.
+    """
+    assert app.json("POST", "/api/kinship/import-people",
+                    json={"personIds": egos[:2]})["count"] == 2
+    assert _count(app, "/api/networks/person-count") == 0, \
+        "people imported on the Kinship form appeared on the Networks form"
+
+    assert app.json("POST", "/api/networks/import-people",
+                    json={"personIds": egos[2:5]})["count"] == 3
+    assert _count(app, "/api/kinship/person-count") == 2, \
+        "importing on the Networks form changed the Kinship form's list"
+
+    # Clearing one leaves the other -- the trap for any test, or any
+    # fixture, that assumes one endpoint resets the application.
+    assert app.json("POST", "/api/networks/clear-person",
+                    json={})["count"] == 0
+    assert _count(app, "/api/kinship/person-count") == 2, \
+        "clearing the Networks list emptied the Kinship list too"
 
 
 def test_a_kinship_query_needs_a_person_and_says_nothing_without_one(
         app: CbdbApp, clean_lists):
-    """With an empty working list the query is empty, not an error."""
+    """With an empty working list the query is empty, not an error.
+
+    Depends on ``clean_lists`` clearing *Kinship's own* list.  When that
+    fixture cleared only through /api/networks/clear-person -- correct
+    while the two forms shared one table -- this test read whatever the
+    previous test had left on the Kinship form and failed with a full
+    result.  A state dependency, not a defect in the application.
+    """
     payload = app.json("POST", "/api/kinship/query",
                        json={"maxUp": 1, "maxDown": 1, "maxCol": 1,
                              "maxMarr": 1, "mourningCircle": False})
