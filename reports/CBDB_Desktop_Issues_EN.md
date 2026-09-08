@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260907.7z_
 
-_Generated 2026-09-08 10:18 UTC from a run of 822 tests (292s)._
+_Generated 2026-09-08 10:38 UTC from a run of 823 tests (293s)._
 
 Dear maintainer,
 
@@ -16,9 +16,9 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 
 | outcome | count |
 | --- | --- |
-| passed | 688 |
+| passed | 690 |
 | xfailed (a known defect, still present) | 86 |
-| skipped | 48 |
+| skipped | 47 |
 
 ## What the suite covers
 
@@ -476,7 +476,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 822 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 823 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

@@ -222,6 +222,17 @@ Three properties make these worth more than a checklist:
    matrix here therefore has a companion test asserting the matrix is
    populated — that is what `test_the_discovered_matrix_covers_every_form
    _and_dimension` is for, and it is not optional decoration.
+4. **A gate that can skip itself is not a gate.** The endpoint-coverage
+   gate refuses to judge a filtered run, and its first version decided
+   "filtered" by comparing pytest's path argument against the literal
+   `"tests"` — while `run_tests.ps1` passes an *absolute* path. So the
+   gate skipped in every canonical run, two cold runs went green with
+   no coverage measured, and the only trace was a missing
+   `artifacts/endpoint_coverage.json`. The predicate now has its own
+   unit test (`test_the_filter_predicate_recognises_the_canonical_run`)
+   because no assertion *inside* a skipping test can catch this. If a
+   test can decide not to run, something else has to check that
+   decision.
 
 ### Inputs come from the data
 
