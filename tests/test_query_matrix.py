@@ -53,7 +53,9 @@ import pytest
 from cbdb_desktop import discovery
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import REPO_ROOT
-from cbdb_desktop.forms import FORMS_BY_NAME, FormSpec
+from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.forms import (FORMS_BY_NAME, NARROWS, TOGGLES,
+                                WIDENS, FormSpec, Toggle)
 
 pytestmark = pytest.mark.app
 
@@ -351,6 +353,179 @@ def test_an_address_filter_narrows_and_never_adds(app: CbdbApp, combination):
         f"{combination.id}: including sub-units lost "
         f"{len(narrow - with_subunits)} pairs that the same address without "
         f"sub-units returned: {sorted(narrow - with_subunits)[:5]}")
+
+
+# ---------------------------------------------------------------------------
+# every switch, in both positions
+# ---------------------------------------------------------------------------
+
+def _discovered_codes(matrix, form_name: str) -> list[int]:
+    """The discovered codes for one form."""
+    return [c.codes[0] for c in matrix
+            if c.form == form_name and c.dimension == "code"]
+
+
+def _resolve_needs(toggle: Toggle, sqlite_conn) -> dict:
+    """Fill in the fields an option needs to reach the query at all.
+
+    ``filterBac`` does nothing without ``bacCodes``; a sub-unit switch
+    does nothing without an address.  The values are discovered, so the
+    option is exercised against data that exists rather than against an
+    id somebody typed in.
+    """
+    out: dict = {}
+    for field_name, value in toggle.needs.items():
+        if value == "@address":
+            row = sqlite_conn.execute(
+                "SELECT c_index_addr_id FROM BIOG_MAIN "
+                "WHERE c_index_addr_id > 0 GROUP BY c_index_addr_id "
+                "HAVING COUNT(*) BETWEEN 20 AND 400 "
+                "ORDER BY COUNT(*) DESC LIMIT 1").fetchone()
+            assert row, "no address has between 20 and 400 people indexed"
+            out[field_name] = [row[0]]
+        elif value == "@bac":
+            row = sqlite_conn.execute(
+                "SELECT c_addr_type FROM BIOG_ADDR_CODES "
+                "WHERE c_addr_type > 0 ORDER BY c_addr_type LIMIT 1"
+            ).fetchone()
+            assert row, "no positive address type in BIOG_ADDR_CODES"
+            out[field_name] = [row[0]]
+        else:
+            out[field_name] = value
+    return out
+
+
+@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
+                   reason=BY_NAME["ignored-empty-selection"].reason)
+def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
+    """Ask the Places form for no categories at all, and see what arrives.
+
+    This is where the switch sweep above stopped being able to answer.
+    Five of the Places form's seven category switches report "identical
+    either way" on every input tried -- turning Biography off changes
+    nothing -- and a skip cannot tell "the option is ignored" from "this
+    data has nothing on the other side of it".
+
+    Turning *all* of them off settles it in one request and needs no
+    special input: a user who has selected no categories has asked for
+    nothing, so nothing is the only defensible answer.  What comes back
+    is the biography rows, because the handler substitutes Biography
+    when it finds every switch off (places_form_backend.go:204-206).
+
+    That substitution is deliberate, and as a guard against an empty
+    request it is reasonable.  What makes it a defect is that the page
+    lets a user reach it: the seven checkboxes have no "at least one"
+    rule, ``inc-biog`` merely starts checked, and unticking all seven
+    and pressing Query returns biographical addresses the user has
+    explicitly excluded, with no message.
+
+    Written as one test rather than seven because the seven-way version
+    would need, per branch, an input where only that branch contributes
+    -- and finding that means reproducing the handler's own joins, which
+    is the thing this suite does not do.
+    """
+    form = FORMS_BY_NAME["places"]
+    codes = _discovered_codes(matrix, "places")[-1:]
+    assert codes, "discovery found no address codes"
+
+    branches = ("includeBiog", "includeAssocPlace", "includeAssocPerson",
+                "includeEntry", "includeKinship", "includeOffice",
+                "includeInst")
+    everything_off = dict(form.body(codes),
+                          **{branch: False for branch in branches})
+    biography_only = dict(form.body(codes),
+                          **{branch: (branch == "includeBiog")
+                             for branch in branches})
+
+    nothing = _pairs(form, _query(app, form, everything_off))
+    biography = _pairs(form, _query(app, form, biography_only))
+
+    # Without this the test would pass on a code whose biography branch
+    # is empty anyway, and prove nothing.
+    assert biography, \
+        f"places code {codes} has no biographical addresses, so this " \
+        "cannot distinguish the two"
+
+    if nothing == biography:
+        raise KnownShippedDefect(
+            f"every category switched off returned {sum(nothing.values())} "
+            "rows, exactly the biography branch's own result: the handler "
+            "substitutes Biography for an empty selection and the page "
+            "lets the user make one")
+    assert not nothing, (
+        f"every category switched off returned {sum(nothing.values())} "
+        f"rows from somewhere: {sorted(nothing)[:5]}")
+
+
+@pytest.mark.parametrize("toggle", [pytest.param(t, id=t.id) for t in TOGGLES])
+def test_a_switch_changes_the_result_in_the_direction_it_claims(
+        app: CbdbApp, toggle: Toggle, matrix, sqlite_conn):
+    """Run the query with the option off, then on, and compare.
+
+    The other half of "vary every adjustable option and compare what
+    came back with what should have".  The filters with *values* --
+    codes, dynasty, years, address -- are covered by the matrix above;
+    these are the ones with a switch.  There are 21 across the six
+    forms and the suite drove two of them before this test existed.
+
+    Two properties, and the second is the one that catches an option
+    the handler decodes and then ignores:
+
+    * **Direction.**  A switch that widens can only add rows; one that
+      narrows can only remove them.  Neither claim needs to know what
+      the data holds, and the direction is read off the request
+      struct's own meaning -- ``includeSubUnits`` cannot lose people,
+      ``mainSourceOnly`` cannot gain texts.
+    * **Effect.**  On an input chosen to make the option matter, the
+      two results must differ.  A handler that read the field and never
+      used it would satisfy the direction check perfectly, in both
+      directions, forever.
+
+    The effect half cannot always be demanded: for some (code, option)
+    pairs this data release genuinely has nothing on the other side of
+    the switch.  Those skip, naming the option and the row count, rather
+    than asserting a difference the build cannot produce -- and the
+    skips are worth reading, because a switch that skips on *every*
+    input is a switch nothing has ever tested.
+    """
+    form = FORMS_BY_NAME[toggle.form]
+    # One code, the last discovered (the least dense of the three), not
+    # all of them: a sub-unit switch on a populous place fans out past
+    # 20,000 rows, and this test is about the direction of a switch
+    # rather than about how much data one code covers.
+    codes = _discovered_codes(matrix, toggle.form)[-1:]
+    assert codes, f"{toggle.form}: discovery found no codes"
+
+    extra = _resolve_needs(toggle, sqlite_conn)
+
+    def run(value) -> Counter:
+        body = dict(form.body(codes), **extra)
+        body[toggle.option] = value
+        return _pairs(form, _query(app, form, body))
+
+    off = run(toggle.off)
+    on = run(toggle.on)
+
+    if not off and not on:
+        pytest.skip(f"{toggle.id}: the query returns nothing in either "
+                    "position, so the option cannot be judged")
+
+    if toggle.direction == WIDENS:
+        lost = off - on
+        assert not lost, (
+            f"{toggle.id}: turning it on lost {len(lost)} rows that were "
+            f"there with it off, and it can only add: {sorted(lost)[:5]}")
+    elif toggle.direction == NARROWS:
+        gained = on - off
+        assert not gained, (
+            f"{toggle.id}: turning it on added {len(gained)} rows that were "
+            f"not there with it off, and it can only remove: "
+            f"{sorted(gained)[:5]}")
+
+    if on == off:
+        pytest.skip(
+            f"{toggle.id}: identical either way ({sum(on.values())} rows) "
+            "-- this input cannot tell whether the option is wired up")
 
 
 def test_a_dynasty_filter_narrows_and_never_adds(app: CbdbApp, combination):

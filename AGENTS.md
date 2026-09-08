@@ -41,22 +41,26 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 789 tests, ~670 passing, 84 xfailed against seven
-confirmed defects, ~35 skipped, nothing failing.**  Measured on the
-2026-09-07 build, from a cold restage: the tests take ~173 s, and
-`.\run_tests.ps1` adds ~15 s for `generate_report.py`, most of it Word
-starting twice to write the PDFs.  Every skip is "this discovered
-combination, or this file, has nothing that could be judged", and each
-names what it is and why -- which is also why the passed/skipped split
-moves by one or two between runs as the discovered inputs shift.  The
-total, the xfail count and *zero failures* are the numbers to read.
+**Current state: 822 tests, ~689 passing, 86 xfailed against nine
+confirmed defects, ~47 skipped, nothing failing.**  Measured on the
+2026-09-07 build, from a cold restage: the tests take ~280 s, of which
+the browser tests are ~110 s, and `run_tests.ps1` adds ~15 s for
+`generate_report.py` (most of that is Word starting twice to write the
+PDFs).  Every skip says what it could not judge and why -- a discovered
+combination with no rows, a file with no non-ASCII text, a switch whose
+two positions this data cannot distinguish -- which is also why the
+passed/skipped split moves by one or two between runs.  The total, the
+xfail count and *zero failures* are the numbers to read.
 
-Of those tests, 234 are generated from the shipped data
-(`test_query_matrix.py`) and 247 from the shipped build's own export
-and control inventories -- see § *Coverage is the program's job*.  The
-run's measured endpoint coverage is written to
+Of those tests, 254 are generated from the shipped data
+(`test_query_matrix.py`, including the switch sweep) and 247 from the
+build's own export and control inventories -- see § *Coverage is the
+program's job*.  The run's measured endpoint coverage is written to
 `artifacts/endpoint_coverage.json`: **105 of 105** endpoints reachable
 from the user interface were actually requested, with nothing excused.
+Enable-state coverage is the honest counterpart: 14 of the 106 controls
+that ship `disabled` have a declared precondition, and the other 92 are
+pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
 
 New here?  `README.md` has the three-line setup (install, copy
 `.env.example` to `.env`, point `CBDB_DESKTOP_ZIP` at the distribution
@@ -251,36 +255,131 @@ satisfies the filter it was given (ask for dynasty 15, get only dynasty
 never adds rows, and two adjacent half-centuries stay disjoint while
 their union fits inside the span covering both.
 
-### What this suite still cannot see
+### Vary every adjustable option, and compare against what should have happened
 
-Worth knowing before concluding that a green run means a working
-application. Everything here is driven over HTTP, so **nothing that
-happens in the browser is covered**, and two of the seven defects in
-this build live there:
+The matrix has two halves, because the forms' controls do.
 
-- **CBDB-D-012** — a multi-file export saves one file and says it saved
-  them all. The server is faultless: `test_an_export_is_repeatable`
-  shows both files coming back, identically, every time. The defect is
-  in the page's delivery of them, and it was found by the maintainer
-  pressing Export twice in a real browser.
-- **CBDB-D-011** — the missing byte-order mark. This one *is* visible
-  over HTTP, but only if you look at the bytes rather than decoding
-  them. The first version of the export tests decoded and moved on, so
-  it passed 42 endpoints and told nobody.
+**Filters with a value** — codes, dynasty, year window, address — are
+covered by `discovery.py` feeding `test_query_matrix.py`: observe the
+data, classify it by density, sample the populated combinations, drive
+each one, and check the properties that must hold (every row satisfies
+the filter, narrowing never adds, adjacent windows stay disjoint).
 
-The lesson for both is the same and it is not "add a browser": it is
-that **"the endpoint answered correctly" and "the user got what they
-asked for" are different claims**, and this suite can only make the
-first. When a finding is about delivery — a download, an encoding, a
-file a program has to open — read the page's own JavaScript as data
-(`controls.py` already parses it) and pin the mechanism there, the way
-`test_no_page_asks_the_browser_for_more_than_one_download` does. A
-source-level test cannot prove the symptom, but it names the line, it
-cannot be flaky, and it fails when the fix lands.
+**Filters with a switch** — 21 booleans and modes across the six forms
+— are covered by `forms.TOGGLES` feeding
+`test_a_switch_changes_the_result_in_the_direction_it_claims`. Each
+switch is declared with a **direction** read off the request struct's
+own meaning:
 
-And take a maintainer's report of a symptom as evidence. Two of these
-came in as "the second export does not save" and "it says 2 files and
-one arrived", which is a decisive experiment already performed.
+| direction | means | example |
+|---|---|---|
+| `WIDENS` | turning it on can only add rows | `includeSubUnits` |
+| `NARROWS` | turning it on can only remove rows | `mainSourceOnly` |
+| `DIFFERS` | it changes the result, in no fixed direction | `addressFrame` (person's address vs. the entry's) |
+
+The test runs the query twice, off and on, and checks the direction —
+plus a second property that is the one that actually catches a dead
+option: **the two results must differ**. A handler that decodes a field
+and never uses it satisfies every direction check, in both directions,
+for ever.
+
+**A skip here is a lead, not a pass.** When the two results are
+identical the test skips, because "the option is ignored" and "this data
+has nothing on the other side of it" look the same from one switch. Read
+those skips. Five of the Places form's seven category switches skipped
+on every input tried, and the way to settle it was not a better input
+but a different experiment: **turn all seven off at once.** A user who
+selects no categories has asked for nothing, so nothing is the only
+defensible answer, and the request needs no special data. That found
+CBDB-D-014 in one call.
+
+That is the general shape when a per-option sweep cannot decide:
+> find the combination whose *correct* answer is fixed regardless of the
+> data, and ask for that.
+
+All-off, all-on, a filter value nothing matches, two disjoint windows —
+each has an answer that does not depend on what CBDB contains, which is
+what makes it an oracle.
+
+### The browser layer: what only a browser can see
+
+Everything except `test_ui_pages.py` talks HTTP, and that covers what
+the server computes and nothing about what the user gets. Four of the
+defects in this build live in the gap, and three of them arrived as the
+maintainer's own reports rather than as a test failure:
+
+| defect | the server | the user |
+|---|---|---|
+| CBDB-D-013 | answers every request correctly | Run Query is grey with its precondition met |
+| CBDB-D-012 | returns both files, identically, every time | gets one file and is told it got two |
+| CBDB-D-011 | writes valid UTF-8 | opens it in Excel and sees mojibake |
+| CBDB-D-014 | applies a documented fallback | gets a category they unticked |
+
+`cbdb_desktop/browser.py` drives the shipped pages in a real Chromium
+through Playwright and reports three things a page cannot hide: what it
+logged, what it downloaded, and which of its controls are disabled.
+`test_ui_pages.py` uses it for the two questions nothing else can ask:
+
+1. **Does every page load without throwing?** A page that raises while
+   attaching its handlers leaves every control inert — and every HTTP
+   test still passes. Thirteen page loads, and the page list is read
+   out of the routing table.
+2. **Is every control that ships disabled enabled by its
+   precondition?** 106 controls ship `disabled`. `PRECONDITIONS`
+   declares what a user does and what that must un-grey;
+   `UNDECLARED` pins the rest, may only shrink, and is the honest count
+   of what this file does *not* check.
+
+Three traps, all paid for:
+
+* **Use `127.0.0.1`, never `localhost`.** A Chromium that resolves the
+  name to `::1` against a server bound to IPv4 reports
+  `ERR_CONNECTION_REFUSED`, which reads exactly like a broken
+  application. `browser.open_page` rewrites it.
+* **A headless browser with `accept_downloads=True` is not the user's
+  browser.** It saves every file, so Chrome's multiple-download
+  permission — the whole of CBDB-D-012's blocking half — never engages.
+  Anything that turns on a browser *permission* has to be checked
+  another way; for that one, by reading the page's delivery code.
+* **Skip, do not fail, when Chromium is absent.** Playwright downloads
+  its own browser and a fresh checkout has none. `browser.available()`
+  returns the reason and the tests skip with it; a suite that goes red
+  on a missing optional dependency teaches people to ignore it.
+
+### Reproduce it yourself — including your own findings
+
+The rule the maintainer stated, and it applies to a report from him just
+as much as to one from you:
+
+> Do not just take my word for it; reproduce it. And not only the one
+> problem — find all of them.
+
+Two of this round's defects were filed from a mechanism read out of the
+source plus the maintainer's observation, and reproducing them changed
+what they say:
+
+* **CBDB-D-012.** Driving the real page in headless Chromium showed the
+  page attempting two downloads per press and the browser accepting
+  **both**, on both presses. The count-reporting half is confirmed by
+  automation; the blocking half is not reproducible that way. The
+  defect's evidence now says which is which, and that is a better bug
+  report than the confident version was.
+* **CBDB-D-014.** The "no categories selected" result looked like an
+  ignored switch. Reading `places_form_backend.go:204` showed a
+  deliberate fallback, so the defect is not "the switch does nothing"
+  but "the page lets you reach a request the backend has to guess at" —
+  a different fix, in a different file.
+
+Two mistakes of my own from the same session, in the same spirit:
+
+* I derived `/LookAtPlaces` from the `places/` template directory, got a
+  404, and briefly had a "broken page" finding. The route is
+  `/LookAtPlace`. `routes.py` exists so that nothing has to guess at the
+  build; the test now reads the page list from it.
+* I read Chrome's own error page — `chrome-error://chromewebdata/`,
+  every element missing, every function undefined — and nearly
+  concluded that the Networks form was structurally destroyed. Check
+  `location.href` before believing a DOM.
 
 ### Every run is a fresh assessment
 
@@ -513,16 +612,18 @@ The registry is `tests/cbdb_desktop/defects.py`.
 |---|---|---|---|
 | CBDB-D-011 | P0 | software | Every exported CSV is UTF-8 without a byte-order mark, so Excel shows Chinese names as mojibake |
 | CBDB-D-012 | P0 | software | A multi-file export saves only the first file and reports that it saved them all |
+| CBDB-D-013 | P0 | software | Run Query stays greyed out on the Networks form after the page is reopened |
 | CBDB-D-008 | P2 | software | Three of the Networks form's export buttons always fail |
 | CBDB-D-009 | P2 | software | The Associations form's Neo4j export always fails |
 | CBDB-D-007 | P0 | software | Two KML exports produce a file no mapping tool will open |
 | CBDB-D-002 | P2 | software | The Query Builder offers 30 columns that do not exist |
 | CBDB-D-010 | P0 | software | Two browser tabs, or two copies of the application, share one result |
+| CBDB-D-014 | P0 | software | Unticking every category on the Places form still returns biographical addresses |
 
-Six of the seven are about exports, which is not a coincidence: the
-export surface is where this suite had no coverage at all until
-2026-09-08, and where the user's own experience of the application
-mostly happens.
+Where they cluster is not a coincidence. Six are about exports and
+three are in the pages' own JavaScript -- the two places this suite had
+no coverage at all until 2026-09-08, and between them most of where a
+user's experience of the application actually happens.
 
 **Fixed in the 2026-09-07 build**, entries deleted per § *Every run is a
 fresh assessment*; listed here only so a reader of an older report knows

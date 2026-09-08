@@ -55,6 +55,16 @@ if (-not (Test-Path (Join-Path $ROOT ".env"))) {
 if ($DryRun) {
     Write-Host "[dry-run] python -c 'import pytest, requests'"
 } else {
+    # The browser tests skip themselves when Playwright has no Chromium,
+    # which is the right behaviour and also easy to miss in a run's
+    # output -- so say so here, before the run, where it is read.
+    $browserWhy = python -c "import sys; sys.path.insert(0,'tests'); from cbdb_desktop import browser; ok, why = browser.available(); print('' if ok else why)" 2>$null
+    if ($browserWhy) {
+        Write-Host "  browser tests will SKIP: $browserWhy" -ForegroundColor Yellow
+    } else {
+        Write-Host "  browser tests enabled (Playwright Chromium found)" -ForegroundColor DarkGray
+    }
+
     python -c "import pytest, requests, pytest_jsonreport" 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "missing dependencies.  Run: python -m pip install -r requirements.txt"

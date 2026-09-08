@@ -52,6 +52,8 @@ def pytest_configure(config):
         "markers", "app: test drives the real cbdb.exe over HTTP (slow)")
     config.addinivalue_line(
         "markers", "slow: test runs a full-dataset query (minutes)")
+    config.addinivalue_line(
+        "markers", "browser: test drives the pages in a real Chromium")
 
 
 @pytest.fixture(scope="session")

@@ -164,6 +164,198 @@ class Defect:
 
 _DEFECTS: tuple[Defect, ...] = (
     Defect(
+        key="CBDB-D-014",
+        priority="P0",
+        severity="low",
+        origin="software",
+        title="Unticking every category on the Places form still returns "
+              "biographical addresses",
+        title_zh="在地點表單把所有類別都取消勾選後，仍然會回傳籍貫類地址",
+        area="Places form (/LookAtPlace)",
+        area_zh="地點表單（/LookAtPlace）",
+        summary=(
+            "The Places form offers seven category checkboxes -- "
+            "Biography, Association Place, Association Person, Entry, "
+            "Kinship, Office, Institution -- and the query handler "
+            "substitutes Biography when it finds all seven switched off "
+            "(places_form_backend.go:204-206).  As a guard against an "
+            "empty request that is reasonable.  What makes it a defect is "
+            "that the page lets a user get there: nothing requires at "
+            "least one category, so unticking all seven and pressing "
+            "Query returns the biographical addresses the user has just "
+            "excluded, with no message saying so."),
+        summary_zh=(
+            "地點表單提供七個類別核取方框——籍貫、社會關係地點、社會關係人物、"
+            "入仕、親屬關係、官職、機構——而查詢處理程式在發現七個全部關閉時，"
+            "會自行代入「籍貫」（places_form_backend.go:204-206）。作為對"
+            "空白請求的防護，這樣做是合理的。真正構成缺陷的是頁面允許使用者"
+            "走到這一步：沒有任何規則要求至少勾選一個類別，因此把七個全部"
+            "取消後按下查詢，回傳的正是使用者剛剛排除掉的籍貫類地址，而且"
+            "沒有任何提示。"),
+        evidence=(
+            "For address code 5121, all seven off returns 60 rows and "
+            "Biography alone returns the same 60; all seven on returns "
+            "69.  The five categories that contribute nothing for that "
+            "code are indistinguishable from ignored options in a "
+            "one-switch-at-a-time sweep, which is what made the all-off "
+            "case the decisive experiment.  In the page, ``inc-biog`` "
+            "merely starts checked and no code path prevents the empty "
+            "selection."),
+        evidence_zh=(
+            "以地址代碼 5121 為例：七個全部關閉會回傳 60 列，只開「籍貫」也"
+            "同樣是那 60 列；七個全開則是 69 列。對這個代碼而言，那五個沒有"
+            "貢獻任何資料的類別，在「一次只切換一個開關」的掃描中與被忽略的"
+            "選項無法區分——這正是為什麼「全部關閉」才是決定性的實驗。在頁面"
+            "端，``inc-biog`` 只是預設為勾選，並沒有任何程式碼阻止使用者送出"
+            "空白的選擇。"),
+        impact=(
+            "Narrow.  A user has to untick all seven categories, which is "
+            "an odd thing to do deliberately -- but it is what somebody "
+            "does when they want to start from nothing and add one back, "
+            "and the result they get is silently not what they asked "
+            "for.  Recorded because it is cheap to fix and because "
+            "\"the form returned a category I excluded\" is the kind of "
+            "thing that costs a historian a day when they eventually "
+            "notice."),
+        impact_zh=(
+            "影響範圍很窄。使用者必須把七個類別全部取消勾選，刻意這樣做的"
+            "情況不多——但當有人想「先全部清空、再一個一個加回來」時就會這麼"
+            "做，而他得到的結果並不是他要求的，卻沒有任何提示。之所以記錄"
+            "下來，是因為修起來很便宜，而且「表單回傳了我排除掉的類別」這種"
+            "問題，等到研究者真的發現時，往往已經浪費了一整天。"),
+        fix=(
+            "Either honour the empty selection (return nothing, which is "
+            "what was asked) or refuse it in the page -- keep Run Query "
+            "disabled until at least one category is ticked, the way the "
+            "Networks form gates on its relation checkboxes.  The second "
+            "is the smaller change and gives the user an explanation "
+            "instead of a surprise.  Leave the backend's fallback where "
+            "it is: it is a sensible guard for a request that arrives "
+            "empty from somewhere else."),
+        fix_zh=(
+            "兩種做法皆可：一是尊重空白的選擇（回傳空結果，那正是使用者要求"
+            "的），二是在頁面端就拒絕——在至少勾選一個類別之前保持 Run Query "
+            "為停用，就像社會網絡表單以關係核取方框作為前置條件那樣。後者改"
+            "動較小，而且能給使用者一個說明，而不是一個意外。後端的預設代入"
+            "可以保留：對於從別處送來的空白請求，那是一道合理的防護。"),
+        steps=(
+            "Open the Places form (/LookAtPlace) and select an address "
+            "with a few dozen people.",
+            "Untick all seven category checkboxes, Biography included.",
+            "Press Run Query.",
+            "Rows come back, and they are exactly the ones Biography "
+            "alone returns.",
+        ),
+        steps_zh=(
+            "開啟地點表單（/LookAtPlace），選一個有數十人的地址。",
+            "把七個類別核取方框全部取消勾選，包含「籍貫」。",
+            "按下 Run Query。",
+            "結果回傳了資料，而且正是只開「籍貫」時會得到的那一批。",
+        ),
+        source=("Code/places_form_backend.go:204",
+                "Templates/places/index.html"),
+        tests=("test_turning_every_category_off_returns_nothing",),
+    ),
+    Defect(
+        key="CBDB-D-013",
+        priority="P0",
+        severity="high",
+        origin="software",
+        title="Run Query stays greyed out on the Networks form after the "
+              "page is reopened",
+        title_zh="重新開啟社會網絡表單後，Run Query 仍然是灰色的",
+        area="Networks form (/LookAtNetworks)",
+        area_zh="社會網絡表單（/LookAtNetworks）",
+        summary=(
+            "The Networks page decides whether Run Query may be pressed in "
+            "one function, checkRunCriteria(), which reads the flags that "
+            "say whether a person or a place has been selected.  Five "
+            "places set those flags and four of them call that function "
+            "afterwards.  The fifth is the page's own restore path, which "
+            "runs on load: it asks the server how many people are in the "
+            "working list, sets the flag, enables the All People button -- "
+            "and never re-runs the check.  So a user who returns to the "
+            "form with a person already selected has met the precondition, "
+            "can see the person count on screen, and cannot press Run "
+            "Query until they happen to touch one of the checkboxes."),
+        summary_zh=(
+            "社會網絡頁面用一個函式 checkRunCriteria() 決定 Run Query 是否"
+            "可按，它讀取「是否已選擇人物或地點」這些旗標。共有五處會設定"
+            "這些旗標，其中四處在設定後會呼叫該函式。第五處是頁面自己的狀態"
+            "還原流程，在載入時執行：它向伺服器詢問工作清單裡有多少人、設定"
+            "旗標、啟用 All People 按鈕——卻沒有重新執行那個檢查。因此，"
+            "使用者重新回到這個表單、明明已經選好人物、畫面上也看得到人數，"
+            "卻要等到碰巧去點某個核取方框，Run Query 才會變成可按。"),
+        evidence=(
+            "Reproduced in a real browser (Chromium, driven by "
+            "tests/test_ui_pages.py).  With person 1762 registered on the "
+            "server and the page reloaded: gUsePersonID is true, "
+            "gPersonCount is 1, the person count is displayed, All People "
+            "is enabled -- and btn-run is disabled.  Ticking any of the "
+            "four relation checkboxes fires its onchange, which calls "
+            "checkRunCriteria(), and Run Query enables immediately.  The "
+            "asymmetry is visible in the source: the restore path sets the "
+            "flag and enables one button, while every other flag-setting "
+            "path ends in checkRunCriteria()."),
+        evidence_zh=(
+            "已在真實瀏覽器中重現（Chromium，由 tests/test_ui_pages.py "
+            "驅動）。在伺服器端已登記人物 1762、並重新載入頁面的情況下："
+            "gUsePersonID 為 true、gPersonCount 為 1、畫面顯示人數、"
+            "All People 為可按——而 btn-run 是灰的。只要勾選四個關係核取"
+            "方框中的任何一個，就會觸發它的 onchange、呼叫 "
+            "checkRunCriteria()，Run Query 立刻變成可按。這種不對稱在原始碼"
+            "中看得很清楚：還原流程設定旗標並啟用了一個按鈕，而其他每一條"
+            "設定旗標的路徑最後都會呼叫 checkRunCriteria()。"),
+        impact=(
+            "The user has done everything the form asks and the button "
+            "does not work, with nothing on screen to explain why -- the "
+            "person is listed, the filters are set, and Run Query is grey. "
+            " There is no error and no hint that touching an unrelated "
+            "checkbox would fix it.  Reported by the maintainer as \"I "
+            "entered a person, chose the relations and the dynasty, and "
+            "Run Query is always grey\"."),
+        impact_zh=(
+            "使用者已經照表單要求做完了每一步，按鈕卻不能用，畫面上也沒有"
+            "任何說明——人物列在那裡、篩選條件都設好了，Run Query 卻是灰的。"
+            "沒有錯誤訊息，也沒有任何提示說「去碰一下某個無關的核取方框就好"
+            "了」。維護者的原話是：「輸入了人名、選擇了關係和朝代之後，"
+            "run query 始終是灰的」。"),
+        fix=(
+            "Call checkRunCriteria() at the end of the restore path, as "
+            "the other four flag-setting paths already do.  Worth doing "
+            "the same in reverse: have the *only* writer of "
+            "btn-run.disabled be that one function, so a future path "
+            "cannot set the flag and forget -- the bug is not the missing "
+            "line so much as its being possible to omit."),
+        fix_zh=(
+            "在還原流程的最後呼叫 checkRunCriteria()，就像另外四條設定旗標"
+            "的路徑那樣。也建議反過來加一道保障：讓 btn-run.disabled 的"
+            "*唯一*寫入者就是那個函式，這樣未來新增的路徑就不可能設了旗標"
+            "卻忘了刷新——真正的問題不只是少了一行，而是這一行有可能被漏掉。"),
+        steps=(
+            "Open the Networks form (/LookAtNetworks) and select a person "
+            "with Select Person.  Run Query enables, as it should.",
+            "Navigate away and come back, or simply reload the page.",
+            "The person count is still shown and All People is enabled, so "
+            "the selection survived.",
+            "Tick Kinship Relations, Non-Kinship Relations, Male and "
+            "Female. Run Query is still grey.",
+            "Untick and re-tick any one of those checkboxes: Run Query "
+            "enables. Nothing else changed.",
+        ),
+        steps_zh=(
+            "開啟社會網絡表單（/LookAtNetworks），用 Select Person 選一位"
+            "人物。此時 Run Query 會如預期變成可按。",
+            "離開頁面再回來，或直接重新載入頁面。",
+            "人數仍然顯示著、All People 也還是可按，可見選擇並沒有遺失。",
+            "勾選親屬關係、非親屬關係、男、女。Run Query 仍然是灰的。",
+            "把其中任何一個核取方框取消再勾選一次：Run Query 就變成可按了。"
+            "其他什麼都沒有改變。",
+        ),
+        source=("Templates/networks/index.html",),
+        tests=("test_a_control_is_enabled_once_its_precondition_is_met",),
+    ),
+    Defect(
         key="CBDB-D-011",
         priority="P0",
         severity="high",
@@ -277,12 +469,14 @@ _DEFECTS: tuple[Defect, ...] = (
             "creating one hidden <a download> per file and clicking each "
             "in turn, all inside a single user gesture.  Browsers permit "
             "one automatic download per gesture and block the rest, so "
-            "the first file is saved and the others are not.  The page "
-            "then reports the number of files the *server* returned -- "
-            "\"2 file(s) ready\" -- because it counts the response, not "
-            "the downloads.  After the block is triggered the browser "
-            "refuses subsequent exports from the page as well, which is "
-            "why pressing Export a second time appears to do nothing."),
+            "the first file is saved and the others are not, unless the "
+            "user has granted the site permission to download several "
+            "files at once.  The page then reports the number of files "
+            "the *server* returned -- \"2 file(s) ready\" -- because it "
+            "counts the response and never asks what the browser did.  "
+            "That second half is a defect on its own: the message is "
+            "wrong whenever the browser declines, and the page has no way "
+            "to know that it is."),
         summary_zh=(
             "會產生多個檔案的匯出，做法是為每個檔案建立一個隱藏的 "
             "<a download> 並依序點擊，而且全部發生在同一次使用者操作中。"
@@ -292,30 +486,51 @@ _DEFECTS: tuple[Defect, ...] = (
             "完成的下載。一旦觸發封鎖，瀏覽器連後續的匯出也會一併拒絕，這就"
             "是為什麼第二次按下匯出看起來毫無反應。"),
         evidence=(
-            "Reproduced by the maintainer against a running build at "
+            "Three separate observations, and it matters which is which.  "
+            "(1) The maintainer, in Chrome, at "
             "http://localhost:8042/LookAtEntry: Export Results reported "
-            "\"Query results export complete - 2 file(s) ready\" and one "
-            "file arrived; pressing Export again saved nothing at all.  "
-            "The mechanism is in the shipped templates.  Entry's two "
+            "\"Query results export complete - 2 file(s) ready\", one file "
+            "arrived, and pressing Export again saved nothing at all.  "
+            "(2) The mechanism, in the shipped templates: Entry's two "
             "multi-file handlers fire their clicks in one tick -- "
             "`(j.files || []).forEach(f => triggerDownload(f.url, "
-            "f.name))` -- and then report `(j.files || []).length`.  Four "
-            "pages do the same; Associations and Networks stagger their "
-            "clicks by 150 ms per file, which is an attempt at the same "
-            "problem and still one gesture.  Group Data's Neo4j export "
-            "returns ten files this way."),
+            "f.name))` -- and then report `(j.files || []).length`, which "
+            "is the server's count and not the browser's.  Four pages do "
+            "the same; Associations and Networks stagger their clicks by "
+            "150 ms per file, which is an attempt at the same problem and "
+            "still one gesture.  Group Data's Neo4j export returns ten "
+            "files this way.  (3) Driving the real page in headless "
+            "Chromium with downloads auto-accepted: the page attempts two "
+            "downloads per press and the browser accepts **both**, on both "
+            "presses.  So the count-reporting half is confirmed by "
+            "automation and the blocking half is not reproducible that "
+            "way -- an automated browser with a download policy of "
+            "\"always accept\" is not the user's browser.  Chrome treats "
+            "several programmatic downloads from one gesture as automatic "
+            "multiple downloads, which is a per-site permission that "
+            "defaults to asking, and once it is not granted the page's "
+            "later exports save nothing."),
         evidence_zh=(
-            "維護者在執行中的版本上重現：於 "
-            "http://localhost:8042/LookAtEntry 按下匯出結果，畫面顯示"
+            "三項各自獨立的觀察，而它們的分別很重要。"
+            "(1) 維護者在自己的 Chrome 上、於 "
+            "http://localhost:8042/LookAtEntry 按下匯出結果：畫面顯示"
             "「Query results export complete — 2 file(s) ready」，實際只"
             "收到一個檔案；再按一次匯出則完全沒有存下任何東西。"
-            "機制就在釋出的頁面模板裡：入仕表單的兩個多檔處理函式在同一個"
-            "事件迴圈裡連續點擊——`(j.files || []).forEach(f => "
+            "(2) 機制就在釋出的頁面模板裡：入仕表單的兩個多檔處理函式在同一"
+            "個事件迴圈裡連續點擊——`(j.files || []).forEach(f => "
             "triggerDownload(f.url, f.name))`——然後回報 `(j.files || "
-            "[]).length`。共有四個頁面採用同樣寫法；社會關係與社會網絡頁面"
-            "會以每個檔案 150 毫秒的間隔錯開點擊，那是針對同一問題的嘗試，"
-            "但仍屬於同一次使用者操作。群體資料的 Neo4j 匯出就是這樣一次"
-            "回傳十個檔案。"),
+            "[]).length`，那是伺服器的數量，不是瀏覽器的。共有四個頁面採用"
+            "同樣寫法；社會關係與社會網絡頁面會以每個檔案 150 毫秒的間隔"
+            "錯開點擊，那是針對同一問題的嘗試，但仍屬於同一次使用者操作。"
+            "群體資料的 Neo4j 匯出就是這樣一次回傳十個檔案。"
+            "(3) 以自動化的無介面 Chromium（下載設定為一律接受）驅動真正的"
+            "頁面：頁面每次按下都嘗試兩個下載，而瀏覽器兩次按下都**全部"
+            "接受**。也就是說，「回報數量錯誤」這一半可由自動化確認，而"
+            "「被封鎖」那一半無法用這種方式重現——一個下載政策設為「一律"
+            "接受」的自動化瀏覽器，並不是使用者的瀏覽器。Chrome 會把同一次"
+            "操作觸發的多個程式化下載視為「自動下載多個檔案」，那是一項"
+            "以站台為單位、預設會詢問的權限；一旦沒有取得，該頁面之後的匯出"
+            "就什麼都不會存下。"),
         impact=(
             "The file that goes missing is the second one, and on every "
             "form that is the people file -- the names, index years and "
@@ -327,7 +542,9 @@ _DEFECTS: tuple[Defect, ...] = (
             "遺失的是第二個檔案，而在每個表單裡那都是人物檔——姓名、指標年"
             "與座標。相信畫面訊息的使用者會以為自己拿到了完整的匯出結果，"
             "若真的發現不對，往往也已經過了很久。此外，它也讓匯出按鈕在第二"
-            "次按下時看起來壞掉了——這個問題就是這樣被發現的。"),
+            "次按下時看起來壞掉了——這個問題就是這樣被發現的。值得注意的是，"
+            "自動化測試單憑自己不可能發現這一點：無介面瀏覽器會接受全部下載，"
+            "使用者的瀏覽器不會。"),
         fix=(
             "Two independent halves.  (1) Deliver a multi-file export as "
             "**one** download: a zip built server-side is the usual "
@@ -341,7 +558,8 @@ _DEFECTS: tuple[Defect, ...] = (
             "見的做法是在伺服器端打包成 zip，完全不需要瀏覽器配合。"
             "(2) 不要回報頁面無從得知的數量：可以說明「正在準備 2 個檔案」"
             "或什麼都不說，但絕不要說「已下載 2 個檔案」。後者每個處理函式"
-            "只需改一行，就能去掉這個問題中會誤導使用者的部分。"),
+            "只需改一行，就能去掉這個問題中會誤導使用者的部分——而且那一半"
+            "無論瀏覽器是否放行都是錯的。"),
         steps=(
             "Open the Entry form (/LookAtEntry), pick an entry code and "
             "press Query.",
@@ -349,7 +567,10 @@ _DEFECTS: tuple[Defect, ...] = (
             "export complete - 2 file(s) ready\".",
             "Look in the download folder: one file, not two.",
             "Press Export Results again.  Nothing is saved, and the "
-            "status line says the same thing.",
+            "status line says the same thing.  (If Chrome has been "
+            "granted \"automatic downloads\" for the site, both files "
+            "arrive and only the misreported count remains -- which is "
+            "how an automated browser sees it.)",
             "The same happens for Neo4j on Entry, Association Pairs and "
             "Group Data, where the file sets are six, four and ten files.",
         ),
@@ -358,7 +579,9 @@ _DEFECTS: tuple[Defect, ...] = (
             "按下匯出結果，狀態列顯示「Query results export complete — "
             "2 file(s) ready」。",
             "查看下載資料夾：只有一個檔案，不是兩個。",
-            "再按一次匯出結果，什麼都沒有存下來，狀態列仍顯示同樣的訊息。",
+            "再按一次匯出結果，什麼都沒有存下來，狀態列仍顯示同樣的訊息。"
+            "（若該站台已被授予「自動下載多個檔案」的權限，兩個檔案都會"
+            "到齊，只剩下數量回報錯誤的問題——自動化瀏覽器看到的就是這樣。）",
             "入仕、人物配對與群體資料表單的 Neo4j 匯出也一樣，它們的檔案組"
             "分別是六個、四個與十個檔案。",
         ),
@@ -852,6 +1075,8 @@ BY_NAME: dict[str, Defect] = {
     "qbe-phantom-columns": DEFECTS["CBDB-D-002"],
     "missing-utf8-bom": DEFECTS["CBDB-D-011"],
     "multi-file-download": DEFECTS["CBDB-D-012"],
+    "stale-enable-state": DEFECTS["CBDB-D-013"],
+    "ignored-empty-selection": DEFECTS["CBDB-D-014"],
     "kml-declaration": DEFECTS["CBDB-D-007"],
     "networks-sna-exports": DEFECTS["CBDB-D-008"],
     "associations-neo4j-export": DEFECTS["CBDB-D-009"],

@@ -52,7 +52,28 @@ this suite its credibility. The bar:
 4. **Get numbers.** "Search is broken" is a complaint. "`Wang` returns 0
    of 50,493, `wa` returns 56,504 correctly, the cutoff is exactly three
    characters" is a bug report.
-5. **Decide the origin, by experiment.** Every entry carries one of
+5. **Reproduce it yourself — even when the maintainer reported it.**
+   A report from him is a symptom observed once, in one browser, and it
+   is evidence; it is not yet a mechanism, and the entry you write is
+   about the mechanism. Two of this build's defects changed materially
+   when reproduced:
+
+   - CBDB-D-012 was filed as "the browser blocks the second download".
+     Driving the real page in headless Chromium showed both files
+     arriving on both presses -- the blocking half is a browser
+     *permission* and does not reproduce under automation. The entry now
+     says which half was established how, which is a better bug report
+     than the confident version.
+   - CBDB-D-014 looked like an ignored switch. The source showed a
+     deliberate fallback, so the defect moved from "the switch does
+     nothing" to "the page lets you send a request the backend has to
+     guess at" -- a different fix, in a different file.
+
+   Say in `evidence` which observations are yours, which are the
+   maintainer's, and which are readings of the source. A reader deciding
+   whether to spend an afternoon on it needs to know.
+
+6. **Decide the origin, by experiment.** Every entry carries one of
    `software`, `data` or `release` (`ORIGINS` in `defects.py`), and it
    decides who the finding is *sent to*. The maintainer of this repo
    fixes data problems himself, in the CBDB source, and does not want
