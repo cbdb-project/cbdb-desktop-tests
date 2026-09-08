@@ -31,6 +31,20 @@ The registry below is the single source of truth for what has been found,
 outcomes of one run, into the English and Traditional Chinese reports --
 so the bug report and the tests can never drift apart, and neither can
 the two translations.
+
+**Every run is a fresh assessment.**  This registry describes *the build
+under test*, not the history of the project.  When a defect is fixed its
+entry is deleted and its markers come off in the same commit; it does
+not become an entry that says "fixed in 2026-09-07".  The git history of
+this file is the record of what each build did, and it is a better one
+than a growing list of resolved items, which nobody re-reads and which
+makes a reader of the current report guess which half applies to them.
+
+**Every defect says where it comes from** (``origin``), because that
+decides who fixes it -- see the ``ORIGINS`` table below and AGENTS.md
+§ "Where a defect comes from".  A problem in the data that arrives from
+the CBDB source is not a problem the application developers can fix, and
+sending it to them wastes the one channel this project has.
 """
 from __future__ import annotations
 
@@ -49,8 +63,10 @@ class KnownShippedDefect(AssertionError):
 #: the .mdb suite, adapted to a web application.  Ordered: P0 first.
 PRIORITIES: dict[str, tuple[str, str]] = {
     "P0": ("Silent wrong answer — the application returns wrong or empty "
-           "results, with no error shown to the user.",
-           "靜默的錯誤結果——程式回傳錯誤或空白的結果，而且沒有任何錯誤提示。"),
+           "results, or produces a file nothing can read, with no error "
+           "shown to the user.",
+           "靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了"
+           "的檔案，而且沒有任何錯誤提示。"),
     "P1": ("Destructive write — a request rewrites stored data that it "
            "should not, and the previous state cannot be recovered.",
            "破壞性寫入——一次請求改寫了本不該改寫的既存資料，原本的狀態無法復原。"),
@@ -65,6 +81,41 @@ PRIORITIES: dict[str, tuple[str, str]] = {
            "資料完整性——釋出資料中存在無法解析的參照。"),
 }
 
+#: Where a defect comes from, which is the same question as who can fix
+#: it.  Recorded per defect and printed in the report, because the two
+#: audiences are different people and a report that mixes them makes
+#: both of them read past the half that is not theirs.
+#:
+#: The deciding experiment is always the same one: **would this survive a
+#: rebuild of the database from the current CBDB source, using this same
+#: code?**  If yes, it is in the code (``software``).  If a clean rebuild
+#: makes it disappear, it was in the data or in how the release was put
+#: together, and no code change would have prevented it.
+ORIGINS: dict[str, tuple[str, str]] = {
+    "software": (
+        "In the application: cbdb.exe, its Go sources, its page "
+        "templates, or the database builder's logic.  Fixed by the "
+        "CBDB-Desktop developers.",
+        "程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式"
+        "的邏輯。由 CBDB-Desktop 的開發者修正。"),
+    "data": (
+        "In the data that arrives from the CBDB (MariaDB) source: a "
+        "missing row, a dangling reference, a column whose values are "
+        "not what its name suggests.  The application is reporting it "
+        "faithfully.  Fixed in the source data by the CBDB data team, "
+        "**not** by the application developers.",
+        "來自 CBDB（MariaDB）上游資料的問題：缺列、無法解析的參照、欄位內容"
+        "與名稱不符等。程式只是忠實地把資料呈現出來。由 CBDB 資料團隊在來源"
+        "資料端修正，**不需要**交給程式開發者。"),
+    "release": (
+        "In how this particular release was assembled -- a working copy "
+        "shipped in place of a freshly built one, a file that was not "
+        "regenerated.  Fixed in the release process by whoever builds "
+        "the distribution.",
+        "這一次釋出的組裝流程問題——例如把開發用的工作副本當成正式建置成果"
+        "送出、某個檔案沒有重新產生。由負責建置發行檔的人在流程上修正。"),
+}
+
 
 @dataclass(frozen=True)
 class Defect:
@@ -73,6 +124,8 @@ class Defect:
     key: str
     priority: str            # "P0" … "P4"
     severity: str            # "high" | "medium" | "low"
+    #: One of ORIGINS.  Decides who the defect is reported to.
+    origin: str
     title: str
     title_zh: str
     area: str                # which part of the application
@@ -111,486 +164,683 @@ class Defect:
 
 _DEFECTS: tuple[Defect, ...] = (
     Defect(
-        key="CBDB-D-001",
+        key="CBDB-D-011",
         priority="P0",
         severity="high",
-        title="Person search finds nothing for terms of three or more characters",
-        title_zh="人物搜尋：輸入三個字元以上就完全找不到人",
-        area="People browser (/CBDB_Browser)",
-        area_zh="人物瀏覽（/CBDB_Browser）",
+        origin="software",
+        title="Every exported CSV is UTF-8 without a byte-order mark, so "
+              "Excel shows Chinese names as mojibake",
+        title_zh="所有匯出的 CSV 都是不帶 BOM 的 UTF-8，在 Excel 開啟時中文"
+                 "名字全變亂碼",
+        area="Every export on every form",
+        area_zh="所有表單的所有匯出功能",
         summary=(
-            "Data/CBDB.db ships ZZZ_NAMES_FTS -- the external-content FTS5 "
-            "trigram index over ZZZ_NAMES -- created together with its sync "
-            "triggers but never populated.  SQLite uses that index for LIKE "
-            "patterns of three or more characters and scans the content table "
-            "below that, so short searches work and every realistic one "
-            "silently returns nothing."),
+            "The exported files are named EntryData_UTF8.csv, "
+            "AssociationsPeople_UTF8.csv and so on, and their bytes really "
+            "are UTF-8 -- but none of them carries a UTF-8 byte-order "
+            "mark.  Excel on Windows decides a .csv's encoding by looking "
+            "for that mark and, finding none, reads the file in the "
+            "system ANSI code page.  Every Chinese name, place and title "
+            "in the file is then displayed as mojibake."),
         summary_zh=(
-            "Data/CBDB.db 裡的 ZZZ_NAMES_FTS 是建立在 ZZZ_NAMES 之上的 FTS5 "
-            "trigram 外部內容索引。索引表和同步觸發器都建好了，卻從未灌入內容。"
-            "SQLite 在 LIKE 樣式達到三個字元時會改走這個索引，未達三個字元則"
-            "回頭掃描內容表；因此短字串搜尋正常，而任何實際會用到的搜尋都"
-            "靜默地回傳空結果。"),
+            "匯出的檔案名為 EntryData_UTF8.csv、AssociationsPeople_UTF8.csv "
+            "之類，內容的位元組也確實是 UTF-8——但沒有任何一個檔案帶上 UTF-8 "
+            "的位元組順序記號（BOM）。Windows 版 Excel 判斷 .csv 編碼的方式"
+            "就是找這個記號，找不到就改用系統的 ANSI 代碼頁來讀。於是檔案裡"
+            "所有中文人名、地名與書名，開起來全都是亂碼。"),
         evidence=(
-            "ZZZ_NAMES holds 866,011 names; ZZZ_NAMES_FTS_idx and "
-            "ZZZ_NAMES_FTS_docsize are empty and ZZZ_NAMES_FTS_data holds 2 "
-            "rows.  Through the shipped binary: 'wa' returns 56,504 (correct), "
-            "'Wang' returns 0 of 50,493, 'Wang Anshi' returns 0 of 5, "
-            "'王安石' returns 0 of 2, while '王安' correctly returns 146.  "
-            "Rebuilding the index on a copy takes about 4 seconds and makes "
-            "every one of those searches return exactly the counts the data "
-            "supports."),
+            "Every export in the suite is decoded and its first bytes "
+            "inspected: not one of the 42 file-producing endpoints emits "
+            "EF BB BF, and a search of the shipped Go source for a "
+            "byte-order mark in any spelling (\\xEF, \\uFEFF, \"BOM\") "
+            "returns nothing at all.  The files contain non-ASCII in "
+            "every case that matters -- a Neo4j People file for one "
+            "kinship network carries names in Chinese in its second "
+            "column."),
         evidence_zh=(
-            "ZZZ_NAMES 共 866,011 筆姓名；ZZZ_NAMES_FTS_idx 與 "
-            "ZZZ_NAMES_FTS_docsize 皆為空，ZZZ_NAMES_FTS_data 只有 2 列。"
-            "透過釋出的執行檔實測：搜尋「wa」回傳 56,504 筆（正確）；"
-            "「Wang」回傳 0 筆，實際應有 50,493 筆；「Wang Anshi」回傳 0 筆，"
-            "應有 5 筆；「王安石」回傳 0 筆，應有 2 筆；而兩個字的「王安」"
-            "則正確回傳 146 筆。在複本上重建索引約需 4 秒，之後上述每一項"
-            "搜尋都回傳與資料相符的筆數。"),
+            "測試會把每一個匯出檔解碼並檢查開頭的位元組：42 個會產生檔案的"
+            "端點裡，沒有一個輸出 EF BB BF；在釋出的 Go 原始碼中以各種寫法"
+            "搜尋 BOM（\\xEF、\\uFEFF、\"BOM\"）也完全找不到。而檔案內容在"
+            "所有真正會用到的情況下都含有非 ASCII 字元——例如一個親屬網絡的 "
+            "Neo4j People 檔，第二欄就是中文姓名。"),
         impact=(
-            "The primary way of finding a person is broken for essentially "
-            "every realistic query.  A full surname, a full name, or a "
-            "three-character Chinese name returns an empty list that is "
-            "indistinguishable from 'this person is not in CBDB'.  All 658,941 "
-            "people are affected; the underlying data is intact."),
+            "This is the whole point of the application for most of its "
+            "users: they export a result and open it.  The application "
+            "reports success, the file downloads, and what appears on "
+            "screen is unreadable -- which looks like corrupt data rather "
+            "than an encoding default, so the natural next step is to "
+            "doubt CBDB.  The workaround (Data > From Text/CSV, choose "
+            "UTF-8) is not discoverable, and three bytes at the front of "
+            "each file would remove the need for it."),
         impact_zh=(
-            "使用者尋找人物最主要的途徑，在幾乎所有實際查詢下都失效。輸入完整"
-            "姓氏、完整姓名，或三個漢字的中文名，都只會得到一份空清單——這在"
-            "畫面上與「CBDB 裡沒有這個人」完全無法區分。全部 658,941 位人物"
-            "都受影響；底層資料本身並未損壞。"),
+            "對多數使用者而言，這正是這個程式存在的目的：匯出結果，然後打開"
+            "來看。程式顯示成功、檔案順利下載，畫面上卻是一片無法閱讀的內容"
+            "——看起來像資料壞了，而不是編碼預設值的問題，於是最自然的反應會"
+            "是懷疑 CBDB 的資料。變通做法（資料 > 從文字/CSV，選 UTF-8）並"
+            "不容易被發現，而只要在每個檔案開頭加上三個位元組就不再需要它。"),
         fix=(
-            "Run INSERT INTO ZZZ_NAMES_FTS(ZZZ_NAMES_FTS) VALUES('rebuild') "
-            "against the release database -- CBDBSetUpCode/zzznames_backend.go "
-            "already does this as part of RunZZZNames -- and assert at build "
-            "time that ZZZ_NAMES_FTS_docsize and ZZZ_NAMES have equal counts."),
+            "Write EF BB BF at the start of every text export whose "
+            "consumer is a spreadsheet -- the .csv, .tab and .txt "
+            "families.  One shared helper, since the buffers are all "
+            "built the same way (cbdb_shared_utils.go's toDataURL is the "
+            "natural place for the CSV ones).  Leave the KML and the "
+            "SNA formats alone: XML declares its own encoding, and Pajek, "
+            "GDF and VNA readers do not expect a mark."),
         fix_zh=(
-            "對釋出用的資料庫執行 "
-            "INSERT INTO ZZZ_NAMES_FTS(ZZZ_NAMES_FTS) VALUES('rebuild')。"
-            "CBDBSetUpCode/zzznames_backend.go 的 RunZZZNames 其實已經包含"
-            "這一步，只是沒有對釋出檔執行過。建議同時在建置流程加一道檢查："
-            "ZZZ_NAMES_FTS_docsize 與 ZZZ_NAMES 的筆數必須相等。"),
+            "在每一個以試算表為使用對象的文字匯出檔開頭寫入 EF BB BF——也就"
+            "是 .csv、.tab 與 .txt 這幾類。由於這些緩衝區的建立方式相同，"
+            "可以集中在一個共用函式處理（CSV 類最自然的位置是 "
+            "cbdb_shared_utils.go 的 toDataURL）。KML 與社會網絡格式請保持"
+            "原狀：XML 會自行宣告編碼，而 Pajek、GDF、VNA 的讀取程式並不預期"
+            "有這個記號。"),
         steps=(
-            "Start CBDB-Desktop and open the People browser (/CBDB_Browser).",
-            "Type `Wang` into the search box. The list comes back empty.",
-            "Now type `wa` instead. 56,504 people are found — the data is "
-            "there, and the only difference is the number of characters.",
-            "The same happens in Chinese: `王安` finds 146 people, `王安石` "
-            "finds none.",
-            "At the database level: `SELECT COUNT(*) FROM "
-            "ZZZ_NAMES_FTS_docsize` returns 0, while `SELECT COUNT(*) FROM "
-            "ZZZ_NAMES` returns 866,011.",
+            "Open the Entry form (/LookAtEntry), pick an entry code and "
+            "press Query.",
+            "Press Export Results and save EntryPeopleData_UTF8.csv.",
+            "Double-click the file so Excel opens it: the Chinese columns "
+            "are mojibake.",
+            "Inspect the first bytes -- `certutil -dump "
+            "EntryPeopleData_UTF8.csv | more`, or open it in a hex editor "
+            "-- and there is no EF BB BF.",
+            "Re-open the same file through Data > From Text/CSV and choose "
+            "65001 / UTF-8: the text is correct, which is what identifies "
+            "the missing mark as the whole problem.",
         ),
         steps_zh=(
-            "啟動 CBDB-Desktop，開啟人物瀏覽頁面（/CBDB_Browser）。",
-            "在搜尋框輸入 `Wang`，結果清單為空。",
-            "改輸入 `wa`，卻找到 56,504 人——資料其實都在，差別只在字元數。",
-            "中文也一樣：`王安` 找到 146 人，`王安石` 一人也找不到。",
-            "在資料庫層確認：`SELECT COUNT(*) FROM ZZZ_NAMES_FTS_docsize` "
-            "回傳 0，而 `SELECT COUNT(*) FROM ZZZ_NAMES` 回傳 866,011。",
+            "開啟入仕表單（/LookAtEntry），選一個入仕代碼並按下查詢。",
+            "按下匯出結果，儲存 EntryPeopleData_UTF8.csv。",
+            "直接雙擊該檔讓 Excel 開啟：中文欄位是亂碼。",
+            "檢視檔案開頭的位元組——執行 `certutil -dump "
+            "EntryPeopleData_UTF8.csv | more`，或用十六進位編輯器開啟"
+            "——會發現沒有 EF BB BF。",
+            "改用「資料 > 從文字/CSV」重新開啟同一個檔案並選擇 65001 / "
+            "UTF-8：文字就正確了。這正說明缺少那個記號就是問題的全部。",
         ),
-        source=("Code/browser_form_backend.go:812",
-                "CBDBSetUpCode/zzznames_backend.go:114",
-                "Data/CBDB.db.schema.sql:1035"),
-        tests=("test_searching_people_by_name_finds_them",
-               "test_the_name_search_index_is_populated"),
+        source=("Code/cbdb_shared_utils.go:60", "Code/entry_form_backend.go",
+                "Code/kinship_form_backend.go"),
+        tests=("test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet",
+               "test_no_export_writes_a_byte_order_mark"),
     ),
     Defect(
-        key="CBDB-D-004",
+        key="CBDB-D-012",
         priority="P0",
         severity="high",
-        title="Another form's query silently empties the Associations export",
-        title_zh="其他表單的查詢會靜默清空「社會關係」的匯出結果",
-        area="Associations form (/LookAtAssociations)",
-        area_zh="社會關係表單（/LookAtAssociations）",
+        origin="software",
+        title="A multi-file export saves only the first file and reports "
+              "that it saved them all",
+        title_zh="多檔匯出只存下第一個檔案，卻回報「全部完成」",
+        area="Export Results and Neo4j, on every form that returns more "
+             "than one file",
+        area_zh="所有會回傳多個檔案的表單匯出功能（匯出結果、Neo4j）",
         summary=(
-            "The Associations export takes no request body and no lock: it "
-            "re-reads ZZ_SOCIAL_NETWORK and ZZ_SCRATCH_PEOPLE, the scratch "
-            "tables its own query filled.  Association Pairs and Networks "
-            "clear ZZ_SOCIAL_NETWORK at the start of their own queries, so "
-            "visiting either between pressing Query and pressing Export "
-            "replaces the result with an empty file.  Kinship clears only "
-            "ZZ_SCRATCH_PEOPLE, which empties the second exported file "
-            "rather than the first."),
+            "An export that produces several files downloads them by "
+            "creating one hidden <a download> per file and clicking each "
+            "in turn, all inside a single user gesture.  Browsers permit "
+            "one automatic download per gesture and block the rest, so "
+            "the first file is saved and the others are not.  The page "
+            "then reports the number of files the *server* returned -- "
+            "\"2 file(s) ready\" -- because it counts the response, not "
+            "the downloads.  After the block is triggered the browser "
+            "refuses subsequent exports from the page as well, which is "
+            "why pressing Export a second time appears to do nothing."),
         summary_zh=(
-            "「社會關係」的匯出不接受任何請求內容，也不加鎖：它直接重讀 "
-            "ZZ_SOCIAL_NETWORK 與 ZZ_SCRATCH_PEOPLE 這兩張由自己的查詢填入的"
-            "暫存表。而「關係配對」與「社會網路」在各自查詢一開始就會清空 "
-            "ZZ_SOCIAL_NETWORK；因此只要在按下「查詢」與按下「匯出」之間"
-            "去過其中任一表單，匯出得到的就是一個空檔案。「親屬關係」只清空 "
-            "ZZ_SCRATCH_PEOPLE，因此影響的是第二個匯出檔而非第一個。"),
+            "會產生多個檔案的匯出，做法是為每個檔案建立一個隱藏的 "
+            "<a download> 並依序點擊，而且全部發生在同一次使用者操作中。"
+            "瀏覽器每次操作只允許一個自動下載，其餘會被封鎖，因此只有第一個"
+            "檔案被存下來，其他都沒有。接著頁面回報的是*伺服器*送回的檔案"
+            "數量——「2 file(s) ready」——因為它數的是回應內容，而不是實際"
+            "完成的下載。一旦觸發封鎖，瀏覽器連後續的匯出也會一併拒絕，這就"
+            "是為什麼第二次按下匯出看起來毫無反應。"),
         evidence=(
-            "Through the shipped binary: an Associations query returns 55 "
-            "rows and exports 55 rows.  A single POST /api/assocpairs/query "
-            "then leaves the same export returning 0 rows -- HTTP 200, status "
-            "'ok', a file with nothing in it but a header.  No error is "
-            "reported at any point."),
+            "Reproduced by the maintainer against a running build at "
+            "http://localhost:8042/LookAtEntry: Export Results reported "
+            "\"Query results export complete - 2 file(s) ready\" and one "
+            "file arrived; pressing Export again saved nothing at all.  "
+            "The mechanism is in the shipped templates.  Entry's two "
+            "multi-file handlers fire their clicks in one tick -- "
+            "`(j.files || []).forEach(f => triggerDownload(f.url, "
+            "f.name))` -- and then report `(j.files || []).length`.  Four "
+            "pages do the same; Associations and Networks stagger their "
+            "clicks by 150 ms per file, which is an attempt at the same "
+            "problem and still one gesture.  Group Data's Neo4j export "
+            "returns ten files this way."),
         evidence_zh=(
-            "透過釋出的執行檔實測：一次「社會關係」查詢得到 55 列，匯出也是 "
-            "55 列。接著只要送出一次 POST /api/assocpairs/query，同一個匯出"
-            "就只剩 0 列——HTTP 狀態 200、status 為 'ok'、檔案裡除了標題列"
-            "什麼都沒有。整個過程沒有任何錯誤訊息。"),
+            "維護者在執行中的版本上重現：於 "
+            "http://localhost:8042/LookAtEntry 按下匯出結果，畫面顯示"
+            "「Query results export complete — 2 file(s) ready」，實際只"
+            "收到一個檔案；再按一次匯出則完全沒有存下任何東西。"
+            "機制就在釋出的頁面模板裡：入仕表單的兩個多檔處理函式在同一個"
+            "事件迴圈裡連續點擊——`(j.files || []).forEach(f => "
+            "triggerDownload(f.url, f.name))`——然後回報 `(j.files || "
+            "[]).length`。共有四個頁面採用同樣寫法；社會關係與社會網絡頁面"
+            "會以每個檔案 150 毫秒的間隔錯開點擊，那是針對同一問題的嘗試，"
+            "但仍屬於同一次使用者操作。群體資料的 Neo4j 匯出就是這樣一次"
+            "回傳十個檔案。"),
         impact=(
-            "A user loses their result with no indication that anything "
-            "happened.  The export button still works, the file still "
-            "downloads, and it is empty.  Reaching the state takes nothing "
-            "unusual: run a query, look at a related form, come back and "
-            "export."),
+            "The file that goes missing is the second one, and on every "
+            "form that is the people file -- the names, index years and "
+            "coordinates.  A user who trusts the message believes they "
+            "have a complete export and discovers otherwise, if at all, "
+            "much later.  It also makes the export button appear broken "
+            "on the second press, which is how it was noticed."),
         impact_zh=(
-            "使用者的查詢結果就這樣不見了，而且完全沒有任何提示。匯出按鈕照常"
-            "可按、檔案照常下載，只是裡面是空的。要走到這一步也不需要什麼特別"
-            "操作：跑一次查詢、去看一下相關的表單、回來按匯出，就會發生。"),
+            "遺失的是第二個檔案，而在每個表單裡那都是人物檔——姓名、指標年"
+            "與座標。相信畫面訊息的使用者會以為自己拿到了完整的匯出結果，"
+            "若真的發現不對，往往也已經過了很久。此外，它也讓匯出按鈕在第二"
+            "次按下時看起來壞掉了——這個問題就是這樣被發現的。"),
         fix=(
-            "Have the export render the result it is given, as the office, "
-            "status, texts and places exports already do; or key the scratch "
-            "tables per session and hold associationsMu across the "
-            "query-and-export pair."),
+            "Two independent halves.  (1) Deliver a multi-file export as "
+            "**one** download: a zip built server-side is the usual "
+            "answer and needs no browser cooperation.  (2) Stop reporting "
+            "a count the page cannot know: say what was requested "
+            "(\"preparing 2 files\") or nothing, never \"2 file(s) "
+            "downloaded\".  The second half is a one-line change per "
+            "handler and removes the part of this that misleads."),
         fix_zh=(
-            "讓匯出改為輸出呼叫端傳入的結果——「官職」「社會地位」「著述」"
-            "「地點」四個表單的匯出本來就是這樣做的；或者把暫存表改為以工作"
-            "階段（session）區分，並讓 associationsMu 涵蓋「查詢＋匯出」"
-            "這一對操作。"),
+            "分成兩個彼此獨立的部分。(1) 讓多檔匯出變成**一次**下載：最常"
+            "見的做法是在伺服器端打包成 zip，完全不需要瀏覽器配合。"
+            "(2) 不要回報頁面無從得知的數量：可以說明「正在準備 2 個檔案」"
+            "或什麼都不說，但絕不要說「已下載 2 個檔案」。後者每個處理函式"
+            "只需改一行，就能去掉這個問題中會誤導使用者的部分。"),
         steps=(
-            "Open the Associations form, pick an association type and press "
-            "Query. The grid fills (55 rows in our run).",
-            "Without closing anything, open the Association Pairs form and "
-            "run any query there.",
-            "Go back to the Associations form and press Export Results.",
-            "The downloaded file contains only its header row. No error is "
-            "shown at any point.",
+            "Open the Entry form (/LookAtEntry), pick an entry code and "
+            "press Query.",
+            "Press Export Results.  The status line reads \"Query results "
+            "export complete - 2 file(s) ready\".",
+            "Look in the download folder: one file, not two.",
+            "Press Export Results again.  Nothing is saved, and the "
+            "status line says the same thing.",
+            "The same happens for Neo4j on Entry, Association Pairs and "
+            "Group Data, where the file sets are six, four and ten files.",
         ),
         steps_zh=(
-            "開啟「社會關係」表單，選一個關係類別，按下「查詢」。表格出現"
-            "結果（我們的實測是 55 列）。",
-            "不要關閉任何視窗，開啟「關係配對」表單，在那裡執行任何一次查詢。",
-            "回到「社會關係」表單，按下「匯出結果」。",
-            "下載到的檔案只有標題列。整個過程沒有出現任何錯誤訊息。",
+            "開啟入仕表單（/LookAtEntry），選一個入仕代碼並按下查詢。",
+            "按下匯出結果，狀態列顯示「Query results export complete — "
+            "2 file(s) ready」。",
+            "查看下載資料夾：只有一個檔案，不是兩個。",
+            "再按一次匯出結果，什麼都沒有存下來，狀態列仍顯示同樣的訊息。",
+            "入仕、人物配對與群體資料表單的 Neo4j 匯出也一樣，它們的檔案組"
+            "分別是六個、四個與十個檔案。",
         ),
-        source=("Code/associations_form_backend.go:932 (the export reads "
-                "ZZ_SOCIAL_NETWORK, taking no lock)",
-                "Code/assocpairs_form_backend.go:417 (clears it)",
-                "Code/networks_form_backend.go:1190 (clears it)",
-                "Code/kinship_form_backend.go:750 (clears ZZ_SCRATCH_PEOPLE, "
-                "so the people file empties instead)"),
-        tests=("test_another_form_does_not_empty_the_associations_export",),
+        source=("Templates/entry/index.html", "Templates/group_data/index.html",
+                "Templates/association_pairs/index.html",
+                "Templates/associations/index.html"),
+        tests=("test_no_page_asks_the_browser_for_more_than_one_download",),
     ),
     Defect(
-        key="CBDB-D-006",
-        priority="P1",
+        key="CBDB-D-008",
+        priority="P2",
         severity="high",
-        title="A malformed ranking is accepted and applied to every person",
-        title_zh="格式不正確的排序設定會被接受，並套用到每一位人物身上",
-        area="Index address rankings (/IndexAddr)",
-        area_zh="索引地址排序（/IndexAddr）",
+        origin="software",
+        title="Three of the Networks form's export buttons always fail",
+        title_zh="社會網絡表單有三個匯出按鈕永遠失敗",
+        area="Networks form (/LookAtNetworks) — Pajek, Gephi and UCINet",
+        area_zh="社會網絡表單（/LookAtNetworks）——Pajek、Gephi 與 UCINet",
         summary=(
-            "POST /api/indexaddr/update declares its body as a nine-slot "
-            "array and validates nothing about its length.  Go's JSON decoder "
-            "zero-pads a shorter array and truncates a longer one without "
-            "error, so a request with the wrong number of slots is accepted "
-            "and applied -- and this is the one endpoint in the application "
-            "that rewrites CBDB data rather than scratch."),
+            "The Pajek, Gephi and UCINet exports each read the edges of "
+            "the network out of ZZ_SN_NETWORK and ask that table for a "
+            "column called c_node_dist.  ZZ_SN_NETWORK has no such "
+            "column -- the distance it carries per edge is called "
+            "c_edge_dist -- so SQLite refuses the query and the handler "
+            "answers HTTP 500.  There is no input for which any of the "
+            "three can succeed."),
         summary_zh=(
-            "POST /api/indexaddr/update 把請求內容宣告為九個欄位的陣列，卻"
-            "完全沒有檢查長度。Go 的 JSON 解碼器會把過短的陣列補零、把過長的"
-            "陣列截斷，兩者都不報錯；因此欄位數不對的請求會被照單全收並實際"
-            "套用——而這正是整個程式裡唯一會改寫 CBDB 正式資料（而非暫存表）"
-            "的端點。"),
+            "Pajek、Gephi 與 UCINet 三個匯出功能都從 ZZ_SN_NETWORK 讀取網絡"
+            "的邊，並向這張表要一個叫 c_node_dist 的欄位。ZZ_SN_NETWORK 沒有"
+            "這個欄位——它每一條邊帶的距離叫 c_edge_dist——所以 SQLite 直接"
+            "拒絕這個查詢，處理程式回傳 HTTP 500。無論輸入什麼，這三個按鈕都"
+            "不可能成功。"),
         evidence=(
-            "Against the shipped binary, on a private copy: a ranks array of "
-            "eight elements answers 200 'Rankings updated and BIOG_MAIN "
-            "rebuilt successfully' and installs address type 0 ('unknown') at "
-            "rank 9, changing the number of people with an index address from "
-            "383,322 to 379,051.  An eleven-element array is accepted too, "
-            "with the last two types silently discarded.  The bodies that are "
-            "refused are refused for unrelated reasons: a string fails in the "
-            "JSON decoder, while a two-element array and an absent field are "
-            "zero-padded and then caught by the duplicate-type check, because "
-            "padding leaves several slots holding address type 0.  Eight slots "
-            "leave only one, so nothing catches them."),
+            "Run a Networks query for a person with kin at depth 1, then "
+            "press Pajek, Gephi or UCINet: each answers HTTP 500 "
+            "'Database error: no such column: c_node_dist'.  The three "
+            "node queries in the same handlers read c_node_dist from "
+            "ZZ_SP_NETWORK, which does have it; only the edge queries "
+            "against ZZ_SN_NETWORK are wrong.  Confirmed against the "
+            "shipped database with PRAGMA table_info: ZZ_SN_NETWORK's 89 "
+            "columns include c_edge_dist and not c_node_dist."),
         evidence_zh=(
-            "在獨立複本上對釋出的執行檔實測：送出只有八個元素的 ranks 陣列，"
-            "回應為 200「Rankings updated and BIOG_MAIN rebuilt "
-            "successfully」，並把地址類型 0（unknown）放進第 9 順位；擁有"
-            "索引地址的人數也從 383,322 變成 379,051。送出十一個元素同樣被"
-            "接受，最後兩個類型被靜默丟棄。至於那些會被拒絕的請求，其實都不是"
-            "因為長度：字串在 JSON 解碼階段就失敗；兩個元素的陣列與完全沒有"
-            "該欄位的請求，是補零之後多出好幾個地址類型 0，才被「重複類型」"
-            "檢查攔下來。八個元素只會補出一個 0，因此沒有任何檢查攔得住。"),
+            "先為一位在距離 1 以內有親屬的人物執行社會網絡查詢，再按下 "
+            "Pajek、Gephi 或 UCINet：三者都回傳 HTTP 500「Database error: "
+            "no such column: c_node_dist」。同一批處理程式裡的節點查詢是向 "
+            "ZZ_SP_NETWORK 要 c_node_dist，那張表確實有；出錯的只有對 "
+            "ZZ_SN_NETWORK 的邊查詢。以 PRAGMA table_info 在釋出的資料庫上"
+            "確認：ZZ_SN_NETWORK 的 89 個欄位裡有 c_edge_dist，沒有 "
+            "c_node_dist。"),
         impact=(
-            "A client that sends the wrong number of slots -- an older or "
-            "newer page, a script, a partially-filled form -- silently "
-            "reconfigures the index address of every person in the database "
-            "and ranks 'unknown' as a real address type.  Nothing reports it, "
-            "and the previous ranking is gone; /reset restores only the "
-            "shipped default, so a ranking the user had configured is lost "
-            "for good."),
+            "Three of the seven export formats on the form whose entire "
+            "purpose is social-network analysis cannot be used at all.  "
+            "Anyone wanting to take a CBDB network into Pajek, Gephi or "
+            "UCINet has to go through the Kinship or Association Pairs "
+            "form instead, where the same three formats work.  The "
+            "defect predates the 2026-09-07 per-form scratch tables: the "
+            "shared ZZ_SOCIAL_NETWORK these tables replaced did not have "
+            "c_node_dist either, so these buttons have never worked and "
+            "no test had pressed them."),
         impact_zh=(
-            "只要送出的欄位數不對——版本較舊或較新的頁面、自行撰寫的腳本、"
-            "填了一半的表單——就會靜默地重設資料庫中每一位人物的索引地址，"
-            "並把「unknown」當成一個正式的地址類型排進順位。過程中沒有任何"
-            "提示，而原本的排序也就此消失：/reset 只能還原成出廠預設值，"
-            "使用者自行設定過的排序無法救回。"),
+            "在一個以社會網絡分析為全部目的的表單上，七種匯出格式裡有三種"
+            "完全不能用。想把 CBDB 的網絡帶進 Pajek、Gephi 或 UCINet 的人，"
+            "只能改走親屬關係或人物配對表單——同樣的三種格式在那裡是正常的。"
+            "這個問題比 2026-09-07 的「每個表單自有暫存表」更早：被取代的共用"
+            "表 ZZ_SOCIAL_NETWORK 同樣沒有 c_node_dist，也就是說這三個按鈕"
+            "從來沒有正常運作過，只是先前沒有任何測試按下它們。"),
         fix=(
-            "Decode the ranks into a slice and reject a body that does not "
-            "carry exactly nine slots, and reject address types that are not "
-            "in BIOG_ADDR_CODES (0 is a real row, 'unknown', which is why the "
-            "padding goes unnoticed)."),
+            "In networks_form_backend.go, change the three edge queries "
+            "to select c_edge_dist (the column ZZ_SN_NETWORK actually "
+            "has) rather than c_node_dist, or join the node distance in "
+            "from ZZ_SP_NETWORK if edge distance is not what the colour "
+            "scale is meant to express.  Both readings are defensible "
+            "and the code cannot say which was intended, which is why "
+            "this is reported rather than patched here."),
         fix_zh=(
-            "改用 slice 解碼 ranks，並拒絕欄位數不等於九的請求；同時拒絕"
-            "不存在於 BIOG_ADDR_CODES 的地址類型。（0 在 BIOG_ADDR_CODES 中"
-            "是一筆真實資料，名稱為 unknown，這正是補零之所以無人察覺的原因。）"),
+            "在 networks_form_backend.go 裡，把這三個邊查詢改成選取 "
+            "c_edge_dist（ZZ_SN_NETWORK 真正擁有的欄位），或者若配色其實要"
+            "表達的是節點距離，就從 ZZ_SP_NETWORK 併入。兩種解讀都說得通，"
+            "程式本身無法判斷原意，因此這裡只報告而不逕行修改。"),
         steps=(
-            "Send POST /api/indexaddr/update with a `ranks` array of eight "
-            "entries instead of nine — for example from a page belonging to a "
-            "different build.",
-            "The response is 200: 'Rankings updated and BIOG_MAIN rebuilt "
-            "successfully'.",
-            "Open the Index Address form. Rank 9 now holds address type 0 "
-            "('unknown'), which was never selected.",
-            "Count people with an index address: 383,322 before the request, "
-            "379,051 after.",
-            "Press Reset. The shipped default order returns — but any ranking "
-            "the user had configured is gone.",
+            "Open the Networks form (/LookAtNetworks) and set a person "
+            "who has relatives.",
+            "Press Run with the smallest distances (maxLoop 1, "
+            "maxNodeDist 1) so a graph comes back.",
+            "Press Pajek. The response is HTTP 500 'Database error: no "
+            "such column: c_node_dist'.",
+            "The same happens for Gephi and for UCINet.  Export Results, "
+            "GIS, KML and Neo4j on the same form all work.",
         ),
         steps_zh=(
-            "送出 POST /api/indexaddr/update，其中 `ranks` 陣列只有八個元素"
-            "而非九個——例如來自另一個版本的頁面。",
-            "回應為 200：「Rankings updated and BIOG_MAIN rebuilt "
-            "successfully」。",
-            "開啟「索引地址」表單，第 9 順位出現地址類型 0（unknown），"
-            "而這是使用者從未選過的。",
-            "統計擁有索引地址的人數：請求之前為 383,322，之後為 379,051。",
-            "按下「重設」，出廠預設順序會回來——但使用者原先設定過的排序"
-            "已經永久遺失。",
+            "開啟社會網絡表單（/LookAtNetworks），設定一位有親屬的人物。",
+            "以最小的距離參數（maxLoop 1、maxNodeDist 1）按下執行，讓查詢"
+            "回傳一個圖。",
+            "按下 Pajek，回應是 HTTP 500「Database error: no such column: "
+            "c_node_dist」。",
+            "Gephi 與 UCINet 也一樣。同一表單上的匯出結果、GIS、KML 與 "
+            "Neo4j 都正常。",
         ),
-        source=("Code/indexaddr_form_backend.go:69 (Ranks is a fixed [9]int)",
-                "Code/indexaddr_form_backend.go:182 (decode, then no length "
-                "check)",
-                "Code/indexaddr_form_backend.go:199 (the duplicate check that "
-                "accidentally catches the other bad bodies)"),
-        tests=("test_a_ranking_of_the_wrong_length_is_refused",),
+        # The three edge queries that ask ZZ_SN_NETWORK for c_node_dist
+        # (GUESS/Gephi, UCINet, Pajek), and the table's own declaration.
+        source=("Code/networks_form_backend.go:2089",
+                "Code/networks_form_backend.go:2212",
+                "Code/networks_form_backend.go:2337",
+                "Code/networks_form_backend.go:419"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_an_export_is_repeatable"),
+    ),
+    Defect(
+        key="CBDB-D-009",
+        priority="P2",
+        severity="high",
+        origin="software",
+        title="The Associations form's Neo4j export always fails",
+        title_zh="社會關係表單的 Neo4j 匯出永遠失敗",
+        area="Associations form (/LookAtAssociations) — Neo4j",
+        area_zh="社會關係表單（/LookAtAssociations）——Neo4j",
+        summary=(
+            "Building the Neo4j files reads ADDR_CODES and scans "
+            "c_admin_type into a Go int.  In the shipped database that "
+            "column is text: its values are administrative-type names "
+            "like 'State', 'Shengshi' and '[Unknown]', in all 30,100 "
+            "rows.  The scan fails on the first address, the handler "
+            "gives up, and the response is HTTP 500."),
+        summary_zh=(
+            "產生 Neo4j 檔案時會讀取 ADDR_CODES，並把 c_admin_type 掃描成 "
+            "Go 的 int。但在釋出的資料庫裡這個欄位是文字：全部 30,100 列的"
+            "內容都是行政層級的名稱，例如「State」、「Shengshi」、"
+            "「[Unknown]」。第一筆地址就掃描失敗，處理程式放棄，回傳 "
+            "HTTP 500。"),
+        evidence=(
+            "Run any Associations query and press Neo4j: HTTP 500 'Neo4j "
+            "export error: scan addrRow: sql: Scan error on column index "
+            "3'.  Column index 3 is c_admin_type.  In the shipped "
+            "database `SELECT DISTINCT typeof(c_admin_type) FROM "
+            "ADDR_CODES` returns only 'text', and the schema declares it "
+            "varchar(255) -- so no data refresh will make the scan "
+            "succeed.  The same export on five other forms reads "
+            "ADDR_CODES without asking for this column and works."),
+        evidence_zh=(
+            "執行任何社會關係查詢後按下 Neo4j：HTTP 500「Neo4j export "
+            "error: scan addrRow: sql: Scan error on column index 3」。"
+            "索引 3 就是 c_admin_type。在釋出的資料庫上執行 `SELECT "
+            "DISTINCT typeof(c_admin_type) FROM ADDR_CODES` 只會得到 "
+            "'text'，結構定義也是 varchar(255)——換言之，再怎麼更新資料，"
+            "這個掃描都不會成功。其他五個表單的同一種匯出並沒有要這個欄位，"
+            "因此正常運作。"),
+        impact=(
+            "Association networks cannot be taken into Neo4j at all.  "
+            "The Associations form's other three exports work, so the "
+            "data is reachable another way, but the button a user "
+            "presses for this reports a server error every time."),
+        impact_zh=(
+            "社會關係網絡完全無法匯入 Neo4j。這個表單的其他三種匯出正常，"
+            "資料仍有別的取得方式，但使用者為此按下的那個按鈕每次都以伺服器"
+            "錯誤收場。"),
+        fix=(
+            "Scan c_admin_type into a string (and, if a number is wanted "
+            "downstream, resolve it through ADDR_CODES' own type table "
+            "rather than assuming the column is numeric).  Worth "
+            "checking every other Scan against ADDR_CODES in the same "
+            "pass: this column's name reads like a code and its contents "
+            "are not one."),
+        fix_zh=(
+            "把 c_admin_type 掃描成字串；若下游確實需要數字，應透過 "
+            "ADDR_CODES 自己的類型表換算，而不是假設這個欄位是數值。建議"
+            "同時檢查其他所有對 ADDR_CODES 的 Scan：這個欄位的名字看起來"
+            "像代碼，內容卻不是。"),
+        steps=(
+            "Open the Associations form (/LookAtAssociations) and pick "
+            "any association code with a handful of records.",
+            "Press Query; the grid fills.",
+            "Press Neo4j. The response is HTTP 500 'Neo4j export error: "
+            "scan addrRow'.",
+        ),
+        steps_zh=(
+            "開啟社會關係表單（/LookAtAssociations），選一個記錄不多的關係"
+            "代碼。",
+            "按下查詢，格線填入結果。",
+            "按下 Neo4j，回應是 HTTP 500「Neo4j export error: scan "
+            "addrRow」。",
+        ),
+        source=("Code/associations_form_backend.go:1384",
+                "Code/associations_form_backend.go:1395"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_an_export_is_repeatable"),
+    ),
+    Defect(
+        key="CBDB-D-007",
+        priority="P0",
+        severity="medium",
+        origin="software",
+        title="Two KML exports produce a file no mapping tool will open",
+        title_zh="兩個 KML 匯出產生的檔案，任何地圖軟體都打不開",
+        area="Entry form and Places form — KML",
+        area_zh="入仕表單與地點表單——KML",
+        summary=(
+            "The Entry and Places KML writers open the file with "
+            "`<?xml version=\"1.0\" encoding=\"UTF-8\">` -- closing the "
+            "XML declaration with `>` instead of `?>`.  That is not "
+            "well-formed XML, so every reader rejects the entire file at "
+            "the first line.  The application reports success and the "
+            "download completes normally."),
+        summary_zh=(
+            "入仕表單與地點表單的 KML 寫出程式，檔案開頭寫成 "
+            "`<?xml version=\"1.0\" encoding=\"UTF-8\">`——XML 宣告的結尾用 "
+            "`>` 而不是 `?>`。這不是合法的 XML，任何讀取程式都會在第一行就"
+            "整檔拒絕。而程式端顯示成功，下載也完全正常。"),
+        evidence=(
+            "Query either form, press KML, and the file begins "
+            "`<?xml version=\"1.0\" encoding=\"UTF-8\">`.  Python's XML "
+            "parser reports 'unclosed token: line 1, column 0'; Google "
+            "Earth and QGIS refuse the file.  Five other KML writers in "
+            "the same build (associations, kinship, networks, group data "
+            "and office) close the declaration correctly, which is what "
+            "makes this a slip rather than a decision -- and what makes "
+            "it findable in the source without running anything: "
+            "entry_form_backend.go:1002 and places_form_backend.go:763."),
+        evidence_zh=(
+            "在任一表單查詢後按下 KML，檔案開頭是 "
+            "`<?xml version=\"1.0\" encoding=\"UTF-8\">`。Python 的 XML "
+            "解析器報「unclosed token: line 1, column 0」；Google Earth 與 "
+            "QGIS 直接拒絕此檔。同一版程式裡另外五處 KML 寫出（社會關係、"
+            "親屬關係、社會網絡、群體資料、官職）都正確地收尾，可見這是筆誤"
+            "而非設計——也因此不必執行程式就能在原始碼裡找到："
+            "entry_form_backend.go:1002 與 places_form_backend.go:763。"),
+        impact=(
+            "A historian exports the geography of an entry route or a "
+            "set of places, opens it in Google Earth, and is told the "
+            "file is corrupt.  Nothing in the application suggests "
+            "anything went wrong, so the natural conclusion is that the "
+            "mapping tool is at fault or the data is bad.  The same two "
+            "forms' GIS (.tab) exports are unaffected, which is the "
+            "workaround."),
+        impact_zh=(
+            "研究者匯出某條入仕途徑或一組地點的地理資料，在 Google Earth 裡"
+            "打開，卻被告知檔案損壞。程式端沒有任何跡象顯示出錯，於是最自然"
+            "的結論會是地圖軟體有問題或資料有問題。同兩個表單的 GIS（.tab）"
+            "匯出不受影響，可作為替代做法。"),
+        fix=(
+            "Write `?>` in both places.  Worth adding one shared helper "
+            "that emits the KML preamble, since there are now seven "
+            "copies of it and two of them were wrong."),
+        fix_zh=(
+            "把這兩處補上 `?>`。並建議抽出一個共用的函式來輸出 KML 檔頭："
+            "目前這段序言已經有七份副本，其中兩份是錯的。"),
+        steps=(
+            "Open the Entry form (/LookAtEntry), pick an entry code and "
+            "press Query.",
+            "Press KML and save the file.",
+            "Open it in Google Earth, QGIS, or any XML parser: the file "
+            "is rejected at line 1.",
+            "The Places form (/LookAtPlaces) behaves identically.",
+        ),
+        steps_zh=(
+            "開啟入仕表單（/LookAtEntry），選一個入仕代碼並按下查詢。",
+            "按下 KML 並儲存檔案。",
+            "用 Google Earth、QGIS 或任何 XML 解析器開啟：檔案在第 1 行就"
+            "被拒絕。",
+            "地點表單（/LookAtPlaces）的情況完全相同。",
+        ),
+        source=("Code/entry_form_backend.go:1002",
+                "Code/places_form_backend.go:763"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_every_kml_writer_closes_its_xml_declaration"),
     ),
     Defect(
         key="CBDB-D-002",
         priority="P2",
         severity="medium",
+        origin="software",
         title="The Query Builder offers 30 columns that do not exist",
         title_zh="查詢建構器提供了 30 個並不存在的欄位",
         area="Query Builder (/QBE)",
         area_zh="查詢建構器（/QBE）",
         summary=(
             "Data/qbe_schema.json lists 30 columns across 8 views that "
-            "Data/CBDB.db does not have.  HasColumn validates a request "
-            "against that JSON whitelist alone and never against the "
-            "database, so each one passes validation and then fails in "
-            "SQLite."),
+            "Data/cbdb.db does not have under those names.  Each of the "
+            "eight views selects the same column name twice -- "
+            "KIN_DATA.c_personid and View_PeopleData.c_personid, say -- "
+            "and SQLite resolves that collision by renaming the second "
+            "one `c_personid:1`.  The whitelist generator reads the "
+            "CREATE VIEW text and does not model that rename, so it "
+            "offers a name the database does not answer to.  "
+            "ValidateGridState checks a request against the JSON alone, "
+            "so each one passes validation and then fails in SQLite."),
         summary_zh=(
-            "Data/qbe_schema.json 中列出了 8 個檢視表下的 30 個欄位，而 "
-            "Data/CBDB.db 裡並沒有這些欄位。HasColumn 只拿這份 JSON 白名單"
-            "驗證請求，從不對照真正的資料庫，因此這些欄位都能通過驗證，"
-            "最後在 SQLite 執行時才失敗。"),
+            "Data/qbe_schema.json 列出 8 個檢視表下的 30 個欄位，而 "
+            "Data/cbdb.db 並沒有以這些名稱存在的欄位。這 8 個檢視表都各自"
+            "把同一個欄位名選了兩次——例如 KIN_DATA.c_personid 與 "
+            "View_PeopleData.c_personid——SQLite 解決撞名的方式是把後者改名"
+            "為 `c_personid:1`。白名單產生程式是讀 CREATE VIEW 的文字，並未"
+            "模擬這個改名，於是提供了資料庫並不認得的名稱。"
+            "ValidateGridState 只拿 JSON 驗證請求，所以這些欄位都能通過"
+            "驗證，最後在 SQLite 執行時才失敗。"),
         evidence=(
-            "Comparing the whitelist against PRAGMA table_info for all 99 "
-            "offered tables finds 30 absent columns, in View_BiogInstAddrData, "
-            "View_BiogInstData, View_BiogSourceData, View_BiogTextData, "
-            "View_Entry, View_EventData, View_KinAddr and "
-            "View_PostingOfficeData.  Selecting any of them through "
-            "/api/qbe/run answers HTTP 500 'Query failed: no such column'.  "
-            "Four of them are the first column their table offers, so the "
-            "failure is one click away."),
+            "Comparing the whitelist against PRAGMA table_info for all "
+            "102 offered tables finds 30 absent columns, in "
+            "View_BiogInstAddrData, View_BiogInstData, "
+            "View_BiogSourceData, View_BiogTextData, View_Entry, "
+            "View_EventData, View_KinAddr and View_PostingOfficeData.  "
+            "Every one of the 30 has a sibling in the same view with "
+            "':1' appended -- a one-to-one correspondence, which is what "
+            "identifies duplicate-name resolution as the mechanism "
+            "rather than a stale file.  Selecting any of them through "
+            "/api/qbe/run answers HTTP 500 'Query failed: no such "
+            "column'.  Four of them are the first column their view "
+            "offers, so the failure is one click away."),
         evidence_zh=(
-            "以 PRAGMA table_info 比對白名單中全部 99 張表，找出 30 個不存在"
-            "的欄位，分布於 View_BiogInstAddrData、View_BiogInstData、"
+            "以 PRAGMA table_info 比對白名單中全部 102 張表，找出 30 個不存"
+            "在的欄位，分布於 View_BiogInstAddrData、View_BiogInstData、"
             "View_BiogSourceData、View_BiogTextData、View_Entry、"
             "View_EventData、View_KinAddr 與 View_PostingOfficeData。"
+            "這 30 個欄位每一個都在同一個檢視表裡有一個加了「:1」的兄弟"
+            "欄位——一對一完全對應，這正說明機制是撞名改名，而不是檔案過期。"
             "透過 /api/qbe/run 選用其中任一個，都會得到 HTTP 500"
-            "「Query failed: no such column」。其中四個還正好是該表清單中的"
-            "第一個欄位，使用者點一下就會踩到。"),
+            "「Query failed: no such column」。其中四個還正好是該檢視表清單"
+            "中的第一個欄位，使用者點一下就會踩到。"),
         impact=(
             "A user building a query picks a column from the grid's own "
-            "dropdown and gets a server error with no indication that the "
-            "column was never available.  The eight affected views are "
-            "otherwise usable."),
+            "dropdown and gets a server error with no indication that "
+            "the column was never available.  The eight affected views "
+            "are otherwise usable.  Because the mechanism is duplicate "
+            "output names rather than a stale file, regenerating "
+            "qbe_schema.json from the same CREATE VIEW text -- which is "
+            "what was done for the 2026-09-07 build -- does not change "
+            "anything: the JSON and the SQL agree with each other and "
+            "both disagree with SQLite."),
         impact_zh=(
             "使用者從查詢建構器自己提供的下拉選單中挑了一個欄位，換來的卻是"
             "伺服器錯誤，而且完全看不出這個欄位其實從一開始就不可用。"
-            "這 8 個檢視表的其他欄位仍可正常使用。"),
+            "這 8 個檢視表的其他欄位仍可正常使用。由於根本原因是輸出欄位"
+            "撞名、而不是檔案過期，因此再從同一份 CREATE VIEW 文字重新產生 "
+            "qbe_schema.json（2026-09-07 版就是這麼做的）並不會有任何改變："
+            "JSON 與 SQL 彼此一致，卻都與 SQLite 不一致。"),
         fix=(
-            "Regenerate Data/qbe_schema.json from the live schema with "
-            "Code/gen_qbe_schema.py, and have LoadSchemaFromJSON verify each "
-            "whitelisted column against the database at startup so a stale "
-            "whitelist fails loudly instead of per-query."),
+            "Two independent halves, and the first is the real fix.  "
+            "(1) Give the eight views unambiguous output names -- alias "
+            "the second occurrence in the CREATE VIEW, in "
+            "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql -- so "
+            "there is nothing for SQLite to rename.  A column called "
+            "`c_personid:1` cannot be selected by any client, so this is "
+            "worth doing whatever the Query Builder does.  (2) Generate "
+            "qbe_schema.json from PRAGMA table_info against the built "
+            "database rather than by parsing CREATE VIEW text, so the "
+            "whitelist cannot describe columns the database does not "
+            "have.  The build already ships a Go test that would have "
+            "caught this -- Code/qbe_schema_test.go, added for this very "
+            "defect, which does read PRAGMA table_info -- but it skips "
+            "itself unless run from the project root and had not been "
+            "run against this database."),
         fix_zh=(
-            "用 Code/gen_qbe_schema.py 依實際結構重新產生 "
-            "Data/qbe_schema.json；並讓 LoadSchemaFromJSON 在啟動時就逐一"
-            "比對白名單欄位是否真的存在，讓過期的白名單在啟動階段就明確報錯，"
-            "而不是等到使用者查詢時才失敗。"),
+            "有兩個彼此獨立的部分，而第一個才是真正的修法。"
+            "(1) 讓這 8 個檢視表的輸出欄位名稱不再撞名——在 "
+            "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql 的 "
+            "CREATE VIEW 中為重複出現的那一個加上別名——這樣 SQLite 就沒有"
+            "東西需要改名。名為 `c_personid:1` 的欄位任何客戶端都無法選取，"
+            "所以無論查詢建構器怎麼做，這件事都值得做。"
+            "(2) 改由對已建好的資料庫執行 PRAGMA table_info 來產生 "
+            "qbe_schema.json，而不是解析 CREATE VIEW 的文字，白名單就不可能"
+            "描述出資料庫沒有的欄位。這一版其實已經附了一個能抓到這個問題的 "
+            "Go 測試——Code/qbe_schema_test.go，正是為這個缺陷而寫，而且確實"
+            "使用 PRAGMA table_info——但它在非專案根目錄執行時會自行跳過，"
+            "而且並未對這個資料庫執行過。"),
         steps=(
             "Open the Query Builder (/QBE).",
-            "Add the table `View_Entry` to the grid.",
-            "From its column list — the one the page itself supplies — pick "
-            "`c_personid`.",
-            "Press Run. The result is HTTP 500: 'Query failed: no such column: "
-            "v.c_personid'.",
-            "The same happens for 30 columns across 8 views; the full list is "
-            "pinned in tests/test_qbe.py.",
+            "Add the view `View_Entry` to the grid.",
+            "From its column list — the one the page itself supplies — "
+            "pick `c_personid`.",
+            "Press Run. The result is HTTP 500: 'Query failed: no such "
+            "column: v.c_personid'.",
+            "In the shipped database, `PRAGMA table_info(View_Entry)` "
+            "lists `c_personid:1` and no `c_personid`.",
+            "The same happens for 30 columns across 8 views; the full "
+            "list is pinned in tests/test_qbe.py.",
         ),
         steps_zh=(
             "開啟查詢建構器（/QBE）。",
-            "把 `View_Entry` 這張表加入查詢格線。",
+            "把檢視表 `View_Entry` 加入查詢格線。",
             "從欄位清單——也就是頁面自己提供的那一份——選擇 `c_personid`。",
             "按下執行，得到 HTTP 500：「Query failed: no such column: "
             "v.c_personid」。",
+            "在釋出的資料庫上執行 `PRAGMA table_info(View_Entry)`，看到的是 "
+            "`c_personid:1`，沒有 `c_personid`。",
             "8 個檢視表下共 30 個欄位都是如此；完整清單釘在 "
             "tests/test_qbe.py 中。",
         ),
-        source=("Code/qbe_schema.go:89", "Code/gen_qbe_schema.py",
-                "Data/qbe_schema.json"),
+        source=("Code/qbe_schema.go:89", "Code/qbe_schema_test.go",
+                "Data/gen_qbe_schema.py", "Data/qbe_schema.json",
+                "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql"),
         tests=("test_every_offered_column_exists_in_the_database",
                "test_a_phantom_column_gives_the_user_a_server_error",
-               "test_every_offered_table_can_actually_be_queried"),
+               "test_every_offered_table_can_actually_be_queried",
+               "test_no_view_resolves_two_columns_to_the_same_name"),
     ),
     Defect(
-        key="CBDB-D-005",
-        priority="P3",
+        key="CBDB-D-010",
+        priority="P0",
         severity="medium",
-        title="The release ships a previous session's working state",
-        title_zh="釋出檔中殘留了前一次使用的工作狀態",
-        area="Shipped database (Data/CBDB.db)",
-        area_zh="釋出的資料庫（Data/CBDB.db）",
+        origin="software",
+        title="Two browser tabs, or two copies of the application, share "
+              "one result",
+        title_zh="兩個瀏覽器分頁、或同時開兩份程式，會共用同一份查詢結果",
+        area="Every form with a working list or a scratch result",
+        area_zh="所有具備工作清單或暫存結果的表單",
         summary=(
-            "Fourteen ZZ_* scratch tables in the released database still hold "
-            "the results of somebody's working session.  The forms read those "
-            "tables on startup, so a fresh install opens with a person "
-            "already in its working list and exports that return a stranger's "
-            "data before the user has run anything."),
+            "Nothing in a request identifies the tab or the session it "
+            "came from.  The scratch tables a query fills and an export "
+            "reads are one set per database, so a query run in one tab "
+            "replaces what another tab's export is about to read.  "
+            "Worse, main.go takes no single-instance lock and defaults "
+            "to port 0, so cbdb.exe can be launched twice against the "
+            "same Data/cbdb.db; the in-process mutexes then protect "
+            "nothing, because the two processes have their own."),
         summary_zh=(
-            "釋出的資料庫中有 14 張 ZZ_* 暫存表，仍留著某一次工作階段的結果。"
-            "各表單啟動時會讀取這些表，因此全新安裝一打開，工作清單裡就已經"
-            "有一個人物；而使用者什麼都還沒查詢，匯出就會給出別人的資料。"),
+            "請求裡沒有任何東西能辨識它來自哪個分頁或哪個工作階段。查詢寫入、"
+            "匯出讀取的暫存表，每個資料庫只有一組，因此在一個分頁執行查詢，"
+            "就會覆蓋另一個分頁即將匯出的內容。更嚴重的是，main.go 沒有取得"
+            "單一實例鎖，而且預設使用 port 0，因此 cbdb.exe 可以對同一個 "
+            "Data/cbdb.db 啟動兩次；此時程式內的 mutex 完全失去作用，因為兩"
+            "個行程各有自己的一份。"),
         evidence=(
-            "On a fresh copy of the shipped database, before any request that "
-            "changes state: /api/kinship/person-count and "
-            "/api/networks/person-count both answer 1 (Ouyang Xiu, person "
-            "1384, sits in ZZ_SCRATCH_IMPORT_PEOPLE); store-count answers 2; "
-            "/api/assocpairs/recall-ids returns Lv Daqi and Lv Zuqian; the "
-            "Entry export returns 123 rows and the Associations export 16, "
-            "both from queries the user never ran.  ZZ_KIN_LIST (112 rows), "
-            "ZZ_SCRATCH_KINNET (111), ZZ_SCRATCH_PEOPLE (88), "
-            "ZZ_SCRATCH_ENTRY (123) and nine more are likewise populated."),
+            "This is the CBDB-Desktop developers' own finding from the "
+            "2026-09-07 remediation session, logged there as open and "
+            "confirmed here from the shipped source: the per-form "
+            "scratch tables added for CBDB-D-004 remove cross-*form* "
+            "sharing and leave cross-*request* sharing exactly as it "
+            "was.  Two requests to the same endpoint are "
+            "indistinguishable to the handler, and a grep of main.go "
+            "finds no mutex, lock file, PID file or port pinning."),
         evidence_zh=(
-            "在釋出資料庫的全新複本上，於任何會改變狀態的請求之前："
-            "/api/kinship/person-count 與 /api/networks/person-count 都回傳 1"
-            "（ZZ_SCRATCH_IMPORT_PEOPLE 中是歐陽修，人物編號 1384）；"
-            "store-count 回傳 2；/api/assocpairs/recall-ids 回傳呂大器與呂祖謙；"
-            "「入仕」匯出得到 123 列、「社會關係」匯出得到 16 列，"
-            "而這些查詢使用者從未執行過。ZZ_KIN_LIST（112 列）、"
-            "ZZ_SCRATCH_KINNET（111 列）、ZZ_SCRATCH_PEOPLE（88 列）、"
-            "ZZ_SCRATCH_ENTRY（123 列）等另外九張表同樣有殘留內容。"),
+            "這是 CBDB-Desktop 開發者在 2026-09-07 修復工作中自己找到的問題，"
+            "當時記錄為未解決，這裡再從釋出的原始碼確認：為 CBDB-D-004 增加"
+            "的「每個表單自有暫存表」消除了*跨表單*共用，但*跨請求*共用完全"
+            "沒有改變。對處理程式而言，兩個打到同一端點的請求無從區分；"
+            "而在 main.go 中搜尋，找不到任何 mutex、鎖檔、PID 檔或固定通訊埠"
+            "的處理。"),
         impact=(
-            "A new user's first Export gives them somebody else's result with "
-            "no indication that it is not theirs, and the Kinship and "
-            "Networks forms start with a person nobody selected.  It also "
-            "means the release was built from a database that had been used, "
-            "rather than from a clean one.  Self-limiting: every form "
-            "truncates its own scratch tables before writing, so the state "
-            "survives only until the user's first query -- which is why this "
-            "is medium rather than high."),
+            "A user with the Associations form open in two tabs -- an "
+            "ordinary way to compare two queries -- can export the wrong "
+            "one, with no error.  The two-process case is worse than "
+            "overwriting: SQLite's WAL mode permits both to write, so "
+            "the two can interleave writes into the same scratch tables "
+            "and produce a result that is neither query's answer."),
         impact_zh=(
-            "新使用者第一次按下匯出，拿到的是別人的查詢結果，而且完全看不出"
-            "那不是自己的；「親屬關係」與「社會網路」表單一開始就已經帶著一個"
-            "沒人選過的人物。這也表示這份釋出檔是從一個「用過的」資料庫打包"
-            "出來的，而非乾淨的資料庫。影響是有限的：每個表單在寫入前都會先"
-            "清空自己的暫存表，所以這些殘留只會存活到使用者第一次查詢為止——"
-            "這也是本項評為中等而非高的原因。"),
+            "使用者在兩個分頁裡開著社會關係表單——這是比較兩個查詢再自然不過"
+            "的做法——就可能匯出錯的那一份，而且沒有任何錯誤提示。兩個行程的"
+            "情況比覆蓋更糟：SQLite 的 WAL 模式允許兩者同時寫入，於是兩邊的"
+            "寫入可能交錯進同一組暫存表，產生的結果不屬於任何一次查詢。"),
         fix=(
-            "Empty the ZZ_* scratch tables before packaging, and add a "
-            "build-time assertion that they are empty.  Clearing them costs "
-            "nothing: every form truncates its own scratch tables before "
-            "writing to them anyway."),
+            "Namespace the scratch state per session rather than per "
+            "form: a session id in a cookie, and either per-session "
+            "table names or a session column in each scratch table.  "
+            "Separately, and much cheaper, refuse to start a second "
+            "instance against the same database (a lock file beside "
+            "Data/cbdb.db, checked at startup) -- that alone removes the "
+            "interleaved-write half of the problem."),
         fix_zh=(
-            "打包前清空所有 ZZ_* 暫存表，並在建置流程加一道檢查確認它們為空。"
-            "清空幾乎沒有代價：每個表單本來就會在寫入前先清空自己的暫存表。"),
+            "把暫存狀態改成依工作階段（session）而非依表單命名空間：在 "
+            "cookie 中放一個 session id，並採用依 session 命名的表、或在每張"
+            "暫存表中加一個 session 欄位。另外一個便宜得多的做法是：拒絕對"
+            "同一個資料庫啟動第二個實例（在 Data/cbdb.db 旁放一個鎖檔，啟動"
+            "時檢查）——僅此一項就能消除交錯寫入的那一半問題。"),
         steps=(
-            "Install the release and start the application. Do nothing else.",
-            "Open the Kinship form: the working list already contains Ouyang "
-            "Xiu (person 1384).",
-            "Open the Entry form and press Export Results without running a "
-            "query. The file contains 123 rows.",
-            "On the shipped Data/CBDB.db: `SELECT COUNT(*) FROM "
-            "ZZ_SCRATCH_ENTRY` returns 123, and thirteen other ZZ_* tables "
-            "are likewise non-empty.",
+            "Open the Associations form in two browser tabs.",
+            "In tab A, run a query; the grid fills.",
+            "In tab B, run a different query.",
+            "Back in tab A, press Export Results: the file describes tab "
+            "B's query.",
+            "Separately: launch Bin/cbdb.exe twice. Both start, both "
+            "open the same Data/cbdb.db, and neither mentions the other.",
         ),
         steps_zh=(
-            "安裝釋出版本並啟動程式，什麼都先別做。",
-            "開啟「親屬關係」表單：工作清單裡已經有歐陽修（人物編號 1384）。",
-            "開啟「入仕」表單，不執行任何查詢，直接按「匯出結果」，"
-            "得到的檔案有 123 列。",
-            "對釋出的 Data/CBDB.db 執行 `SELECT COUNT(*) FROM "
-            "ZZ_SCRATCH_ENTRY` 會得到 123；另外還有十三張 ZZ_* 表同樣非空。",
+            "在兩個瀏覽器分頁中開啟社會關係表單。",
+            "在分頁 A 執行一次查詢，格線填入結果。",
+            "在分頁 B 執行另一次不同的查詢。",
+            "回到分頁 A 按下匯出結果：檔案的內容是分頁 B 的查詢結果。",
+            "另外：把 Bin/cbdb.exe 啟動兩次。兩者都會啟動、都會開啟同一個 "
+            "Data/cbdb.db，而且都不會提到對方的存在。",
         ),
-        source=("Data/CBDB.db",
-                "Code/kinship_form_backend.go:handlePersonCount",
-                "Code/entry_form_backend.go:handleExportResults"),
-        tests=("test_a_fresh_install_starts_with_no_working_state",),
-    ),
-    Defect(
-        key="CBDB-D-003",
-        priority="P4",
-        severity="low",
-        title="A name is indexed for a person the database does not contain",
-        title_zh="姓名索引中有一位資料庫裡並不存在的人物",
-        area="Name index (ZZZ_NAMES)",
-        area_zh="姓名索引（ZZZ_NAMES）",
-        summary=(
-            "Person 100382 has rows in ZZZ_NAMES but no row in BIOG_MAIN.  "
-            "ZZZ_NAMES is derived from BIOG_MAIN and ALTNAME_DATA at build "
-            "time, so this is a row the derivation kept after its source "
-            "dropped it."),
-        summary_zh=(
-            "人物編號 100382 在 ZZZ_NAMES 中有資料，但 BIOG_MAIN 裡沒有對應的"
-            "那一筆。ZZZ_NAMES 是建置時由 BIOG_MAIN 與 ALTNAME_DATA 推導出來"
-            "的，因此這是一筆在來源資料已經刪除後、推導結果卻仍保留下來的紀錄。"),
-        evidence=(
-            "One person id -- 100382, 元世祖 / 'Pouyuandaizhudi' -- appears in "
-            "ZZZ_NAMES with no matching BIOG_MAIN row.  It is reachable by "
-            "name search, and /api/browser/person/100382 then answers 404."),
-        evidence_zh=(
-            "只有一個人物編號有此問題：100382，元世祖 / 'Pouyuandaizhudi'。"
-            "它出現在 ZZZ_NAMES 中，卻沒有對應的 BIOG_MAIN 資料。這個名字可以"
-            "被搜尋到，但 /api/browser/person/100382 會回傳 404。"),
-        impact=(
-            "Minor: a single name that can be found and not opened.  Worth "
-            "fixing mainly because it means the derivation can outlive its "
-            "source, which would matter more at a larger scale."),
-        impact_zh=(
-            "影響輕微：只是一個找得到、卻打不開的名字。之所以仍建議處理，"
-            "主要是因為它顯示推導結果可能比來源資料活得更久——若日後規模擴大，"
-            "同類問題會更麻煩。"),
-        fix=(
-            "Rebuild ZZZ_NAMES from the current BIOG_MAIN, and add a "
-            "referential check to the build."),
-        fix_zh=(
-            "以目前的 BIOG_MAIN 重新產生 ZZZ_NAMES，並在建置流程加入一道"
-            "參照完整性檢查。"),
-        steps=(
-            "On the shipped database, list names whose person is missing: "
-            "`SELECT DISTINCT n.c_personid FROM ZZZ_NAMES n LEFT JOIN "
-            "BIOG_MAIN b ON b.c_personid = n.c_personid WHERE b.c_personid IS "
-            "NULL` — one row comes back, 100382.",
-            "Request that person from the running application: "
-            "`GET /api/browser/person/100382` answers 404.",
-        ),
-        steps_zh=(
-            "在釋出的資料庫上列出「有名字卻查無此人」的紀錄："
-            "`SELECT DISTINCT n.c_personid FROM ZZZ_NAMES n LEFT JOIN "
-            "BIOG_MAIN b ON b.c_personid = n.c_personid WHERE b.c_personid IS "
-            "NULL`——回傳一列，100382。",
-            "向執行中的程式請求這位人物："
-            "`GET /api/browser/person/100382` 回傳 404。",
-        ),
-        source=("CBDBSetUpCode/zzznames_backend.go",),
-        tests=("test_every_name_belongs_to_a_person_who_exists",),
+        source=("Code/main.go", "Code/associations_form_backend.go:233",
+                "Code/networks_form_backend.go:411"),
+        tests=("test_a_second_query_replaces_what_the_first_would_export",
+               "test_nothing_stops_a_second_instance_opening_the_database"),
     ),
 )
 
@@ -599,10 +849,11 @@ DEFECTS: dict[str, Defect] = {defect.key: defect for defect in _DEFECTS}
 #: Convenient aliases, so a test can name the defect it demonstrates
 #: without repeating an identifier.
 BY_NAME: dict[str, Defect] = {
-    "name-search": DEFECTS["CBDB-D-001"],
     "qbe-phantom-columns": DEFECTS["CBDB-D-002"],
-    "orphan-name": DEFECTS["CBDB-D-003"],
-    "associations-export-clobbered": DEFECTS["CBDB-D-004"],
-    "shipped-scratch-state": DEFECTS["CBDB-D-005"],
-    "unvalidated-ranking": DEFECTS["CBDB-D-006"],
+    "missing-utf8-bom": DEFECTS["CBDB-D-011"],
+    "multi-file-download": DEFECTS["CBDB-D-012"],
+    "kml-declaration": DEFECTS["CBDB-D-007"],
+    "networks-sna-exports": DEFECTS["CBDB-D-008"],
+    "associations-neo4j-export": DEFECTS["CBDB-D-009"],
+    "shared-session-state": DEFECTS["CBDB-D-010"],
 }

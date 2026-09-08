@@ -16,3 +16,4 @@ requests>=2.31,<3              # HTTP client for the running cbdb.exe
 # and the generator reports which formats it could not produce.
 python-docx>=1.1,<2
 pywin32>=305 ; sys_platform == "win32"
+py7zr>=1.0

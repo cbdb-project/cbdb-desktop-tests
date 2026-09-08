@@ -92,7 +92,13 @@ if ($code -ne 0) { throw "staging failed" }
 Step "Running the tests"
 $pytestArgs = @("`"$ROOT\tests`"", "-q", "--json-report",
                 "--json-report-file=`"$JSON`"")
-if ($Restage) { $pytestArgs += "--restage" }
+# Deliberately NOT --restage: step 2 above already forced a fresh unpack,
+# in its own process, and pytest cannot know that.  Passing it here made
+# the run re-extract 1.3 GB a second time and then rename the tree the
+# first pass had just installed -- which Windows refused mid-swap with
+# PermissionError [WinError 5], erroring all 678 tests.  One restage per
+# run is a restage.
+if ($Restage) { $pytestArgs += "--refresh-inputs" }
 if ($Fast)    { $pytestArgs += @("-m", "`"not app`"") }
 if ($Filter)  { $pytestArgs += @("-k", "`"$Filter`"") }
 

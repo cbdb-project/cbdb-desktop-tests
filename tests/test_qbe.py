@@ -88,7 +88,11 @@ def db_catalogue(layout: AppLayout) -> dict[str, set[str]]:
 # ---------------------------------------------------------------------------
 
 def test_the_whitelist_has_the_documented_shape(qbe_schema):
-    assert len(qbe_schema) == 99, len(qbe_schema)
+    # 102 tables and 1386 columns in the 2026-09-07 build, against 99
+    # and 1350 in 2026-09-01.  Pinned exactly, like every count here: a
+    # whitelist that lost a third of its columns would satisfy any floor
+    # loose enough to survive a data refresh.
+    assert len(qbe_schema) == 102, len(qbe_schema)
     assert [t["name"] for t in qbe_schema] == sorted(t["name"] for t in qbe_schema), \
         "the grid shows tables in the order it receives them; they are not sorted"
 
@@ -99,7 +103,71 @@ def test_the_whitelist_has_the_documented_shape(qbe_schema):
             assert set(column) == {"name", "label", "sql_type"}, sorted(column)
 
     total = sum(len(t["columns"]) for t in qbe_schema)
-    assert total == 1350, total
+    assert total == 1386, total
+
+
+def test_no_view_resolves_two_columns_to_the_same_name(db_catalogue,
+                                                       qbe_schema):
+    """The root cause of CBDB-D-002, asserted where it lives.
+
+    SQLite gives a view's output columns the names its SELECT produces,
+    and when a SELECT produces the same name twice it disambiguates by
+    appending ``:1`` to the second.  A column called ``c_personid:1``
+    cannot be selected by the Query Builder, by the QBE SQL generator,
+    or by any other client -- the identifier is unquotable in the
+    generator's ``quoteIdent`` and meaningless to a user reading a
+    header -- so a view that produces one has an output column nobody
+    can ask for.
+
+    Eight views do, and the correspondence with the whitelist's 30
+    phantom columns is one-to-one: every phantom ``X`` has a sibling
+    ``X:1`` in the same view.  That is what identifies the mechanism as
+    duplicate-name resolution rather than a stale schema file, and it is
+    why regenerating ``qbe_schema.json`` from the same ``CREATE VIEW``
+    text does not fix it -- the JSON and the SQL agree with each other,
+    and SQLite disagrees with both.
+
+    Read from ``PRAGMA table_info``, which is how SQLite itself resolves
+    a view's columns at query time.  No handler logic is reproduced.
+    """
+    mangled = {name: sorted(column for column in columns if ":" in column)
+               for name, columns in db_catalogue.items()}
+    mangled = {name: columns for name, columns in mangled.items() if columns}
+
+    phantom_pairs = []
+    for table in qbe_schema:
+        real = db_catalogue.get(table["name"], set())
+        for column in table["columns"]:
+            if column["name"] not in real:
+                if f"{column['name']}:1" in real:
+                    phantom_pairs.append(f"{table['name']}.{column['name']}")
+
+    assert mangled == {
+        "View_BiogInstAddrData": ["c_notes:1", "c_personid:1"],
+        "View_BiogInstData": ["c_notes:1", "c_personid:1"],
+        "View_BiogSourceData": ["c_notes:1"],
+        "View_BiogTextData": ["c_notes:1", "c_pages:1", "c_source:1"],
+        "View_Entry": ["c_assoc_code:1", "c_entry_code:1", "c_notes:1",
+                       "c_personid:1"],
+        "View_EventData": ["c_addr_id:1", "c_event_code:1", "c_pages:1",
+                           "c_source:1"],
+        "View_KinAddr": ["c_dy:1", "c_dynasty:1", "c_dynasty_chn:1",
+                         "c_female:1", "c_index_year:1",
+                         "c_index_year_type_desc:1",
+                         "c_index_year_type_hz:1", "c_notes:1",
+                         "c_personid:1"],
+        "View_PostingOfficeData": ["c_dy:1", "c_notes:1", "c_office_id:1",
+                                   "c_pages:1", "c_source:1"],
+    }, (
+        "the set of views with duplicate output column names changed -- "
+        f"update the defect report:\n{mangled}")
+
+    # The link between the two halves, so a partial fix cannot leave the
+    # report describing a mechanism that no longer applies.
+    assert len(phantom_pairs) == sum(len(v) for v in mangled.values()) == 30, (
+        f"{len(phantom_pairs)} of the whitelist's phantom columns have a "
+        f"':1' sibling, against {sum(len(v) for v in mangled.values())} "
+        "mangled columns in the database")
 
 
 def test_every_offered_table_exists_in_the_database(qbe_schema, db_catalogue):

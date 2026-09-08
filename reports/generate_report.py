@@ -34,7 +34,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 
-from cbdb_desktop.defects import DEFECTS, PRIORITIES, Defect  # noqa: E402
+from cbdb_desktop.defects import (  # noqa: E402
+    DEFECTS, ORIGINS, PRIORITIES, Defect)
 
 DEFAULT_JSON = ROOT / "reports" / "pytest_report.json"
 REPORTS = ROOT / "reports"
@@ -114,6 +115,7 @@ STRINGS: dict[str, dict] = {
     "legend": {"en": "Severity legend", "zh": "嚴重等級說明"},
     "affected": {"en": "Affected area:", "zh": "涉及範圍："},
     "severity": {"en": "Severity:", "zh": "嚴重等級："},
+    "origin": {"en": "Where it comes from:", "zh": "問題來源："},
     "status": {"en": "Status in this run:", "zh": "本次執行狀態："},
     "h_description": {"en": "Description", "zh": "問題描述"},
     "h_evidence": {"en": "Evidence", "zh": "實測依據"},
@@ -396,6 +398,15 @@ def render_markdown(run: dict, lang: str, build: str) -> str:
         out.append(f"**{S('affected')}** {defect.text('area', lang)}")
         out.append("")
         out.append(f"**{S('severity')}** {defect.priority} — {priority_text}")
+        out.append("")
+        # Who the entry is addressed to.  Printed beside the severity
+        # because the two together are what a reader needs before
+        # deciding whether the rest of the section is theirs to act on:
+        # a data-origin finding is fixed in the CBDB source, not in the
+        # application, and sending it to the developers wastes the only
+        # channel this project has.
+        origin_text = ORIGINS[defect.origin][0 if lang == "en" else 1]
+        out.append(f"**{S('origin')}** `{defect.origin}` — {origin_text}")
         out.append("")
         out.append(f"**{S('status')}** {STATUS_TEXT[lang][state]}")
         out.append("")

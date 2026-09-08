@@ -13,10 +13,25 @@ shipped database, a second endpoint of the same app, or a frozen golden
 — never a hand-written transcription of the Go logic, which would only
 test the transcription.
 
-**On the 2026-09-01 build it finds six defects**, three of them high
-severity: one breaks the main way of finding a person, one silently hands
-the user an empty export, and one lets a malformed request rewrite the
-index address of every person in the database.
+**On the 2026-09-07 build it finds seven defects.** Four of the six it
+reported against 2026-09-01 are fixed; one is not, for a reason the
+remediation could not have found by the method it used. The seven:
+
+- every exported CSV is UTF-8 with no byte-order mark, so Excel opens it
+  in the system code page and every Chinese name is mojibake;
+- a multi-file export saves only the first file and reports that it
+  saved them all;
+- four export buttons fail on every input (three on Networks, one on
+  Associations);
+- two KML exports produce a file no mapping tool will open;
+- thirty Query Builder columns do not exist under the names it offers;
+- two browser tabs share one result.
+
+Six of the seven are about exports, and that is the reason the suite now
+enumerates its own coverage instead of trusting a test plan: runs
+against the previous build reported no export problems while driving 6
+of the 42 file-producing endpoints. The first run that pressed the other
+36 found four defect families in one go.
 
 The findings are reported in English and Traditional Chinese, as
 Markdown, Word and PDF, all regenerated from every run:
@@ -68,6 +83,11 @@ most of it Word starting twice to write the PDFs.
 | `test_form_queries.py` | the six forms that keep no working list: queries and exports |
 | `test_stateful_forms.py` | kinship, networks, association pairs, group data — the forms that keep a working list |
 | `test_index_addr.py` | index-address rankings: the only endpoints that rewrite CBDB data |
+| `test_exports.py` | **every one of the 42 file-producing endpoints**, driven for real: envelope, file names, format, the people named, repeatability, and what happens with nothing to export |
+| `test_query_matrix.py` | every form × dynasty × half-century × address combination the shipped data has rows for, discovered rather than hand-picked |
+| `test_scratch_tables.py` | who owns each `ZZ_*` table, and whether the code's declarations match the database |
+| `test_sessions.py` | what happens when the application is used from two tabs, or launched twice |
+| `test_zz_controls.py` | every button in every template, and whether this run actually requested what each can reach |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
 
 The route list is not maintained by hand: `cbdb_desktop/routes.py` reads

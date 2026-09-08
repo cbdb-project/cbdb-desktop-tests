@@ -22,7 +22,8 @@ import re
 
 import pytest
 
-from cbdb_desktop.defects import BY_NAME, DEFECTS, PRIORITIES, Defect
+from cbdb_desktop.defects import (BY_NAME, DEFECTS, ORIGINS, PRIORITIES,
+                                  Defect)
 from cbdb_desktop.staging import AppLayout
 
 #: "Code/main.go:42 (why)" or "Code/main.go:handleThing (why)" -> parts.
@@ -191,6 +192,12 @@ def test_the_registry_is_internally_consistent():
         assert defect.priority in PRIORITIES, \
             f"{key} has priority {defect.priority!r}"
         assert defect.severity in ("high", "medium", "low")
+        # The origin decides who the entry is sent to, so an unknown one
+        # is not a typo to shrug at: the report prints it verbatim, and
+        # a data problem addressed to the application developers is both
+        # wasted and wrong (AGENTS.md § "Where a defect comes from").
+        assert defect.origin in ORIGINS, \
+            f"{key} has origin {defect.origin!r}, not one of {sorted(ORIGINS)}"
 
     aliased = {defect.key for defect in BY_NAME.values()}
     assert aliased == set(DEFECTS), \

@@ -25,6 +25,41 @@ original, so it agrees with the original — including everywhere the
 original is wrong. A transcription oracle cannot find a bug; it can only
 confirm that the transcription was done carefully.
 
+## The one place the rule bends: choosing an input
+
+Reading the data to decide **what to ask** is allowed, and encouraged.
+Reading it to decide **what the answer should be** is the prohibition
+above.
+
+    allowed:    "which (entry code, dynasty) pairs have at least 20 rows
+                 in ENTRY_DATA joined to BIOG_MAIN?"
+                 -> the answer is a request to send.  If it is wrong, or
+                 the join is not the handler's, the test still checks
+                 exactly what it claims, on a duller input.
+
+    forbidden:  "that join says 47 rows, so the form must return 47."
+                 -> the handler's SQL retyped, agreeing with the
+                 original wherever the original is wrong, and a false
+                 alarm the day the handler legitimately adds a join.
+
+`cbdb_desktop/discovery.py` lives on the allowed side of that line and
+says so at length in its own docstring. The properties the matrix then
+asserts hold whatever the data contains: every row satisfies the filter
+it was given, narrowing never adds rows, adjacent windows stay disjoint.
+None of them is a count.
+
+Two rules that come with it:
+
+- **Never hand-pick an input.** Half the time it lands on sparse data,
+  the response is empty, and the assertions run against nothing while
+  looking exactly like a pass. Discover it.
+- **Then verify the input is live, against the application.** A code can
+  have rows in its base table and contribute nothing to a form's result
+  — four of five candidate text ids did, until the discovery query was
+  pointed at the table the form's default mode actually reads. Asking
+  the app which of its own codes return rows is still input selection;
+  no expectation is derived from the answer.
+
 ## Two questions that settle it
 
 ### 1. Would this assertion survive a rewrite?

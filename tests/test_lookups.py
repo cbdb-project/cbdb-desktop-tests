@@ -16,7 +16,6 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
 
 pytestmark = pytest.mark.app
 
@@ -33,15 +32,15 @@ def _keys(rows: list[dict]) -> set[str]:
     ("/api/entry-types",
      {"code", "desc", "descChn", "parentId"}, 29),
     ("/api/entry-code-type-rel",
-     {"entryCode", "entryType"}, 280),
+     {"entryCode", "entryType"}, 284),
     ("/api/office/office-types",
-     {"nodeId", "parentId", "desc", "descChn"}, 2739),
+     {"nodeId", "parentId", "desc", "descChn"}, 2742),
     ("/api/associations/assoc-types",
      {"nodeId", "parentId", "desc", "descChn", "level", "sortOrder"}, 45),
     ("/api/status-types",
-     {"code", "parentCode", "desc", "descChn"}, 13),
+     {"code", "parentCode", "desc", "descChn"}, 14),
     ("/api/status-code-type-rel",
-     {"statusCode", "statusTypeCode"}, 284),
+     {"statusCode", "statusTypeCode"}, 285),
     ("/api/dynasties",
      {"code", "name", "nameChn", "startYear", "endYear"}, 85),
     ("/api/addresses",
@@ -49,8 +48,12 @@ def _keys(rows: list[dict]) -> set[str]:
       "firstYear", "lastYear", "xCoord", "yCoord"}, 37_118),
     ("/api/texts/text-categories",
      {"nodeId", "parentId", "desc", "descChn", "level", "sortOrder"}, 51),
+    # 20, not 22: the two BIOG_ADDR_CODES rows that are not real choices
+    # ("[Missing Data]" = -1 and "unknown" = 0) are excluded server-side
+    # as of the 2026-09-07 build.  See
+    # test_the_dropdown_offers_only_address_types_that_can_be_ranked.
     ("/api/indexaddr/codes",
-     {"addr_type", "combined_desc", "desc_chn"}, 22),
+     {"addr_type", "combined_desc", "desc_chn"}, 20),
     ("/api/indexaddr/rankings",
      {"addr_type", "index_addr_rank", "index_addr_default_rank"}, 22),
 ])
@@ -108,7 +111,7 @@ def test_every_status_relation_names_a_type_the_app_offers(app: CbdbApp):
     # has a null parent.  Both are pinned, per endpoint, so that "null is
     # allowed" cannot quietly spread to a tree whose parents have all
     # become null -- which would look like a valid forest of roots.
-    ("/api/office/office-types", "0", 8),
+    ("/api/office/office-types", "0", 11),
     ("/api/associations/assoc-types", "0", 10),
     ("/api/texts/text-categories", None, 1),
 ])
@@ -201,15 +204,58 @@ def test_the_address_list_has_its_expected_size(app: CbdbApp):
         len({row["id"] for row in rows})
 
 
-def test_index_address_codes_and_rankings_describe_the_same_types(app: CbdbApp):
-    """The IndexAddr form joins these two lists by address type."""
+def test_the_dropdown_offers_only_address_types_that_can_be_ranked(
+        app: CbdbApp, sqlite_conn):
+    """The IndexAddr form joins these two lists by address type.
+
+    They are deliberately no longer the same list.  ``/codes`` fills the
+    nine priority dropdowns and ``/rankings`` says which type currently
+    sits in each; ``BIOG_ADDR_CODES`` also holds two rows that are not
+    real choices -- "[Missing Data]" (-1) and "unknown" (0) -- and the
+    2026-09-07 build stopped offering them, because a non-positive code
+    arriving in an update request is now treated as "no selection"
+    (``buildCleanRanks``).  Offering a value the backend is contractually
+    obliged to discard is what installed the bogus rank behind
+    CBDB-D-006.
+
+    So what has to hold is an inclusion in each direction, not equality:
+    every offered type has a ranking row (or its dropdown could not show
+    a rank), and every *ranked* type is offered (or the page would show a
+    rank the user cannot see the name of, and cannot re-select after
+    changing it).
+    """
     codes = app.json("GET", "/api/indexaddr/codes")
     rankings = app.json("GET", "/api/indexaddr/rankings")
 
-    assert {row["addr_type"] for row in codes} == \
-        {row["addr_type"] for row in rankings}
-    assert len({row["addr_type"] for row in rankings}) == len(rankings), \
+    offered = {row["addr_type"] for row in codes}
+    described = {row["addr_type"] for row in rankings}
+    assert len(described) == len(rankings), \
         "duplicate address types in the rankings"
+
+    assert offered <= described, \
+        f"types offered in the dropdown with no ranking row: " \
+        f"{sorted(offered - described)}"
+
+    # 1..9 is the ranked range; 100 is "not ranked" (indexAddrRankings
+    # Handler's own comment), and the page only reads 1..9.
+    ranked = {row["addr_type"] for row in rankings
+              if 1 <= row["index_addr_rank"] <= 9}
+    assert ranked, "no address type is ranked at all"
+    assert ranked <= offered, (
+        f"address types are ranked but not offered in the dropdown: "
+        f"{sorted(ranked - offered)} -- the form cannot name them, and a "
+        "user who changes the ranking cannot put them back")
+
+    # The excluded rows are exactly the non-positive ones, and they are
+    # a base fact of the shipped table, not a re-derivation of the
+    # handler's filter: what is checked is that nothing *else* went
+    # missing from the dropdown along with them.
+    non_positive = {row[0] for row in sqlite_conn.execute(
+        "SELECT c_addr_type FROM BIOG_ADDR_CODES WHERE c_addr_type <= 0")}
+    assert non_positive, "the shipped table has no non-positive address type"
+    assert described - offered == non_positive, (
+        f"the dropdown drops {sorted(described - offered)}; only the "
+        f"non-selectable rows {sorted(non_positive)} should be missing")
 
 
 # ---------------------------------------------------------------------------
@@ -359,10 +405,10 @@ def test_a_short_search_finds_the_person_it_names(app: CbdbApp):
         assert any(r["personId"] == person["personId"] for r in hits["records"]), \
             f"{person['name']} cannot be found by searching {term!r}"
 
-    # A longer fragment of the same name can only ever match fewer people
-    # -- but only where the search works at all.  While the FTS index is
-    # empty (see the defect below), any 3+ character term returns nothing,
-    # which would make this trivially true rather than meaningful.
+    # A longer fragment of the same name can only ever match fewer
+    # people.  Guarded by a non-zero check anyway: while the FTS index
+    # was empty (CBDB-D-001, 2026-09-01 build) any 3+ character term
+    # returned nothing, which made this trivially true.
     full = person["name"].strip()
     if len(full) >= 3:
         narrower = app.json("GET", "/api/browser/people",
@@ -372,27 +418,35 @@ def test_a_short_search_finds_the_person_it_names(app: CbdbApp):
                 f"searching {full!r} matched more people than {term!r}"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["orphan-name"].reason)
 def test_every_name_belongs_to_a_person_who_exists(sqlite_conn):
     """No name may be indexed for a person the database does not contain.
 
-    Marked xfail(strict) with the decorator rather than raised inside the
-    body: an imperative pytest.xfail() reports a plain pass once the
-    defect is fixed, so nobody is ever told.  The decorator turns a fix
-    into an XPASS failure, which is the notification a fixed bug deserves.
+    A **data-origin** check (AGENTS.md § "Where a defect comes from"): a
+    failure here is a property of the database snapshot that was
+    packaged, not of any code path in ``cbdb.exe``.  Every row
+    ``RunZZZNames`` writes is read out of ``BIOG_MAIN`` or reached
+    through an INNER JOIN against it, so the derivation cannot invent an
+    orphan; an orphan means ``BIOG_MAIN`` lost a row *after* ``ZZZ_NAMES``
+    was last derived from it.  That is fixed by rebuilding from the
+    current source, not by the application developers.
+
+    The 2026-09-01 build shipped exactly one (person 100382, searchable
+    by name and then a 404 when opened).  The 2026-09-07 build ships
+    none, which is what a clean rebuild is supposed to produce.
+
+    ``CBDBSetUpCode/zzznames_referential_check.go`` is this same query,
+    shipped as a build-time guard; nothing in the build sequence calls it
+    yet, so this test is currently the only place it runs.
     """
     orphans = [row[0] for row in sqlite_conn.execute(
         "SELECT DISTINCT n.c_personid FROM ZZZ_NAMES n "
         "LEFT JOIN BIOG_MAIN b ON b.c_personid = n.c_personid "
         "WHERE b.c_personid IS NULL")]
-    if orphans == [100382]:
-        raise KnownShippedDefect(
-            "person 100382 has names in ZZZ_NAMES but no BIOG_MAIN row")
     assert orphans == [], (
         f"{len(orphans)} person id(s) have names but no BIOG_MAIN row: "
         f"{orphans[:10]}.  They are searchable by name and then 404 when "
-        "opened.  This is a different set from the one known to ship.")
+        "opened.  This is a snapshot-provenance problem: rebuild "
+        "ZZZ_NAMES from the current BIOG_MAIN.")
 
 
 @pytest.mark.parametrize("term,expected_minimum", [
@@ -401,53 +455,79 @@ def test_every_name_belongs_to_a_person_who_exists(sqlite_conn):
     ("Su Shi", 1),
     ("王安石", 1),   # the same person, in Chinese
 ])
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["name-search"].reason)
 def test_searching_people_by_name_finds_them(app: CbdbApp, term: str,
                                              expected_minimum: int):
     """The main way a user finds a person in the browser.
 
-    The marker is narrowed to KnownShippedDefect so that only the defect
-    described above is tolerated: a 500, malformed JSON, or a *different*
-    wrong answer still fails as a failure.  And the day the index is
-    rebuilt this passes unexpectedly, which pytest reports as an error --
-    the notification a fixed bug deserves.
+    Terms of three or more characters are the interesting ones: SQLite
+    routes a short LIKE pattern past the trigram index and scans the
+    content table, so short searches went on working while the index was
+    empty (CBDB-D-001 in the 2026-09-01 build).  Anything three
+    characters or longer goes through ``ZZZ_NAMES_FTS`` and is the case
+    that actually exercises it -- which is why every term below except
+    "Wang" is at least three characters, in both scripts.
     """
     payload = app.json("GET", "/api/browser/people",
                        params={"search": term, "limit": 20})
 
-    if payload["total"] == 0 and payload["records"] == []:
-        raise KnownShippedDefect(
-            f"search {term!r} ({len(term)} characters) found nobody; at least "
-            f"{expected_minimum} people have that in a name")
     assert payload["total"] >= expected_minimum, \
-        f"search {term!r} found {payload['total']} people"
+        f"search {term!r} ({len(term)} characters) found " \
+        f"{payload['total']} people"
+    assert payload["records"], f"search {term!r} reported a total but no rows"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["name-search"].reason)
-def test_the_name_search_index_is_populated(sqlite_conn):
-    """The root cause of the search defect, asserted where it lives.
+def test_the_name_search_index_covers_every_name(sqlite_conn):
+    """Every row of ZZZ_NAMES is in the trigram index that searches it.
 
-    A search test can only say "nothing came back"; this says why, so a
-    reader does not have to rediscover it.  Both numbers are base facts
-    about the shipped database.
+    The root cause of CBDB-D-001 asserted where it lives.
+    ``ZZZ_NAMES_FTS`` is an external-content FTS5 table, so browsing it
+    directly shows every row regardless -- they are read straight from
+    ``ZZZ_NAMES``.  Only the shadow tables say whether the index itself
+    was ever built, which is why the count comes from
+    ``ZZZ_NAMES_FTS_docsize`` (one row per indexed document) rather than
+    from the virtual table.
 
-    The bar is a ratio, not "more than zero": a partially rebuilt index
-    would leave search broken for most names while satisfying any
-    non-zero check.
+    Equality, not "more than zero": the 2026-09-01 build shipped a
+    schema and sync triggers that were both correct over an index holding
+    zero documents, and any non-zero floor would also pass on a
+    partially rebuilt index that leaves search broken for most names.
+
+    ``CBDBSetUpCode/zzznames_backend.go`` now makes the same comparison
+    inside ``RunZZZNames``' own transaction and rolls back on a mismatch;
+    ``test_the_build_verifies_the_search_index_before_committing`` checks
+    that guard is still in the shipped source.
     """
     content = sqlite_conn.execute("SELECT COUNT(*) FROM ZZZ_NAMES").fetchone()[0]
     indexed = sqlite_conn.execute(
         "SELECT COUNT(*) FROM ZZZ_NAMES_FTS_docsize").fetchone()[0]
     assert content > 100_000, content
 
-    if indexed == 0:
-        raise KnownShippedDefect(
-            f"the name index holds no documents at all for {content:,} names")
-    assert indexed >= content, (
+    assert indexed == content, (
         f"the name index holds {indexed:,} documents for {content:,} names -- "
-        "a partial rebuild leaves search broken for most names")
+        "search is broken for whatever is missing, and nothing in the "
+        "application reports it")
+
+
+def test_the_build_verifies_the_search_index_before_committing(layout):
+    """The database builder must not be able to ship an unbuilt index.
+
+    Read as data out of the shipped builder source, the way
+    ``routes.py`` reads the routing table: the thing that produced
+    CBDB-D-001 was not missing code but code that could not tell whether
+    it had run, so the guard's *presence* is the property worth pinning.
+    A rebuild that stops checking would let the same silent failure ship
+    again, and the symptom -- search finding nothing for three-character
+    terms -- would only be caught by the test above, on a build that has
+    already been packaged and sent out.
+    """
+    source = (layout.setup_code_dir / "zzznames_backend.go").read_text(
+        encoding="utf-8", errors="replace")
+
+    assert "ZZZ_NAMES_FTS_docsize" in source, (
+        "RunZZZNames no longer counts the FTS shadow table after "
+        "rebuilding it: an unindexed database can be committed again")
+    assert "FTS rebuild incomplete" in source, \
+        "the FTS row-count mismatch no longer fails the transaction"
 
 
 def test_a_person_who_does_not_exist_is_a_404(app: CbdbApp, sqlite_conn):

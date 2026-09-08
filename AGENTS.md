@@ -8,6 +8,15 @@ end. Same purpose, completely different system under test, **no shared
 code**. Do not import from it, and do not assume anything you know from
 it applies here.
 
+**Do not go and read it, either.** Everything from that project that
+applies to this one has been absorbed into this file and into
+`docs/skills/`: the data-driven input rule (§ *Inputs come from the
+data*), the per-control coverage rule (§ *Coverage is the program's job*),
+the build-independence rule (§ *Every run is a fresh assessment*), and
+the prohibition on re-implementing the system under test (§ *ABSOLUTE
+PROHIBITION*). If you find yourself wanting an answer from over there,
+the answer belongs here and is missing — add it here.
+
 ---
 
 ## What this project is
@@ -32,10 +41,22 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 253 tests, 212 passing, 41 xfailed against six
-confirmed defects.**  Measured: the tests take ~68 s, and
-`.\run_tests.ps1` takes ~87 s end to end -- the extra ~13 s is
-`generate_report.py`, most of it Word starting twice to write the PDFs.
+**Current state: 789 tests, ~670 passing, 84 xfailed against seven
+confirmed defects, ~35 skipped, nothing failing.**  Measured on the
+2026-09-07 build, from a cold restage: the tests take ~173 s, and
+`.\run_tests.ps1` adds ~15 s for `generate_report.py`, most of it Word
+starting twice to write the PDFs.  Every skip is "this discovered
+combination, or this file, has nothing that could be judged", and each
+names what it is and why -- which is also why the passed/skipped split
+moves by one or two between runs as the discovered inputs shift.  The
+total, the xfail count and *zero failures* are the numbers to read.
+
+Of those tests, 234 are generated from the shipped data
+(`test_query_matrix.py`) and 247 from the shipped build's own export
+and control inventories -- see § *Coverage is the program's job*.  The
+run's measured endpoint coverage is written to
+`artifacts/endpoint_coverage.json`: **105 of 105** endpoints reachable
+from the user interface were actually requested, with nothing excused.
 
 New here?  `README.md` has the three-line setup (install, copy
 `.env.example` to `.env`, point `CBDB_DESKTOP_ZIP` at the distribution
@@ -96,6 +117,190 @@ degenerate cases. Look for that shape.
 
 ---
 
+## ⭐ Where a defect comes from — and therefore who fixes it
+
+Every defect this suite files carries an **origin**, and it is not a
+label for tidiness: it decides who the finding is sent to. The
+maintainer of this repo fixes the data problems himself, in the CBDB
+source, and does **not** want them going to the CBDB-Desktop
+developers. Sending a data problem to a programmer wastes the one
+channel this project has, and it also reads as a false accusation about
+code that is working correctly.
+
+`ORIGINS` in `tests/cbdb_desktop/defects.py` is the machine-readable
+version; the report prints it beside the priority.
+
+| origin | means | fixed by |
+|---|---|---|
+| `software` | the application: `cbdb.exe`, the Go sources, the page templates, or the database builder's *logic* | the CBDB-Desktop developers |
+| `data` | the data arriving from the CBDB (MariaDB) source: a missing row, a dangling reference, a column whose values are not what its name suggests | **the CBDB data team — this repo's maintainer.** Not a programmer's problem |
+| `release` | how this particular archive was assembled: a working copy shipped instead of a fresh build, a file not regenerated | whoever builds the distribution |
+
+### The deciding experiment
+
+Always the same one, and it is worth actually running rather than
+reasoning about:
+
+> **Would this survive a rebuild of the database from the current CBDB
+> source, using this same code?**
+
+If yes, it is in the code. If a clean rebuild makes it disappear, it was
+in the data or in the packaging, and no code change would have prevented
+it. Two of the six defects in the 2026-09-01 build were settled exactly
+this way:
+
+- **CBDB-D-003** (a name indexed for a person `BIOG_MAIN` did not
+  contain) looked like a bug in the name derivation. Rebuilding
+  `ZZZ_NAMES` from a clean copy made the orphan vanish — every row the
+  derivation writes is read out of `BIOG_MAIN` or reached through an
+  INNER JOIN against it, so it *cannot* invent an orphan. Origin:
+  `data`. The 2026-09-07 build ships zero orphans, as a clean rebuild
+  should.
+- **CBDB-D-005** (fourteen scratch tables holding a previous session's
+  work) looked like a provisioning bug. It was a working copy sent out
+  in place of a built one. Origin: `release`. Nothing was patched, and
+  `test_a_fresh_install_starts_with_no_working_state` is now the only
+  thing that would notice it happening again — which is the reason to
+  keep that test rather than delete it with the defect.
+
+### Where it goes wrong
+
+The trap is a `data` problem that *looks* like `software` because the
+application handles it badly. **CBDB-D-009** is the model: the
+Associations Neo4j export dies scanning `ADDR_CODES.c_admin_type` into
+an integer, and that column has held text in every build — names like
+`State` and `Shengshi`, all 30,100 rows. The data is doing nothing
+wrong. The code assumed a code where the schema declares
+`varchar(255)`. Origin: `software`, and the fix is one `Scan`.
+
+So the question is not "which side is unusual" but the experiment
+above: no refresh of the source data will ever make that scan succeed.
+
+---
+
+## ⭐ Coverage is the program's job, not the agent's
+
+The rule the maintainer stated, and the one that shapes this repo:
+
+> **Put repeatable test logic into the program. Do not rely on an agent
+> devising a fresh test plan each round.**
+
+A plan an agent writes each time is a plan that covers what that agent
+happened to think of. Measured against the build, it was covering 6 of
+the 42 file-producing endpoints while every run reported no export
+problems. The first run that pressed the other 36 found four defect
+families, two of them buttons that answer HTTP 500 on every input and
+always have.
+
+So the suite carries **four inventories, each derived from the build
+under test, each with a gate that fails when the build grows something
+the inventory does not know about**:
+
+| inventory | derived from | gate |
+|---|---|---|
+| `routes.py` | `Code/*.go` route registrations | `test_routes.py` — every route driven or probed, counts pinned |
+| `exports.py` | the same, filtered to file-producing endpoints | `test_exports.py::test_every_export_route_is_driven` |
+| `controls.py` | `Templates/*/index.html` buttons and their JS call graphs | `test_zz_controls.py` — every UI-reachable endpoint was **actually requested** in this run |
+| `discovery.py` | the shipped database's own row counts | `test_query_matrix.py::test_the_discovered_matrix_covers_every_form_and_dimension` |
+
+Three properties make these worth more than a checklist:
+
+1. **They are extracted, not written.** A new export button, a new
+   route, a new page appears in the inventory by itself and fails the
+   gate until someone declares how to drive it. Nobody has to remember.
+2. **Coverage is measured, not claimed.** `CbdbApp.requested` records
+   every `(method, path)` the run issues; `test_zz_controls.py` compares
+   that record against every endpoint the shipped pages can reach and
+   writes the number to `artifacts/endpoint_coverage.json`. "We tested
+   the exports" is not evidence. A count is.
+3. **An empty parametrization is a failure, not a pass.** pytest reports
+   "0 tests collected for this parameter" as green. Every generated
+   matrix here therefore has a companion test asserting the matrix is
+   populated — that is what `test_the_discovered_matrix_covers_every_form
+   _and_dimension` is for, and it is not optional decoration.
+
+### Inputs come from the data
+
+Never hand-pick a code, a dynasty or a year window. Half the time it
+lands on sparse data, the query returns nothing, and the assertions run
+against an empty list — a test that proves nothing and looks exactly
+like one that passes.
+
+`cbdb_desktop/discovery.py` asks the shipped database which
+`(code, dynasty)`, `(code, half-century)` and `(code, address)`
+combinations are populated, caches the answer against the database's own
+SHA-256, and `test_query_matrix.py` generates one test per combination
+(234 of them on this build). A data refresh moves the inputs by itself.
+
+**Choosing an input from the data is not an oracle. Predicting a count
+from the data is.** The discovery queries do join a base table to
+`BIOG_MAIN`, which is also what a handler does, and the distinction is
+exactly this:
+
+- allowed: *"which (entry code, dynasty) pairs have at least 20 rows"* —
+  the answer is a request to send. If it is wrong, the test still checks
+  what it claims, on a less interesting input.
+- forbidden: *"the join says 47 rows, so the form must return 47"* —
+  that is the handler's SQL retyped, agreeing with the original wherever
+  the original is wrong.
+
+What the matrix asserts instead are properties that hold whatever CBDB
+contains and that a handler cannot satisfy by accident: every row
+satisfies the filter it was given (ask for dynasty 15, get only dynasty
+15; ask for 1000–1049, get no nulls and nothing outside it), narrowing
+never adds rows, and two adjacent half-centuries stay disjoint while
+their union fits inside the span covering both.
+
+### What this suite still cannot see
+
+Worth knowing before concluding that a green run means a working
+application. Everything here is driven over HTTP, so **nothing that
+happens in the browser is covered**, and two of the seven defects in
+this build live there:
+
+- **CBDB-D-012** — a multi-file export saves one file and says it saved
+  them all. The server is faultless: `test_an_export_is_repeatable`
+  shows both files coming back, identically, every time. The defect is
+  in the page's delivery of them, and it was found by the maintainer
+  pressing Export twice in a real browser.
+- **CBDB-D-011** — the missing byte-order mark. This one *is* visible
+  over HTTP, but only if you look at the bytes rather than decoding
+  them. The first version of the export tests decoded and moved on, so
+  it passed 42 endpoints and told nobody.
+
+The lesson for both is the same and it is not "add a browser": it is
+that **"the endpoint answered correctly" and "the user got what they
+asked for" are different claims**, and this suite can only make the
+first. When a finding is about delivery — a download, an encoding, a
+file a program has to open — read the page's own JavaScript as data
+(`controls.py` already parses it) and pin the mechanism there, the way
+`test_no_page_asks_the_browser_for_more_than_one_download` does. A
+source-level test cannot prove the symptom, but it names the line, it
+cannot be flaky, and it fails when the fix lands.
+
+And take a maintainer's report of a symptom as evidence. Two of these
+came in as "the second export does not save" and "it says 2 files and
+one arrived", which is a decisive experiment already performed.
+
+### Every run is a fresh assessment
+
+`defects.py` describes **the build under test**, not the history of the
+project. When a defect is fixed, its entry is deleted and its markers
+come off in the same commit — it does not become an entry saying "fixed
+in 2026-09-07". The git history of that file is the record of what each
+build did, and it is a better record than a growing list of resolved
+items that nobody re-reads and that makes a reader of the current report
+guess which half applies to them.
+
+Corollary, and it has teeth: **never drop a finding because a previous
+build called it fixed.** Judge each build on its own run and its own
+source. CBDB-D-008 (three dead Networks exports) predates every build
+this suite has seen; it survived a remediation session aimed at the very
+tables it touches, and it would have been reasoned away by anyone
+diffing against the last report.
+
+---
+
 ## ⭐ Mission-critical landmines
 
 ### 1. Never run the application against the staged master
@@ -137,27 +342,61 @@ probes computed — quietly making every later test order-dependent.
   then verify against the app that the code returns something** — four of
   five candidate text ids have base rows and produce no result.
 
-### 3. The scratch tables are global, and shared across forms
+### 3. The scratch tables are per form since 2026-09-07 — and still global per *request*
 
-One `ZZ_SCRATCH_IMPORT_PEOPLE`, one `ZZ_STORE_PERSON_ID`, one
-`ZZ_SOCIAL_NETWORK` for the whole application. Consequences:
+This changed under the suite, and both halves matter.
 
-- Kinship and Networks are two views of one working list.
-- Associations' export re-reads `ZZ_SOCIAL_NETWORK`, which Association
-  Pairs and Networks clear — that is defect **CBDB-D-004**.
+**What the 2026-09-07 build fixed.** The shared tables behind
+CBDB-D-004 were split into one copy per form: `ZZ_SOCIAL_NETWORK` →
+`ZZ_SN_ASSOC` / `ZZ_SN_ASSOC_PAIR` / `ZZ_SN_NETWORK`,
+`ZZ_SCRATCH_PEOPLE` → `ZZ_SP_*`, `ZZ_SCRATCH_IMPORT_PEOPLE` →
+`ZZ_SIP_*`. So:
+
+- Associations' export is no longer emptied by an Association Pairs,
+  Networks or Kinship query. `test_another_form_does_not_empty_the_
+  associations_export` drives all three and is an ordinary assertion now.
+- **Kinship and Networks no longer share a working list.** They used to
+  be two views of one table and always reported the same
+  `person-count`; each now has its own `ZZ_SIP_*`. Any fixture that
+  "resets the application" by calling one form's clear endpoint leaves
+  the others populated — that bit exactly once, and
+  `test_stateful_forms.py::WORKING_LIST_RESETS` is the fix.
+- Kinship has **no** clear endpoint (its page has no Clear button;
+  both list-filling endpoints truncate first). Emptying its list means
+  importing an empty one.
+- The three old tables still ship, still empty, used by nothing.
+  `test_scratch_tables.py::EXPECTED_ORPHANS` pins that, plus five more
+  left over from the VBA original.
+- `ZZ_STORE_PERSON_ID` is still global and is now the *only* cross-form
+  channel. That is the feature: it is how a result travels between forms.
+
+**What it did not fix.** Nothing in a request identifies the tab or the
+session it came from, so two browser tabs still share one result — the
+developers' own open finding, filed here as **CBDB-D-010** and driven by
+`test_sessions.py`. `main.go` also takes no single-instance lock and
+uses port 0, so `cbdb.exe` can be launched twice against the same
+database; the in-process mutexes protect nothing across processes.
+
+**Still true, and still worth not re-learning:**
+
 - `GET /api/browser/person/{id}/kinship` **writes**: it truncates
   `ZZ_KIN_LIST`, `ZZ_KIN_LIST_TMP`, `ZZ_SCRATCH_KIN`, `ZZ_SCRATCH_KINNET`.
   It is the only read-looking endpoint that does.
 - Of the six forms that keep no working list (entry, office, status,
   texts, places, associations), only **entry** (`ZZ_SCRATCH_ENTRY`) and
-  **associations** (`ZZ_SOCIAL_NETWORK`, `ZZ_SCRATCH_PEOPLE`) write
-  during a query; the other four build their result in one SELECT. Do
-  not repeat the claim that "every query mutates" — it is wrong, and it
-  sat in a docstring here for a while.
+  **associations** (`ZZ_SN_ASSOC`, `ZZ_SP_ASSOC`) write during a query;
+  the other four build their result in one SELECT. Do not repeat the
+  claim that "every query mutates" — it is wrong, and it sat in a
+  docstring here for a while.
+
+`test_scratch_tables.py` is where all of this is asserted rather than
+believed: the ownership map is extracted from the shipped Go and pinned,
+so a refactor that re-shares a table fails there.
 
 `pytest.ini` sets `-p no:randomly -p no:xdist`. Module order is load
-bearing: `test_stateful_forms.py` must run last, and one server over one
-global namespace cannot be parallelised.
+bearing: `test_stateful_forms.py` must run late and `test_zz_controls.py`
+must run **last** (it judges the whole run's request record), and one
+server over one global namespace cannot be parallelised.
 
 ### 4. IndexAddr rewrites real CBDB data
 
@@ -187,12 +426,24 @@ words exactly when they were needed.
 
 ### 7. This box's shell quirks
 
-- The Bash tool mangles `\n` and `\r` inside heredocs. A `.\run_tests.ps1`
-  written that way became `.` + newline + `un_tests.ps1` in the README.
-  Use the Edit/Write tools for anything containing backslash escapes.
+- The Bash tool mangles backslash escapes inside heredocs. A
+  `.\run_tests.ps1` written that way became `.` + newline +
+  `un_tests.ps1` in the README; a `re.compile(r"\bZZ_...")` written the
+  same way became a literal backspace character (`\x08`), so the pattern
+  silently matched nothing and a coverage test reported perfect
+  coverage of zero tables. Both cost half an hour. **Use the
+  Edit/Write tools for anything containing a backslash escape**, and if
+  you must patch through Bash, check afterwards:
+  `python -c "import pathlib; [print(p) for p in pathlib.Path('tests').rglob('*.py') if any(c < 9 for c in p.read_bytes())]"`
 - PowerShell 5.1: no `&&`, no ternary. `Invoke-Expression $cmd` returns
   the command's stdout *and* the exit code — pipe to `Out-Host` first, or
   `$code -ne 0` compares an array and is always true.
+- **Never `2>&1` a native command in PowerShell 5.1.** It wraps every
+  stderr line in a `NativeCommandError`, which with
+  `$ErrorActionPreference = "Stop"` aborts the script. `stage.py` prints
+  its progress to stderr, so `.\run_tests.ps1 -Restage 2>&1 | Tee-Object`
+  fails at staging with a `RemoteException` and no test ever runs.
+  Redirect stdout only (`> file`); stderr is captured anyway.
 - `Set-StrictMode` makes reading an absent JSON property fatal;
   pytest-json-report omits `failed` entirely when it is zero.
 
@@ -203,17 +454,31 @@ words exactly when they were needed.
 ```
 tests/cbdb_desktop/     infrastructure only — no *oracle* SQL lives here
   config.py             .env resolution; nothing else reads os.environ
+  archives.py           reads a .zip or a .7z distribution as members
   staging.py            content-addressed, crash-safe unpack + integrity
-  app.py                launches and drives the real cbdb.exe
+  app.py                launches and drives the real cbdb.exe; records
+                        every (method, path) for the coverage gate
   routes.py             reads the routing table out of Code/*.go as DATA
-  forms.py              how to phrase each form's query and export
+  forms.py              how to phrase each form's query, export and filters
+  exports.py            the 45-endpoint export inventory (envelope, files)
+  controls.py           every button in Templates/, and what it calls
+  discovery.py          picks populated inputs out of the shipped database
   defects.py            the defect registry, in English and Chinese
 tests/test_*.py         the tests themselves
+  test_zz_controls.py     ...runs LAST: judges the whole run's coverage
 reports/generate_report.py   registry + one run → both reports, 3 formats
 run_tests.ps1           stage → test → report, one command
 stage.py                stage without running pytest
+artifacts/              gitignored: app logs, test_inputs.json,
+                        endpoint_coverage.json — a run's measurements
 work/                   gitignored: the staged distribution (1.4 GB)
 ```
+
+The five modules above the registry are the whole of § *Coverage is the
+program's job*: four inventories derived from the build, plus the driver
+that records what was actually requested. Adding a test that drives
+something new by hand, instead of adding it to the inventory that
+covers its kind, is how this decays.
 
 ---
 
@@ -244,14 +509,44 @@ after extraction is restaged, not served.
 Full accounts, in both languages, in `reports/CBDB_Desktop_Issues_*.md`.
 The registry is `tests/cbdb_desktop/defects.py`.
 
-| id | pri | what |
+| id | pri | origin | what |
+|---|---|---|---|
+| CBDB-D-011 | P0 | software | Every exported CSV is UTF-8 without a byte-order mark, so Excel shows Chinese names as mojibake |
+| CBDB-D-012 | P0 | software | A multi-file export saves only the first file and reports that it saved them all |
+| CBDB-D-008 | P2 | software | Three of the Networks form's export buttons always fail |
+| CBDB-D-009 | P2 | software | The Associations form's Neo4j export always fails |
+| CBDB-D-007 | P0 | software | Two KML exports produce a file no mapping tool will open |
+| CBDB-D-002 | P2 | software | The Query Builder offers 30 columns that do not exist |
+| CBDB-D-010 | P0 | software | Two browser tabs, or two copies of the application, share one result |
+
+Six of the seven are about exports, which is not a coincidence: the
+export surface is where this suite had no coverage at all until
+2026-09-08, and where the user's own experience of the application
+mostly happens.
+
+**Fixed in the 2026-09-07 build**, entries deleted per § *Every run is a
+fresh assessment*; listed here only so a reader of an older report knows
+where they went. Do not re-add them without evidence from the build in
+front of you.
+
+| id | what | how it was resolved |
 |---|---|---|
-| CBDB-D-001 | P0 | Person search finds nothing for terms of three or more characters |
-| CBDB-D-004 | P0 | Another form's query silently empties the Associations export |
-| CBDB-D-006 | P1 | A malformed ranking is accepted and applied to every person |
-| CBDB-D-002 | P2 | The Query Builder offers 30 columns that do not exist |
-| CBDB-D-005 | P3 | The release ships a previous session's working state |
-| CBDB-D-003 | P4 | A name is indexed for a person the database does not contain |
+| CBDB-D-001 | Person search finds nothing for terms of 3+ characters | `RunZZZNames` now compares `ZZZ_NAMES_FTS_docsize` against `ZZZ_NAMES` inside its own transaction and rolls back on a mismatch. The shipped index has all 869,754 rows |
+| CBDB-D-004 | Another form's query empties the Associations export | per-form scratch tables (§3) |
+| CBDB-D-005 | The release ships a previous session's working state | `release` origin: a fresh build per release. All `ZZ_*` ship empty |
+| CBDB-D-003 | A name indexed for a person the database lacks | `data` origin: a clean rebuild. Zero orphans |
+| CBDB-D-006 | A malformed ranking is accepted and applied to every person | `buildCleanRanks` — the contract changed rather than tightened, see below |
+
+CBDB-D-006 is the one worth reading before touching
+`test_index_addr.py`: the fix does **not** reject a malformed ranking,
+it reinterprets it. A short array's zero padding is now "not set"
+rather than address type 0; a repeated address type is silently folded
+to its first occurrence instead of rejecting the whole request; and a
+gap no longer truncates the ranking, because survivors are packed to the
+front. Three tests that used to assert a 400 now assert the new
+behaviour, and one (`test_a_short_ranking_is_applied_as_exactly_what_it
+_named`) asserts the thing that actually mattered: nothing the request
+did not name comes back as a priority.
 
 Those titles are copied from the registry verbatim, and
 `test_defect_registry.py` keeps the rest of each entry honest -- it
@@ -261,13 +556,42 @@ exist. Do not paraphrase a title here: "an Association Pairs query"
 and "an 8-slot ranking" were both wrong, because Networks and Kinship
 trigger D-004 too and an 11-slot ranking is accepted as well.
 
-**Two things that look like defects and are not** — check before filing:
+**Things that look like defects and are not** — check before filing.
+Each of these was investigated and left alone; the reasoning is in the
+named test, and re-deriving it costs an hour.
 
 - `/api/addresses` returns 37,118 rows for 29,932 addresses. The handler
   inner-joins `ADDR_BELONGS_DATA`; each row carries its own year range.
-- IndexAddr's duplicate check stops at the first disabled slot. So does
-  the code that writes the ranks, *and* the rebuild. All three agree, so
-  a duplicate hidden behind a gap is accepted and then ignored.
+- `/api/indexaddr/codes` returns 20 rows while `/rankings` returns 22.
+  Deliberate as of 2026-09-07: `[Missing Data]` (-1) and `unknown` (0)
+  are real `BIOG_ADDR_CODES` rows and not valid choices, and offering a
+  value the backend must discard is what installed the bogus rank in
+  CBDB-D-006. The contract is now inclusion in each direction, not
+  equality — see `test_the_dropdown_offers_only_address_types_that_can_
+  be_ranked`.
+- A duplicate address type behind a disabled slot is accepted and
+  ignored. It used to be safe by coincidence (all three functions that
+  walked the array stopped at the first gap); it is now safe on purpose
+  (`buildCleanRanks` drops repeats before any of them runs). Same
+  observable result, which is why the test did not change.
+- `ZZ_KIN_LIST_TMP` is declared with 3 columns in the Networks backend
+  and 32 in the Kinship backend. Latent, not live: the table ships with
+  all 32 and `CREATE TABLE IF NOT EXISTS` is a no-op, so nothing is
+  broken today. It would bite on the first database that did not
+  already have the table. Pinned in `test_scratch_tables.py`, worth
+  mentioning to the developers, not worth a P-band in a report of
+  things users can see.
+- A form query with an **empty** code list returns the whole table
+  (264,775 entry rows). No filter, no LIMIT, and the page never sends
+  it. Do not construct "export nothing" that way — use a code no table
+  contains (`test_exports.py::_NO_SUCH_CODE`).
+- The export envelopes are inconsistent — `{status, files}` on seven
+  forms, `{files}` on two, a bare `{name, url}` for every SNA export,
+  and a raw file stream for six of the GIS exports. Nobody chose that,
+  and it is pinned per endpoint in `exports.py` rather than filed,
+  because no user can see it. A form that *changed* which one it
+  answers with would break its own page, and that is what the pin
+  catches.
 
 ---
 
@@ -347,6 +671,24 @@ These are the ones that actually bit during this project.
 6. **Say what a test actually proves.** Four of the six export
    comparisons here only check that JSON field names still line up. The
    docstrings say so. A docstring that overstates is worse than none.
+7. **Write the check into the program, not into the plan.** If you find
+   yourself deciding *which* buttons to press, *which* codes to use or
+   *which* endpoints matter, stop: that decision belongs in an
+   inventory the next run inherits. An agent's judgement is the part
+   that does not survive to the next build. See § *Coverage is the
+   program's job*.
+8. **Prefer the check that needs no query.** CBDB-D-007 (an unclosed
+   XML declaration) and CBDB-D-008 (a column that does not exist) are
+   both findable by reading the shipped source, and both have a test
+   that does exactly that alongside the one that drives the endpoint.
+   A defect that cannot depend on data should not need data to find,
+   and a source-level test says *where* the fix goes.
+9. **Two checks in two places beat one.** The developers shipped
+   `Code/qbe_schema_test.go` for CBDB-D-002 — a correct check, using
+   `PRAGMA table_info`, that would have caught what their other
+   verification missed — and it skips itself unless run from the
+   project root, so it never ran. Independent duplication is cheap
+   insurance; a check that can silently skip is not a check.
 
 ---
 
@@ -358,6 +700,7 @@ These are the ones that actually bit during this project.
 |---|---|
 | `cbdb-desktop-probe.md` | driving the real binary, or writing a probe script |
 | `oracle-discipline.md` | writing or reviewing any assertion |
+| `coverage-inventories.md` | adding coverage of anything — an endpoint, a button, a filter |
 | `issue-report-maintainer.md` | adding, changing or retiring a defect |
 | `programmer-self-review-template.md` | reporting any change back |
 

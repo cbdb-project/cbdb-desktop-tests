@@ -31,13 +31,19 @@ from pathlib import Path
 import pytest
 
 from cbdb_desktop.config import REPO_ROOT, Config, MissingConfig, load_config
-from cbdb_desktop.staging import AppLayout, StagingError, _rmtree, stage
+from cbdb_desktop.staging import (AppLayout, StagingError, _rmtree,
+                                  stage_once)
 
 
 def pytest_addoption(parser):
     parser.addoption(
         "--restage", action="store_true", default=False,
         help="Force a fresh unpack of CBDB_DESKTOP_ZIP even if one is cached.",
+    )
+    parser.addoption(
+        "--refresh-inputs", action="store_true", default=False,
+        help="Re-discover the query matrix's inputs from the database even "
+             "if the cached ones match it (see cbdb_desktop/discovery.py).",
     )
 
 
@@ -61,7 +67,17 @@ def layout(request, config: Config) -> AppLayout:
     tests nothing is worse than one that fails loudly.
     """
     try:
-        return stage(config, force=request.config.getoption("--restage"))
+        # stage_once, not stage: test_query_matrix.py has to read the
+        # database at collection time to build its parametrization, and
+        # staging the same tree twice in one process is both a wasted
+        # 1.3 GB extraction and, with --restage, a directory rename that
+        # Windows refuses mid-swap.
+        # Quiet: by the time this fixture runs, test_query_matrix.py's
+        # collection hook has already staged (that is the whole point of
+        # stage_once), so there is nothing left to narrate.  What a run
+        # actually staged is printed by stage.py in run_tests.ps1, and
+        # recorded in the tree's own _stage_manifest.json.
+        return stage_once(config, force=request.config.getoption("--restage"))
     except (MissingConfig, StagingError) as exc:
         pytest.fail(f"cannot stage the distribution under test: {exc}", pytrace=False)
 
