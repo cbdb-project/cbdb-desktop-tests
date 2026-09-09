@@ -4,7 +4,7 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260908.7z_
 
-_本報告產生於 2026-09-09 07:44 UTC，依據一次 873 項測試的執行結果（耗時 266 秒）。_
+_本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行結果（耗時 270 秒）。_
 
 尊敬的維護者：
 
@@ -16,10 +16,10 @@ _本報告產生於 2026-09-09 07:44 UTC，依據一次 873 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 753 |
-| 失敗 | 70 |
+| 通過 | 754 |
+| 失敗 | 60 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
-| 略過 | 47 |
+| 略過 | 56 |
 
 ## 測試套件的涵蓋範圍
 
@@ -305,9 +305,9 @@ _本報告產生於 2026-09-09 07:44 UTC，依據一次 873 項測試的執行�
 
 #### 對應的測試
 
-- 27 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+23)
+- 18 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
 - 147 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+143)
-- 32 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+28)
+- 41 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+37)
 
 ## CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤
 

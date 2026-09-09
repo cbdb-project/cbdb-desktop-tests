@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 07:44 UTC from a run of 873 tests (266s)._
+_Generated 2026-09-09 09:29 UTC from a run of 873 tests (270s)._
 
 Dear maintainer,
 
@@ -16,10 +16,10 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 
 | outcome | count |
 | --- | --- |
-| passed | 753 |
-| failed | 70 |
+| passed | 754 |
+| failed | 60 |
 | xfailed (a known defect, still present) | 3 |
-| skipped | 47 |
+| skipped | 56 |
 
 ## What the suite covers
 
@@ -305,9 +305,9 @@ The same mistake is in the build a second time, and it is not in another Neo4j e
 
 #### Demonstrated by
 
-- 27 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+23)
+- 18 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
 - 147 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+143)
-- 32 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+28)
+- 41 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+37)
 
 ## CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error
 
