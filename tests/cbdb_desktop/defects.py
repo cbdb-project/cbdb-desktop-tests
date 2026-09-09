@@ -280,7 +280,8 @@ _DEFECTS: tuple[Defect, ...] = (
                "的），二是對空選擇回傳零列並明確告知使用者。只要頁面不會再"
                "送出這種請求，伺服器端的預設值可以留著當作保護。",
         steps=(
-            "Open the Places form (/LookAtPlace) and select an address -- address code 20056 is the one measured above.",
+            "Open the Places form (/LookAtPlace) and select an address "
+            "-- address code 20056 is the one measured above.",
             "Untick all seven category checkboxes, including Biography.",
             "Press Run Query: rows come back.",
             "Tick Biography only and run again: the same rows, in the same "

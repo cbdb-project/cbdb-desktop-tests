@@ -877,8 +877,9 @@ def test_an_export_is_repeatable(app: CbdbApp, spec: ExportSpec, subject):
 
     Cheap, and it catches what made the shared-scratch-table defect of
     the 2026-09-01 build so hard to notice: an export whose content
-    depends on state nothing in the request describes.  For the scratch-reading endpoints this is the only
-    assertion in the suite that they are idempotent.
+    depends on state nothing in the request describes.  For the
+    scratch-reading endpoints this is the only assertion in the suite
+    that they are idempotent.
     """
     payload = subject(spec.form)
     first = _export(app, spec, payload)
@@ -1118,9 +1119,10 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
     if not spreadsheet:
         pytest.skip(
             f"{spec.key}: produces no spreadsheet-suffixed file at all "
-            f"({[name for name, _ in files]}) -- a graph/SNA format, whose "
-            "readers do not expect a mark.  Excluded for the same reason "
-            "as KML, and its encoding is judged by the tests above")
+            f"({[name for name, _ in files]}) -- a graph format, which this "
+            "test's question does not fit: 'can a spreadsheet open it' is "
+            "not asked of a .gdf or a .vna, and for .net the mark is "
+            "*required* rather than forbidden, which nothing yet checks")
     if not judged:
         pytest.skip(
             f"{spec.key}: {len(spreadsheet)} spreadsheet file(s) "
@@ -1179,6 +1181,13 @@ def _go_functions(text: str) -> list[tuple[str, str]]:
     """
     starts = [(m.start(), m.group(1))
               for m in _GO_FUNC.finditer(text)]
+    # Package scope counts.  Without this first entry the text before the
+    # first ``func`` is never yielded, so a header declared as a
+    # package-level ``const`` -- which is exactly where a KML preamble
+    # could live -- would be scanned by nothing and reported as clean.
+    # ``test_scratch_tables.py`` calls the same region "<file scope>".
+    if not starts or starts[0][0] > 0:
+        starts.insert(0, (0, "<file scope>"))
     starts.append((len(text), ""))
     return [(name, text[begin:starts[index + 1][0]])
             for index, (begin, name) in enumerate(starts[:-1])]
@@ -1402,6 +1411,16 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
         f"returned as though every file had been saved: {claims}.")
 
 
+#: The writers this round found emitting an unclosed XML declaration,
+#: keyed by ``file:function`` so the next build moving code around does
+#: not break the pin.  Exact, so a third one fails instead of being
+#: folded into the finding these two make.
+_KNOWN_UNCLOSED_KML = {
+    "entry_form_backend.go:entryWriteKML",
+    "places_form_backend.go:writePlaceKML",
+}
+
+
 def test_every_kml_writer_closes_its_xml_declaration(layout):
     """The same defect, found in the source rather than over HTTP.
 
@@ -1411,11 +1430,11 @@ def test_every_kml_writer_closes_its_xml_declaration(layout):
     a reader does not need to run the application to believe it.
 
     Keyed by ``file:function``, not ``file:line``.  This test pinned
-    exact line numbers until the 2026-09-08 build inserted four lines
-    above one of them and broke it while nothing about the defect had
-    changed -- the third time a line pin in this suite had to be
-    repaired for no reason.  The enclosing function is what a fix
-    actually moves.
+    exact line numbers until the 2026-09-08 build moved code above both
+    of them -- entry by four lines, places by one -- and broke it while
+    nothing about the defect had changed.  That was the second such
+    repair in this suite; the enclosing function is what a fix actually
+    moves.
 
     And it *raises* rather than asserting the defect is present, which
     is the shape the report needs: on the day these two writers are
@@ -1438,8 +1457,21 @@ def test_every_kml_writer_closes_its_xml_declaration(layout):
                 if '<?xml version="1.0" encoding="UTF-8"?>' not in written:
                     broken[f"{source.name}:{name}"] = line.strip()
 
-    if broken:
+    # Narrowed to the exact signature, then asserted.  Raising on
+    # anything at all would be a floor: a *third* writer losing its
+    # `?>` would raise the same KnownShippedDefect, the report would go
+    # on saying "Both KML exports", and a waiver keyed on
+    # raises = "KnownShippedDefect" would tolerate the new one silently.
+    # § *Pin exactly, not with a floor*.
+    if set(broken) == _KNOWN_UNCLOSED_KML:
         raise KnownShippedDefect(
             f"{len(broken)} KML writer(s) emit an XML declaration that is "
             "never closed with '?>', so no reader accepts the file they "
-            f"produce: {broken}")
+            f"produce: {sorted(broken)}")
+
+    assert not broken, (
+        "these KML writers emit an unclosed XML declaration, and the set is "
+        f"not the one this round recorded: {sorted(broken)}, expected "
+        f"{sorted(_KNOWN_UNCLOSED_KML)}.  A new one is a new finding; a "
+        "missing one is a fix, and either way this needs reading rather "
+        "than tolerating")

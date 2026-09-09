@@ -241,8 +241,8 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
 #: Scratch tables that ship in the database and that no Go file names.
 #: Recorded rather than ignored: a table nothing uses still ships, still
 #: holds whatever it last held, and is exactly what a distribution
-#: shipping its builder's leftover working state looked like.  Three of these are the shared tables the 2026-09-07 per-form
-#: split replaced; the other five are left over from the VBA original,
+#: shipping its builder's leftover working state looked like.  Three of
+#: these are the shared tables the 2026-09-07 per-form split replaced; the other five are left over from the VBA original,
 #: whose Pajek and Gephi writers staged rows in the database while the
 #: Go ones build the file in memory.
 EXPECTED_ORPHANS: dict[str, str] = {
@@ -479,6 +479,17 @@ def _selected_columns(column_list: str) -> set[str] | None:
     return out or None
 
 
+#: The queries this round found reading a column their table lacks,
+#: keyed by ``file:function`` so the next build moving code around does
+#: not break the pin.  Exact, so a fourth one fails rather than being
+#: folded into the finding these three make.
+_KNOWN_MISSING_COLUMN_READS = {
+    "networks_form_backend.go:handleExportGUESS": ["ZZ_SN_NETWORK.c_node_dist"],
+    "networks_form_backend.go:handleExportPajek": ["ZZ_SN_NETWORK.c_node_dist"],
+    "networks_form_backend.go:handleExportUCINet": ["ZZ_SN_NETWORK.c_node_dist"],
+}
+
+
 def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
                                                              db_columns):
     """Every column a simple SELECT reads must exist in that table.
@@ -495,9 +506,9 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
 
     Reported by the enclosing **function**, not by line number.  This
     test pinned exact ``file:line`` keys until the 2026-09-08 build
-    inserted four lines above them and broke all three while nothing
-    about the defect had changed.  The function a query sits in is what
-    a fix actually moves.
+    inserted four lines above all three and broke every one of them
+    while nothing about the defect had changed.  The function a query
+    sits in is what a fix actually moves.
 
     And it *raises* rather than asserting the defect is present: on the
     day these handlers stop reading a column their table lacks, this
@@ -532,9 +543,24 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
             problems.setdefault(f"{path.name}:{enclosing}", []).extend(
                 f"{table}.{column}" for column in absent)
 
-    if problems:
+    found = {key: sorted(set(value)) for key, value in problems.items()}
+
+    # Narrowed to the exact signature, then asserted.  Raising on
+    # anything at all would be a floor: a *fourth* handler reading a
+    # column its table lacks -- in another form, on another table --
+    # would raise the same KnownShippedDefect, the report would go on
+    # saying "Three of the Networks form's four", and a waiver keyed on
+    # raises = "KnownShippedDefect" would tolerate the new one in
+    # silence.  See AGENTS.md operating principle 5.
+    if found == _KNOWN_MISSING_COLUMN_READS:
         raise KnownShippedDefect(
-            f"{len(problems)} handler(s) read a column their scratch table "
+            f"{len(found)} handler(s) read a column their scratch table "
             "does not have, so SQLite refuses the query and they answer "
-            f"HTTP 500 for every input: "
-            f"{ {key: sorted(set(v)) for key, v in sorted(problems.items())} }")
+            f"HTTP 500 for every input: {found}")
+
+    assert not found, (
+        "these queries read a column their scratch table does not have, "
+        f"and the set is not the one this round recorded: {found}, expected "
+        f"{_KNOWN_MISSING_COLUMN_READS}.  A new one is a new finding; a "
+        "missing one is a fix, and either way this needs reading rather "
+        "than tolerating")

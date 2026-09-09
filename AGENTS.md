@@ -171,15 +171,16 @@ in the data or in the packaging, and no code change would have prevented
 it. Two of the six defects in the 2026-09-01 build were settled exactly
 this way:
 
-- **CBDB-D-003** (a name indexed for a person `BIOG_MAIN` did not
-  contain) looked like a bug in the name derivation. Rebuilding
+- **The orphaned indexed name** (a name indexed for a person
+  `BIOG_MAIN` did not contain) looked like a bug in the name
+  derivation. Rebuilding
   `ZZZ_NAMES` from a clean copy made the orphan vanish — every row the
   derivation writes is read out of `BIOG_MAIN` or reached through an
   INNER JOIN against it, so it *cannot* invent an orphan. Origin:
   `data`. The 2026-09-07 build ships zero orphans, as a clean rebuild
   should.
-- **CBDB-D-005** (fourteen scratch tables holding a previous session's
-  work) looked like a provisioning bug. It was a working copy sent out
+- **The shipped working state** (fourteen scratch tables holding a
+  previous session's work) looked like a provisioning bug. It was a working copy sent out
   in place of a built one. Origin: `release`. Nothing was patched, and
   `test_a_fresh_install_starts_with_no_working_state` is now the only
   thing that would notice it happening again — which is the reason to
@@ -188,8 +189,8 @@ this way:
 ### Where it goes wrong
 
 The trap is a `data` problem that *looks* like `software` because the
-application handles it badly. **CBDB-D-009** is the model: the
-Associations Neo4j export dies scanning `ADDR_CODES.c_admin_type` into
+application handles it badly.  **The Associations Neo4j export** is
+the model: it dies scanning `ADDR_CODES.c_admin_type` into
 an integer, and that column has held text in every build — names like
 `State` and `Shengshi`, all 30,100 rows. The data is doing nothing
 wrong. The code assumed a code where the schema declares
@@ -320,7 +321,7 @@ on every input tried, and the way to settle it was not a better input
 but a different experiment: **turn all seven off at once.** A user who
 selects no categories has asked for nothing, so nothing is the only
 defensible answer, and the request needs no special data. That found
-CBDB-D-014 in one call.
+the Places form's category substitution in one call.
 
 That is the general shape when a per-option sweep cannot decide:
 > find the combination whose *correct* answer is fixed regardless of the
@@ -368,7 +369,8 @@ Three traps, all paid for:
   application. `browser.open_page` rewrites it.
 * **A headless browser with `accept_downloads=True` is not the user's
   browser.** It saves every file, so Chrome's multiple-download
-  permission — the whole of CBDB-D-012's blocking half — never engages.
+  permission — the whole blocking half of the multi-file download
+  finding — never engages.
   Anything that turns on a browser *permission* has to be checked
   another way; for that one, by reading the page's delivery code.
 * **Skip, do not fail, when Chromium is absent.** Playwright downloads
@@ -388,14 +390,15 @@ Two of this round's defects were filed from a mechanism read out of the
 source plus the maintainer's observation, and reproducing them changed
 what they say:
 
-* **CBDB-D-012.** Driving the real page in headless Chromium showed the
-  page attempting two downloads per press and the browser accepting
+* **The multi-file download finding.** Driving the real page in
+  headless Chromium showed the page attempting two downloads per
+  press and the browser accepting
   **both**, on both presses. The count-reporting half is confirmed by
   automation; the blocking half is not reproducible that way. The
   defect's evidence now says which is which, and that is a better bug
   report than the confident version was.
-* **CBDB-D-014.** The "no categories selected" result looked like an
-  ignored switch. Reading `places_form_backend.go:204` showed a
+* **The Places category substitution.** The "no categories selected"
+  result looked like an ignored switch. Reading `places_form_backend.go:204` showed a
   deliberate fallback, so the defect is not "the switch does nothing"
   but "the page lets you reach a request the backend has to guess at" —
   a different fix, in a different file.
@@ -423,7 +426,7 @@ guess which half applies to them.
 
 Corollary, and it has teeth: **never drop a finding because a previous
 build called it fixed.** Judge each build on its own run and its own
-source. CBDB-D-008 (three dead Networks exports) predates every build
+source. The three dead Networks exports predate every build
 this suite has seen; it survived a remediation session aimed at the very
 tables it touches, and it would have been reasoned away by anyone
 diffing against the last report.
@@ -475,8 +478,8 @@ probes computed — quietly making every later test order-dependent.
 
 This changed under the suite, and both halves matter.
 
-**What the 2026-09-07 build fixed.** The shared tables behind
-CBDB-D-004 were split into one copy per form: `ZZ_SOCIAL_NETWORK` →
+**What the 2026-09-07 build fixed.** The shared tables behind the
+cross-form interference were split into one copy per form: `ZZ_SOCIAL_NETWORK` →
 `ZZ_SN_ASSOC` / `ZZ_SN_ASSOC_PAIR` / `ZZ_SN_NETWORK`,
 `ZZ_SCRATCH_PEOPLE` → `ZZ_SP_*`, `ZZ_SCRATCH_IMPORT_PEOPLE` →
 `ZZ_SIP_*`. So:
@@ -501,8 +504,8 @@ CBDB-D-004 were split into one copy per form: `ZZ_SOCIAL_NETWORK` →
 
 **What it did not fix.** Nothing in a request identifies the tab or the
 session it came from, so two browser tabs still share one result — the
-developers' own open finding, filed here as **CBDB-D-010** and driven by
-`test_sessions.py`. `main.go` also takes no single-instance lock and
+developers' own open finding, driven here by `test_sessions.py` and
+tolerated in the waiver table. `main.go` also takes no single-instance lock and
 uses port 0, so `cbdb.exe` can be launched twice against the same
 database; the in-process mutexes protect nothing across processes.
 
@@ -710,7 +713,9 @@ named test, and re-deriving it costs an hour.
   Deliberate as of 2026-09-07: `[Missing Data]` (-1) and `unknown` (0)
   are real `BIOG_ADDR_CODES` rows and not valid choices, and offering a
   value the backend must discard is what installed the bogus rank in
-  CBDB-D-006. The contract is now inclusion in each direction, not
+  a ranking sent with fewer slots than the form offers. The contract is
+  now inclusion in each
+  direction, not
   equality — see `test_the_dropdown_offers_only_address_types_that_can_
   be_ranked`.
 - A duplicate address type behind a disabled slot is accepted and
@@ -811,9 +816,10 @@ expires   = 2026-12-01          # optional; past it, the run goes red
 
 **The key is a test function's name, plus the parametrisation ids it
 ran with, and that is not a convenience.** It is the only address that
-survives a stateless round: an id of our own -- `W-001`, `CBDB-D-007` --
-is assigned while one report is written and points at nothing the next
-time the table is read. A function name is part of the program; rename
+survives a stateless round: an id of our own -- `W-001`, or one of the
+`CBDB-D-0NN` numbers a round assigns -- is given out while one report
+is written and points at nothing the next time the table is read, or
+worse, at whatever the next round gave that number to. A function name is part of the program; rename
 or delete the test and the table stops matching and says so, which is
 exactly the failure mode a waiver list must have. (Quote the key when it
 carries a module: `["test_exports.py::test_x"]`.)
@@ -867,14 +873,16 @@ These are the ones that actually bit during this project.
 2. **Mutation-test the infrastructure.** Break `staging.py` on purpose
    and see whether the suite notices. Nine deliberate breaks were tried;
    **six survived** the first version of the tests.
-3. **Verify a defect before writing it down.** For CBDB-D-001 the
-   decisive experiment was running the rebuild on a copy and re-testing
+3. **Verify a defect before writing it down.** For the unbuilt name
+   index, the decisive experiment was running the rebuild on a copy
+   and re-testing
    through the same binary. Do the equivalent every time, and try hard to
    find the innocent explanation first.
 4. **A reviewer's claim is a hypothesis.** One review said the IndexAddr
    duplicate check had a hole. Reading two more call sites showed it did
-   not. Another said an 8-element ranks array would be applied — that one
-   was real, and became CBDB-D-006.
+   not. Another said an 8-element ranks array would be applied — that
+   one was real: a ranking sent with fewer slots than the form offers
+   had the rest filled from whatever was there before.
 5. **Pin exactly, not with a floor.** `>= 10 forms` survives a build that
    drops four of them. Every count in this suite is exact, and a
    legitimate change is expected to fail a test and be read.
@@ -887,14 +895,15 @@ These are the ones that actually bit during this project.
    inventory the next run inherits. An agent's judgement is the part
    that does not survive to the next build. See § *Coverage is the
    program's job*.
-8. **Prefer the check that needs no query.** CBDB-D-007 (an unclosed
-   XML declaration) and CBDB-D-008 (a column that does not exist) are
-   both findable by reading the shipped source, and both have a test
+8. **Prefer the check that needs no query.** An unclosed XML
+   declaration and a column that does not exist are both findable by
+   reading the shipped source, and both have a test
    that does exactly that alongside the one that drives the endpoint.
    A defect that cannot depend on data should not need data to find,
    and a source-level test says *where* the fix goes.
 9. **Two checks in two places beat one.** The developers shipped
-   `Code/qbe_schema_test.go` for CBDB-D-002 — a correct check, using
+   `Code/qbe_schema_test.go` against the Query Builder offering a
+   column the database lacks — a correct check, using
    `PRAGMA table_info`, that would have caught what their other
    verification missed — and it skips itself unless run from the
    project root, so it never ran. Independent duplication is cheap

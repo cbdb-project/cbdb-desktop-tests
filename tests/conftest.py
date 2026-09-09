@@ -165,7 +165,9 @@ def _prune_stale_runs(run_root: Path, *, max_age_s: float = 24 * 3600) -> None:
                 # almost certainly been reused by an unrelated process
                 # (no pytest session runs for a week), or the pid belongs
                 # to the reserved range no user process can occupy.
-                if pid > 4 and _process_is_alive(pid) and                         candidate.stat().st_mtime > time.time() - 7 * 24 * 3600:
+                if (pid > 4 and _process_is_alive(pid)
+                        and candidate.stat().st_mtime
+                        > time.time() - 7 * 24 * 3600):
                     continue
             else:
                 newest = candidate.stat().st_mtime

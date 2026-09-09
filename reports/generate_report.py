@@ -498,7 +498,7 @@ def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
         why = ""
         for phase in _PHASES:
             crash = (test.get(phase) or {}).get("crash") or {}
-            message = crash.get("message", "").strip()
+            message = (crash.get("message") or "").strip()
             if message:
                 why = message.splitlines()[0]
                 break
@@ -513,7 +513,16 @@ def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
         # And a message can carry a pipe, which would break the Markdown
         # table it is rendered into.
         ours.append((stem, _table_safe(why[:200]) or "no message"))
-    return demonstrating, sorted(set(ours))
+    # De-duplicated for the table, but the *count* the prose quotes has
+    # to stay the number of failures, or the arithmetic stops
+    # reconciling again: several parametrisations of one unfiled test
+    # carrying one message are one row and several failures.
+    return demonstrating, ours
+
+
+def unique_rows(ours: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The gap rows, one per (check, reason), in a stable order."""
+    return sorted(set(ours))
 
 
 def status_of(run: dict, defect: Defect) -> str:
@@ -698,7 +707,7 @@ def render_markdown(run: dict, lang: str, build: str,
             head = S("ours_head")
             out.append(f"| {head[0]} | {head[1]} |")
             out.append("| --- | --- |")
-            for name, why in ours_rows(ours, lang):
+            for name, why in ours_rows(unique_rows(ours), lang):
                 out.append(f"| `{name}` | {why} |")
         else:
             out.append(S("failure_split_none").format(failed=failed))
@@ -953,7 +962,8 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
             document.add_paragraph(S("failure_split").format(
                 failed=failed, demonstrating=len(demonstrating),
                 ours=len(ours)).replace("**", ""))
-            table_of(S("ours_head"), ours_rows(ours, lang))
+            table_of(S("ours_head"),
+                     ours_rows(unique_rows(ours), lang))
         else:
             document.add_paragraph(
                 S("failure_split_none").format(failed=failed))

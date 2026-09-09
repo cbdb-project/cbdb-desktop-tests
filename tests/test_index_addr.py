@@ -409,8 +409,9 @@ def test_a_short_ranking_is_applied_as_exactly_what_it_named(
         index_addr_app: CbdbApp, restore_default_ranking):
     """A ranking with too few slots must install those slots and no others.
 
-    This is the heart of the short-ranking defect, and the shape of the
-    fix is what
+    This is the heart of it: a ranking sent with fewer slots than the
+    eight the form offers used to have the missing slots filled from
+    whatever was there before.  The shape of the fix is what
     makes it worth a test of its own rather than a status-code check.
     ``/api/indexaddr/update`` is the only endpoint in the application
     that rewrites CBDB data rather than scratch, and it accepts a short

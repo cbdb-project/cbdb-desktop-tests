@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 10:12 UTC from a run of 877 tests (276s)._
+_Generated 2026-09-09 10:23 UTC from a run of 877 tests (291s)._
 
 Dear maintainer,
 

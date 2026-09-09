@@ -196,7 +196,8 @@ the Places form's seven category switches skipped on every input tried.
 What settled it was not a better input but a different question: turn
 *all* of them off. A user who has selected no categories has asked for
 nothing, so nothing is the only defensible answer, whatever the data
-holds — and that found CBDB-D-014 in a single request.
+holds — and that found the Places form's category substitution in a
+single request.
 
 Generalise that move. When a per-option sweep cannot decide, look for
 the combination whose correct answer is fixed *regardless of the data*:

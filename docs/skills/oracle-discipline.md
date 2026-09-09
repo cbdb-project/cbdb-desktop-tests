@@ -157,12 +157,12 @@ Output judgement may not look at the handler.
 1. **Reproduce it through the running binary**, not only in SQL. The
    shipped `cbdb.exe` embeds its own SQLite build; a check with the
    system `sqlite3` disagreed with the app about `LIKE` on an FTS table
-   and nearly hid CBDB-D-001.
+   and nearly hid the unbuilt-name-index finding.
 2. **Try to refute it.** Is it intended? Documented? A test artefact? A
    misread of the schema? Two things that looked like defects here were
    not: the address picker's repeated rows, and IndexAddr's duplicate
    check stopping at a disabled slot.
-3. **Find the decisive experiment.** For CBDB-D-001 it was running
+3. **Find the decisive experiment.** For that one it was running
    `INSERT INTO ZZZ_NAMES_FTS(...) VALUES('rebuild')` on a copy and
    re-testing through the same binary: every search then returned exactly
    the counts the data supports. That converts "looks broken" into
