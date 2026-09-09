@@ -77,13 +77,16 @@ _SAMPLE = Defect(
 
 def _run(tests: dict[str, str], *, duration: float = 12.5,
          created: float = 1788864324.0,
-         crash: dict[str, str] | None = None) -> dict:
+         crash: dict[str, str] | None = None,
+         phase: str = "call") -> dict:
     """A pytest-json-report run, from {nodeid: outcome}.
 
     ``crash`` attaches a crash message to a node, the way pytest's JSON
     report does for a failure.  That message is how the renderer tells a
     test that *demonstrated* its defect (it carries
-    ``KnownShippedDefect``) from one that merely broke.
+    ``KnownShippedDefect``) from one that merely broke.  ``phase`` says
+    which of setup/call/teardown records it: a test that raises in a
+    fixture is reported under "setup" with nothing under "call" at all.
     """
     crash = crash or {}
     outcomes: dict[str, int] = {}
@@ -93,7 +96,7 @@ def _run(tests: dict[str, str], *, duration: float = 12.5,
     for nodeid, outcome in tests.items():
         entry = {"nodeid": nodeid, "outcome": outcome}
         if nodeid in crash:
-            entry["call"] = {"crash": {"message": crash[nodeid]}}
+            entry[phase] = {"crash": {"message": crash[nodeid]}}
         entries.append(entry)
     return {
         "created": created,
@@ -216,8 +219,24 @@ def test_a_fixed_defect_is_reported_as_fixed_rather_than_confirmed(one_defect):
     fixed = _run({node: "xpassed"})
     silent = _run({"tests/test_qbe.py::test_something_else": "passed"})
 
+    # Raised from a fixture: pytest records it under "setup", with an
+    # outcome of "error" and nothing under "call" at all.
+    from_fixture = _run(
+        {node: "error"}, phase="setup",
+        crash={node: "cbdb_desktop.defects.KnownShippedDefect: from a "
+                     "fixture, but a demonstration all the same"})
+    # And the case that must NOT confirm: an ordinary assertion whose
+    # message merely mentions the exception's name.  A substring search
+    # would read this as a demonstration of every entry naming the test.
+    mentions_it = _run(
+        {node: "failed"},
+        crash={node: "AssertionError: no test may raise "
+                     "KnownShippedDefect for a passing build"})
+
     assert gr.status_of(signature, one_defect) == "CONFIRMED"
+    assert gr.status_of(from_fixture, one_defect) == "CONFIRMED"
     assert gr.status_of(unrelated, one_defect) == "INCONCLUSIVE"
+    assert gr.status_of(mentions_it, one_defect) == "INCONCLUSIVE"
     assert gr.status_of(confirmed, one_defect) == "CONFIRMED"
     assert gr.status_of(fixed, one_defect) == "APPARENTLY FIXED"
     assert gr.status_of(silent, one_defect) == "NOT EXERCISED"

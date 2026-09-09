@@ -354,13 +354,27 @@ def outcomes_for(run: dict, defect: Defect) -> dict[str, list[str]]:
 
 
 #: The exception a test raises when it has recognised the exact
-#: signature of a defect, as the JSON report spells it in the crash
-#: message.  Since 2026-09-08 a finding is an ordinary failure rather
-#: than an ``xfail``, so this is what separates "the test demonstrated
-#: the defect" from "the test broke on something else" -- the job
-#: ``xfail(raises=...)`` used to do, and the same discipline the waiver
-#: table applies with its ``raises`` key.
-_SIGNATURE = "KnownShippedDefect"
+#: signature of a defect, as the JSON report spells it at the *start* of
+#: the crash message: ``KnownShippedDefect: ...``, or with the module
+#: path in front of it.  Since 2026-09-08 a finding is an ordinary
+#: failure rather than an ``xfail``, so this is what separates "the test
+#: demonstrated the defect" from "the test broke on something else" --
+#: the job ``xfail(raises=...)`` used to do, and the same discipline the
+#: waiver table applies with its ``raises`` key.
+#:
+#: Anchored, and deliberately not a substring search.  ``in message``
+#: would let an ordinary ``AssertionError`` that merely *quotes* the
+#: name -- a test asserting a response does not contain it, or one
+#: whose own message explains the convention -- confirm every entry
+#: naming that test.  The exception type is the claim being made; a
+#: mention of it is not.
+_SIGNATURE = re.compile(r"^(?:[\w.]+\.)?KnownShippedDefect(?::|\b)")
+
+#: Where a crash can be recorded.  A test that raises in a fixture is
+#: reported under "setup" (or "teardown") with an outcome of "error" and
+#: nothing under "call" at all, so reading only the call phase would
+#: report a defect demonstrated from a fixture as INCONCLUSIVE.
+_PHASES = ("call", "setup", "teardown")
 
 
 def signature_failures(run: dict, defect: Defect) -> list[str]:
@@ -372,9 +386,11 @@ def signature_failures(run: dict, defect: Defect) -> list[str]:
             continue
         if test["outcome"] not in ("failed", "error"):
             continue
-        message = (test.get("call") or {}).get("crash", {}).get("message", "")
-        if _SIGNATURE in message:
-            found.append(test["nodeid"])
+        for phase in _PHASES:
+            crash = (test.get(phase) or {}).get("crash") or {}
+            if _SIGNATURE.match(crash.get("message", "").lstrip()):
+                found.append(test["nodeid"])
+                break
     return found
 
 
