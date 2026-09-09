@@ -1086,6 +1086,105 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
         "open them in the system code page and show mojibake.")
 
 
+def _strip_go_comments(source: str) -> str:
+    """Remove comments, leaving string literals alone.
+
+    Conservative on purpose.  The comments that matter here are the doc
+    blocks above each handler, which list the files it produces -- read
+    literally they look exactly like a writer naming a ``.tsv``.  A
+    blanket ``//[^\\n]*`` strip would also cut into a string containing
+    ``//``, so a trailing comment is only removed when it carries no
+    quote of its own.
+    """
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    source = re.sub(r"(?m)^[ \t]*//.*$", "", source)          # doc blocks
+    return re.sub(r"(?m)//[^\n\"'`]*$", "", source)           # safe trailers
+
+
+#: The start of a top-level Go declaration, method or plain function.
+_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)", re.MULTILINE)
+
+
+def _go_functions(text: str) -> list[tuple[str, str]]:
+    """``[(name, body), ...]`` split at top-level ``func`` boundaries.
+
+    Not a Go parser: the body of one function runs to the start of the
+    next, which is all this needs.  ``func`` at column 0 is the only
+    thing treated as a boundary, so a closure inside a handler stays
+    part of it -- correct here, because a writer that delegates to its
+    own local helper is still one writer.
+    """
+    starts = [(m.start(), m.group(1)) for m in _GO_FUNC.finditer(text)]
+    starts.append((len(text), ""))
+    return [(name, text[begin:starts[index + 1][0]])
+            for index, (begin, name) in enumerate(starts[:-1])]
+
+
+#: A quoted ``.tsv`` file name -- a writer naming its output, not prose
+#: mentioning a format.
+_NAMES_A_TSV = re.compile(r'"[^"\n]*\.tsv"')
+
+#: Writing the UTF-8 byte-order mark, however this build spells it.
+_WRITES_MARK = re.compile(r"utf8BOM|uFEFF|ufeff|xEF\b")
+
+
+def _unmarked_spreadsheet_writers(source: str) -> tuple[list[str], int]:
+    """``([function names], how many were judged)`` for one Go source.
+
+    A function that names a ``.tsv`` file must write the mark itself.
+    Separate from the test so that
+    ``test_the_mark_check_notices_one_writer_losing_it`` can prove this
+    predicate has teeth without touching the staged build.
+    """
+    text = _strip_go_comments(source)
+    unmarked, checked = [], 0
+    for name, body in _go_functions(text):
+        if not _NAMES_A_TSV.search(body):
+            continue
+        checked += 1
+        if not _WRITES_MARK.search(body):
+            unmarked.append(name)
+    return unmarked, checked
+
+
+def test_the_mark_check_notices_one_writer_losing_it():
+    """Mutation test for the check below, on a synthetic source.
+
+    The point of § *Mutation-test the infrastructure*: the file-level
+    version of this check passed a source where one of two writers had
+    lost the mark, because the other one still had it.  This pins the
+    granularity so that version cannot come back.
+    """
+    both_marked = '''
+func (h *H) handleExportResults(w http.ResponseWriter, r *http.Request) {
+\tbuf.Write(utf8BOM)
+\tfiles = append(files, F{"Data_UTF8.tsv", toDataURL(buf)})
+}
+
+func (h *H) handleExportGIS(w http.ResponseWriter, r *http.Request) {
+\tw.Write(utf8BOM)
+\tw.Header().Set("Content-Disposition", "attachment; filename=gis.tsv")
+}
+'''
+    assert _unmarked_spreadsheet_writers(both_marked) == ([], 2)
+
+    # One writer loses the mark; the other still has it, in the same
+    # file.  This is the case the previous version reported as clean.
+    one_lost = both_marked.replace("\tw.Write(utf8BOM)\n", "")
+    assert _unmarked_spreadsheet_writers(one_lost) == (["handleExportGIS"], 2)
+
+    # A doc comment listing the files a handler produces is prose, not a
+    # writer, and must not be counted at all.
+    prose_only = '''
+// handleSomething returns two files:
+//   1. Data_UTF8.tsv -- a full dump
+func (h *H) handleSomething(w http.ResponseWriter, r *http.Request) {
+\treturn
+}
+'''
+    assert _unmarked_spreadsheet_writers(prose_only) == ([], 0)
+
+
 def test_every_form_that_writes_a_spreadsheet_writes_the_mark(layout):
     """Read in the source: no form is left writing ``.tsv`` unmarked.
 
@@ -1099,33 +1198,36 @@ def test_every_form_that_writes_a_spreadsheet_writes_the_mark(layout):
     this red, which is the right outcome: the file names all promise the
     same thing.
 
-    Pinned as the *equality of two sets of files* rather than as a list
-    of line numbers, on purpose.  The previous version of this test
-    pinned exact ``file:line`` sites, and the only thing the 2026-09-08
-    build had to do to break it was insert four lines above one of them.
-    Which file writes a spreadsheet, and whether that same file writes
-    the mark, are the two facts the user's experience depends on, and
-    neither moves when code above it does.
-    """
-    writes_spreadsheet = set()
-    writes_mark = set()
-    for source in layout.go_sources():
-        text = source.read_text(encoding="utf-8", errors="replace")
-        if ".tsv" in text:
-            writes_spreadsheet.add(source.name)
-        if re.search(r"xEF\b|xef\b|uFEFF|ufeff|\bBOM\b|ByteOrderMark", text):
-            writes_mark.add(source.name)
+    Judged **per writer**, which is the granularity that matters and the
+    one this test got wrong twice.  Pinning exact ``file:line`` sites was
+    too tight: four lines inserted above one of them broke it while
+    nothing about the build had changed.  Comparing sets of *files* was
+    too loose, and loose in the direction that hides a regression --
+    every one of these backends contains several writers plus the Neo4j
+    ones that omit the mark on purpose, so dropping the mark from one
+    spreadsheet writer leaves the file still "a file that writes a mark"
+    and the test still green.
 
-    assert writes_spreadsheet, (
-        "no source names a .tsv file any more -- the export writers have "
-        "been renamed or moved, and this check is measuring nothing")
-    assert writes_spreadsheet == writes_mark, (
-        "these forms write a tab-delimited spreadsheet without a UTF-8 "
-        "byte-order mark, so Excel will open them in the system code page "
-        f"and show mojibake: {sorted(writes_spreadsheet - writes_mark)}; "
-        "and these write a mark without writing a spreadsheet, which "
-        "would break a machine reader: "
-        f"{sorted(writes_mark - writes_spreadsheet)}")
+    So the unit is the enclosing Go function: one that names a ``.tsv``
+    file has to write the mark itself.  That survives code moving around
+    it, and it fails on exactly the change the user would notice.
+    """
+    unmarked: list[str] = []
+    checked = 0
+    for source in layout.go_sources():
+        found, total = _unmarked_spreadsheet_writers(
+            source.read_text(encoding="utf-8", errors="replace"))
+        checked += total
+        unmarked += [f"{source.name}:{name}" for name in found]
+
+    assert checked >= 15, (
+        f"only {checked} functions name a .tsv file -- the export writers "
+        "have been renamed or restructured, and this check is measuring "
+        "almost nothing")
+    assert not unmarked, (
+        "these writers produce a tab-delimited spreadsheet without a "
+        "UTF-8 byte-order mark, so Excel will open it in the system code "
+        f"page and show mojibake: {unmarked}")
 
 
 #: A page asking the browser to save one file per element of a list, all
