@@ -495,9 +495,9 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
                                                    for c in absent]
 
     assert problems == {
-        "networks_form_backend.go:2089": ["ZZ_SN_NETWORK.c_node_dist"],
-        "networks_form_backend.go:2212": ["ZZ_SN_NETWORK.c_node_dist"],
-        "networks_form_backend.go:2337": ["ZZ_SN_NETWORK.c_node_dist"],
+        "networks_form_backend.go:2093": ["ZZ_SN_NETWORK.c_node_dist"],
+        "networks_form_backend.go:2216": ["ZZ_SN_NETWORK.c_node_dist"],
+        "networks_form_backend.go:2341": ["ZZ_SN_NETWORK.c_node_dist"],
     }, (
         "the set of queries reading a column their scratch table does not "
         "have changed.  Each one is a handler that answers HTTP 500 for "

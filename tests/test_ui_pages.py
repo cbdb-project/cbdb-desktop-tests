@@ -63,6 +63,12 @@ SUBJECT = 1762
 #: One entry code that returns a result, for the export accounting.
 ENTRY_CODE = 36
 
+#: One association code that ASSOC_DATA has a row for, so that ticking
+#: it is the same act a user performs.  Only its presence matters to the
+#: control this enables, but a code the shipped data does not have would
+#: read as a made-up input.
+ASSOC_CODE = 349
+
 
 @dataclass(frozen=True)
 class Precondition:
@@ -87,28 +93,22 @@ class Precondition:
 
 PRECONDITIONS: tuple[Precondition, ...] = (
     # The Networks form, reloaded with a person already on the server.
-    # This is CBDB-D-013: the page's restore path sets its own
-    # "a person is selected" flag and enables one button, without
-    # re-running the function that decides whether Run Query is
-    # allowed -- so the precondition is met and the button is grey.
-    Precondition(
-        page="networks",
-        path="/LookAtNetworks",
-        seed=(("/api/networks/set-person", {"personId": SUBJECT}),),
-        interact="""() => {
-          for (const id of ['chk-kin', 'chk-nonkin', 'chk-male', 'chk-female']) {
-            const box = document.getElementById(id);
-            if (box && !box.disabled && !box.checked) box.checked = true;
-          }
-        }""",
-        must_enable=("btn-run",),
-        notes="the checkboxes are set without firing their onchange, "
-              "which is exactly the state a returning user is in: the "
-              "page restored a person and nothing has fired since",
-    ),
-    # The same page, with the checkbox events actually fired.  This one
-    # passes, and it is here so the failure above cannot be read as
-    # "the Networks form never enables Run Query".
+    #
+    # This slot held a second, event-free version of the precondition
+    # below: the four checkboxes had their ``.checked`` set without a
+    # ``change`` event, on the reading that the page's restore path
+    # enables a button without re-running the function that decides
+    # whether Run Query is allowed.  On the 2026-09-08 build that
+    # reading does not hold, and the deciding evidence is in the page:
+    # the restore path ends in ``checkRunCriteria()``
+    # (Templates/networks/index.html:1727, and again at :1671 for the
+    # picker's own callback), and every control that can change the
+    # answer calls it too -- sixteen call sites.  What was left was a
+    # state no user can reach: after the restore the button is grey
+    # because no relation type is ticked, which is correct, and ticking
+    # one fires the handler that un-greys it.  Removed rather than
+    # rewritten, because with the event dispatched it is exactly the
+    # entry below.
     Precondition(
         page="networks",
         path="/LookAtNetworks",
@@ -125,6 +125,23 @@ PRECONDITIONS: tuple[Precondition, ...] = (
         must_enable=("btn-run", "chk-kin-param"),
         notes="ticking Kinship Relations is what enables Use Kinship "
               "Parameters, so both are asserted together",
+    ),
+    # The Associations form, which ships Run Query disabled as of the
+    # 2026-09-08 build: it un-greys once at least one association code
+    # has been picked.  Driven through the page's own picker callback,
+    # which is what the popup calls on selection, rather than by
+    # writing the hidden field this test would then be checking itself.
+    Precondition(
+        page="associations",
+        path="/LookAtAssociations",
+        interact=f"""() => {{
+          assocPickerCallback({{codes: [{ASSOC_CODE}],
+                                desc: 'Assisted', descChn: ''}});
+        }}""",
+        settle_ms=200,
+        must_enable=("btnRunQuery",),
+        notes="new in this build: Run Query starts disabled and the "
+              "picker's callback is what enables it",
     ),
     # The Entry form after a real query: every export button must work.
     Precondition(
