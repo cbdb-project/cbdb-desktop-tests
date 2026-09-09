@@ -584,11 +584,25 @@ EXPORTS_BY_KEY = {spec.key: spec for spec in EXPORTS}
 #: why.  The coverage gate in test_exports.py subtracts these, so a new
 #: build's new export endpoint fails there rather than being silently
 #: absent.  Every entry is an *input* endpoint that the gate's name-based
-#: filter picks up; each is exercised in test_stateful_forms.py or in
-#: test_exports.py's own import round trip.
+#: filter picks up because of its name.
+#:
+#: This block used to claim that "each is exercised in
+#: test_stateful_forms.py or in test_exports.py's own import round trip".
+#: That was true of three of the four and false of the fourth, so the
+#: export gate was subtracting ``/api/assocpairs/import-list`` from its
+#: own coverage on the strength of a sentence nobody had checked -- the
+#: endpoint has never had a request made to it anywhere in the suite.
+#: The claim is now per entry, and the one that is not driven says so.
+#: The *endpoint* gate in test_zz_controls.py counts it as a gap, which
+#: is where it will be answered.
 NOT_EXPORTS: dict[str, str] = {
-    "/api/kinship/import-people": "input: fills the working list",
-    "/api/networks/import-people": "input: fills the working list",
-    "/api/groupdata/import-ids": "input: fills the working list",
-    "/api/assocpairs/import-list": "input: fills the two person slots",
+    "/api/kinship/import-people":
+        "input: fills the working list -- driven in test_stateful_forms.py",
+    "/api/networks/import-people":
+        "input: fills the working list -- driven in test_stateful_forms.py",
+    "/api/groupdata/import-ids":
+        "input: fills the working list -- driven in test_stateful_forms.py",
+    "/api/assocpairs/import-list":
+        "input: fills the two person slots -- NOT driven by anything yet, "
+        "and counted as a gap by the endpoint gate",
 }

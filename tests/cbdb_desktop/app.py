@@ -408,6 +408,31 @@ class CbdbApp:
     #: coverage.  It costs one set insertion per request.
     requested: set[tuple[str, str]] = set()
 
+    #: The status that means the *router* answered and the handler never
+    #: ran.  A request that got it did not exercise the endpoint, so it
+    #: must not count towards coverage.
+    #:
+    #: This is not a detail.  ``test_routes.py`` proves every registered
+    #: route still exists by sending one ``PATCH`` to each and expecting
+    #: 405 -- and gorilla/mux answers 405 *without entering the
+    #: handler*, which is exactly why PATCH was chosen for the probe.
+    #: While ``requested`` recorded that, one probe marked every
+    #: ``/api/`` path driven for ever, the coverage gate reported 105
+    #: reachable / 105 covered / 0 gaps, and fourteen endpoints that had
+    #: never had a real request made to them were inside that 100%.
+    #: Measured coverage that counts a 405 is claimed coverage wearing a
+    #: number.
+    #:
+    #: 405 and *only* 405.  404 was in this set for one commit and that
+    #: was wrong: a handler can answer 404 deliberately -- this build's
+    #: ``/api/browser/person/{id}`` does for a person that does not
+    #: exist, and a test drives exactly that -- so excluding 404 would
+    #: discard a real exercise and invent a gap.  A 404 from an
+    #: *unregistered* path is a different problem, and
+    #: ``test_every_endpoint_the_pages_call_is_a_route_the_build_registers``
+    #: is the test that owns it.
+    _ROUTER_REFUSED = frozenset({405})
+
     @staticmethod
     def _coverage_key(method: str, path: str) -> tuple[str, str]:
         base = path.split("?", 1)[0]
@@ -417,13 +442,21 @@ class CbdbApp:
 
     def request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         """One HTTP call, with the application's health folded into errors."""
-        CbdbApp.requested.add(self._coverage_key(method, path))
         kwargs.setdefault("timeout", self.config.http_timeout)
         try:
-            return self._session.request(method, self.url(path), **kwargs)
+            response = self._session.request(method, self.url(path), **kwargs)
         except requests.RequestException as exc:
             self.check_alive()
             raise self._fail(f"{method} {path} failed: {exc}") from exc
+        # Recorded after the answer, and only when the router did not
+        # refuse it.  What this records is that a handler *ran* for the
+        # path -- not that the control behind it worked: a 400 or a 500
+        # counts, and should, because the handler ran and the run has
+        # something to say about it.  Whether the answer was right is
+        # every other test's job.
+        if response.status_code not in self._ROUTER_REFUSED:
+            CbdbApp.requested.add(self._coverage_key(method, path))
+        return response
 
     def json(self, method: str, path: str, **kwargs: Any) -> Any:
         """A request whose response must be 200 and valid JSON."""
