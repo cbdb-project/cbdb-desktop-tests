@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 06:21 UTC from a run of 870 tests (266s)._
+_Generated 2026-09-09 07:44 UTC from a run of 873 tests (266s)._
 
 Dear maintainer,
 
@@ -16,10 +16,10 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 
 | outcome | count |
 | --- | --- |
-| passed | 730 |
-| failed | 59 |
+| passed | 753 |
+| failed | 70 |
 | xfailed (a known defect, still present) | 3 |
-| skipped | 78 |
+| skipped | 47 |
 
 ## What the suite covers
 
@@ -34,15 +34,15 @@ Every issue below was found by launching the shipped `Bin/cbdb.exe` and driving 
 | The forms that remember | 16 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
 | Every filter, on inputs read from the data | 254 | One query per populated combination the shipped database has, plus every switch turned both ways |
-| Every export button | 274 | All 45 file-producing endpoints pressed, and the files they return read back |
+| Every export button | 275 | All 45 file-producing endpoints pressed, and the files they return read back |
 | The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
 | The working tables | 6 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 22 | That every issue below still cites real code, in both languages |
-| This report itself | 21 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 870 |  |
+| This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
+| every test in this run | 873 |  |
 
 ## Agreed to leave for now
 
@@ -60,7 +60,7 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | --- | --- | --- | --- |
 | CBDB-D-001 | P0 | CONFIRMED | Both KML exports write an XML declaration that is never closed, so no reader accepts the file |
 | CBDB-D-002 | P0 | CONFIRMED | The Places form runs the Biography branch when the user has switched every category off |
-| CBDB-D-003 | P0 | CONFIRMED | Seventeen export buttons ask the browser to save several files at once, and thirteen of them report every file as saved when only the first arrived |
+| CBDB-D-003 | P0 | CONFIRMED | Twenty-two export buttons ask the browser to save several files at once, and twenty-one of them report every file as saved when only the first arrived |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
@@ -70,7 +70,7 @@ These outcomes are known and were agreed to be left as they are for the time bei
 
 - [CBDB-D-001 — Both KML exports write an XML declaration that is never closed, so no reader accepts the file](#cbdb-d-001--both-kml-exports-write-an-xml-declaration-that-is-never-closed-so-no-reader-accepts-the-file)
 - [CBDB-D-002 — The Places form runs the Biography branch when the user has switched every category off](#cbdb-d-002--the-places-form-runs-the-biography-branch-when-the-user-has-switched-every-category-off)
-- [CBDB-D-003 — Seventeen export buttons ask the browser to save several files at once, and thirteen of them report every file as saved when only the first arrived](#cbdb-d-003--seventeen-export-buttons-ask-the-browser-to-save-several-files-at-once-and-thirteen-of-them-report-every-file-as-saved-when-only-the-first-arrived)
+- [CBDB-D-003 — Twenty-two export buttons ask the browser to save several files at once, and twenty-one of them report every file as saved when only the first arrived](#cbdb-d-003--twenty-two-export-buttons-ask-the-browser-to-save-several-files-at-once-and-twenty-one-of-them-report-every-file-as-saved-when-only-the-first-arrived)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
@@ -137,7 +137,7 @@ The Places query handler substitutes `IncludeBiog = true` when it finds all seve
 
 #### Evidence
 
-With every category switched off the query returned 396 rows, and the same request with Biography alone switched on returned the same 396 rows -- the empty selection is not merely non-empty, it is exactly the Biography branch's own result.  Measured through the running binary; the substitution is then visible in the source.
+Measured on address code 20056, chosen by the suite from the shipped data rather than by hand.  With every category switched off the query returned 396 rows, and the same request with Biography alone switched on returned the same 396 rows -- the empty selection is not merely non-empty, it is exactly the Biography branch's own result.  Measured through the running binary; the substitution is then visible in the source.
 
 #### Impact
 
@@ -145,7 +145,7 @@ A researcher who narrows the query by unticking categories gets results from a c
 
 #### Steps to reproduce
 
-1. Open the Places form (/LookAtPlace) and select any address.
+1. Open the Places form (/LookAtPlace) and select an address -- address code 20056 is the one measured above.
 2. Untick all seven category checkboxes, including Biography.
 3. Press Run Query: rows come back.
 4. Tick Biography only and run again: the same rows, in the same number.
@@ -164,9 +164,9 @@ Either refuse an empty selection in the page (keep Run Query disabled until at l
 
 - 1 × failed: `test_turning_every_category_off_returns_nothing`
 
-## CBDB-D-003 — Seventeen export buttons ask the browser to save several files at once, and thirteen of them report every file as saved when only the first arrived
+## CBDB-D-003 — Twenty-two export buttons ask the browser to save several files at once, and twenty-one of them report every file as saved when only the first arrived
 
-**Affected area:** Export buttons on seven form pages
+**Affected area:** Export buttons on ten form pages
 
 **Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
 
@@ -176,11 +176,13 @@ Either refuse an empty selection in the page (keep Run Query disabled until at l
 
 #### Description
 
-These handlers loop over the file list the server returned and trigger a download per element from a single click.  A browser permits one automatic download per user gesture and blocks the rest, and once blocked the restriction applies to later exports from the same page -- which is why pressing Export a second time can save nothing at all.  Thirteen of the seventeen then print the count the *server* returned ("2 file(s) ready"), having never asked the browser what it accepted.
+These handlers loop over the file list the server returned and trigger a download per element from a single click.  A browser permits one automatic download per user gesture and blocks the rest, and once blocked the restriction applies to later exports from the same page -- which is why pressing Export a second time can save nothing at all.  Twenty-one of the twenty-two then print the count the *server* returned ("2 file(s) ready"), having never asked the browser what it accepted.
 
 #### Evidence
 
-Counted in the shipped templates: 17 such handlers across 7 pages (association_pairs 4, associations 2, entry 2, group_data 3, kinship 2, networks 2, places 2), of which 13 report a server-side count as though it were the outcome (association_pairs 4, associations 2, entry 1, group_data 2, kinship 2, places 2).  The server side is faultless: the same endpoints return every file, identically, on repeated requests.  Under automation downloads are auto-accepted and both files arrive, so the blocking half is established by reading the delivery code and was reported from real use; the misreported count is measured in the browser.
+Counted in the shipped templates: 22 such handlers across all 10 pages that export more than one file (association_pairs 4, associations 2, entry 2, group_data 3, kinship 2, networks 2, office 2, places 2, status 2, texts 1), of which 21 report a server-side count as though it were the outcome (the same, less one of networks').  Three spellings of the same loop are in use and all three are counted; a fourth would fail the check rather than shrink these numbers.
+
+The server side is faultless: the same endpoints return every file, identically, on repeated requests.  Under automation downloads are auto-accepted and every file arrives, so the blocking half is established by reading the delivery code and was reported from real use; the misreported count is measured in the browser.
 
 #### Impact
 
@@ -206,6 +208,9 @@ Deliver a multi-file export as one download -- a zip archive is the usual answer
 - `Templates/associations/index.html:680`
 - `Templates/networks/index.html:1551`
 - `Templates/places/index.html:691`
+- `Templates/office/index.html:850`
+- `Templates/status/index.html:795`
+- `Templates/texts/index.html:823`
 
 #### Demonstrated by
 
@@ -273,7 +278,7 @@ The export reads `ADDR_CODES.c_admin_type` into a Go struct field declared `Admi
 
 #### Evidence
 
-The endpoint answers `500 Neo4j export error: scan addrRow: sql: Scan error on column index 3, name "admin_type": converting driver.Value type string ("Xian") to a int: invalid syntax`.  The shipped schema declares the column `CHAR(255)`, and a read-only count over the shipped database finds all 30,100 values are of type text, the commonest being "Xian" (13,687 rows).  So a rebuild of the data would not change it: the declared type in the Go struct is wrong.
+The endpoint answers `500 Neo4j export error: scan addrRow: sql: Scan error on column index 3, name "admin_type": converting driver.Value type string ("Xian") to a int: invalid syntax`.  The shipped schema declares the column `varchar(255)`, and a read-only count over the shipped database finds all 30,100 values are of type text, the commonest being "Xian" (13,687 rows).  So a rebuild of the data would not change it: the declared type in the Go struct is wrong.
 
 #### Impact
 
@@ -287,19 +292,22 @@ The Associations form cannot export to Neo4j for any query whose people have add
 
 #### Suggested fix
 
-Declare the field `string` and read it as text -- the `COALESCE(c_admin_type, 0)` in the same SELECT should become `COALESCE(c_admin_type, '')` to match.  The other forms' Neo4j exports read the same table and are worth checking in the same commit.
+Declare the field `string` and read it as text -- the `COALESCE(c_admin_type, 0)` in the same SELECT should become `COALESCE(c_admin_type, '')` to match.
+
+The same mistake is in the build a second time, and it is not in another Neo4j export -- no other one scans this column.  It is `handlePlaceSearch` in `networks_form_backend.go`, which selects `COALESCE(c_admin_type, 0)` into an `AdminType int` and then `continue`s on a scan error, so it returns an empty list for every search instead of an error.  Nothing in the shipped templates calls that route today, which is why no user has reported it; it is worth fixing in the same commit rather than left to be found once something does.
 
 #### Where it lives in the build
 
 - `Code/associations_form_backend.go:1377`
 - `Code/associations_form_backend.go:1388`
+- `Code/networks_form_backend.go:2987`
 - `Data/cbdb.db.schema.sql:42`
 
 #### Demonstrated by
 
-- 18 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
-- 125 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+121)
-- 63 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+59)
+- 27 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+23)
+- 147 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+143)
+- 32 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+28)
 
 ## CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error
 
@@ -408,7 +416,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 870 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 873 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

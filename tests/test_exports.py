@@ -1063,6 +1063,7 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
             "are excluded above")
 
     without: list[str] = []
+    judged: list[str] = []
     for name, raw in files:
         if not name.lower().endswith(_SPREADSHEET_SUFFIXES):
             continue
@@ -1073,17 +1074,38 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
                 f"{spec.key}/{name} is not UTF-8 at all ({exc})") from exc
         if text.isascii():
             continue          # readable in any code page
+        judged.append(name)
         if not raw.startswith(UTF8_BOM):
             without.append(name)
 
-    if not without:
-        pytest.skip(f"{spec.key}: no spreadsheet file here carries "
-                    "non-ASCII text, so its encoding cannot be misread")
+    if without:
+        raise KnownShippedDefect(
+            f"{spec.key}: {len(without)} file(s) contain non-ASCII text and "
+            f"start with no UTF-8 byte-order mark: {without}.  Excel will "
+            "open them in the system code page and show mojibake.")
 
-    raise KnownShippedDefect(
-        f"{spec.key}: {len(without)} file(s) contain non-ASCII text and "
-        f"start with no UTF-8 byte-order mark: {without}.  Excel will "
-        "open them in the system code page and show mojibake.")
+    # Two ways there was nothing to judge, and they are not the same
+    # thing -- which is what the single skip this replaced got wrong.
+    # Written when the build marked nothing, the test ended in an
+    # unconditional raise; once the 2026-09-08 build started marking
+    # every .tsv, every parametrisation fell through to one skip saying
+    # "no spreadsheet file here carries non-ASCII text", said equally of
+    # a correctly marked file full of Chinese names and of a Pajek .net
+    # that was never a spreadsheet.  A reader could not tell "verified
+    # marked" from "nothing to judge", and neither could a later round.
+    spreadsheet = [name for name, _ in files
+                   if name.lower().endswith(_SPREADSHEET_SUFFIXES)]
+    if not spreadsheet:
+        pytest.skip(
+            f"{spec.key}: produces no spreadsheet-suffixed file at all "
+            f"({[name for name, _ in files]}) -- a graph/SNA format, whose "
+            "readers do not expect a mark.  Excluded for the same reason "
+            "as KML, and its encoding is judged by the tests above")
+    if not judged:
+        pytest.skip(
+            f"{spec.key}: {len(spreadsheet)} spreadsheet file(s) "
+            f"({spreadsheet}), every one of them pure ASCII on this input, "
+            "so no code page could misread them")
 
 
 def _strip_go_comments(source: str) -> str:
@@ -1237,21 +1259,39 @@ def test_every_form_that_writes_a_spreadsheet_writes_the_mark(layout):
 
 
 #: A page asking the browser to save one file per element of a list, all
-#: from one click.  Two spellings are in use across these templates and
-#: both mean the same thing; a third would have to be added here, which
-#: is why the *count* of matches is pinned rather than merely their
-#: absence.
+#: from one click.  **Three** spellings are in use across these
+#: templates and all three mean the same thing.
+#:
+#: The comment here used to say two, and "a third would have to be added
+#: here" -- which is exactly what had happened and what stopped anyone
+#: looking.  A `for (const file of j.files)` loop in office, status and
+#: texts went unmatched, so a P0 finding was filed as 17 handlers across
+#: 7 pages when the build has 22 across 10, with three whole pages
+#: missing from it.  Hence ``_ITERATES_A_FILE_LIST`` below: the next
+#: spelling fails a test instead of shrinking a number nobody can check.
 _DOWNLOAD_PER_FILE = re.compile(
     r"""forEach\s*\(\s*\(?\s*\w+\s*\)?\s*=>\s*triggerDownload"""
+    r"""|for\s*\(\s*(?:const|let|var)\s+\w+\s+of\s+[\w.]*\bfiles\b"""
     r"""|for\s*\(\s*let\s+\w+\s*=\s*0\s*;[^)]*\.files\.length""",
+    re.IGNORECASE)
+
+#: Any loop over a response's file list, however it is written.  The
+#: guard on the pattern above: every way a page can walk a file list has
+#: to be *recognised* by it, so a fourth spelling is a failure here
+#: rather than a silent omission from the finding.
+_ITERATES_A_FILE_LIST = re.compile(
+    r"""for\s*\([^)]*\bfiles\b"""
+    r"""|\bfiles(?:\s*\|\|\s*\[\])?\s*\)?\s*\.\s*(?:forEach|map)\s*\(""",
     re.IGNORECASE)
 
 #: And the message such a handler then prints, which reports the number
 #: of files the *server* returned rather than the number the browser
-#: accepted.  This is the half that misleads.
+#: accepted.  This is the half that misleads.  Three phrasings again:
+#: "N file(s) downloaded", "N files ready", and a template literal.
 _REPORTS_A_FILE_COUNT = re.compile(
-    r"""(?:files\s*\|\|\s*\[\]\)\.length|\.files\.length)\s*"""
-    r"""(?:\+|\})?[^;\n]*?file\(s\)""",
+    r"""(?:\bfiles\s*\|\|\s*\[\]\)\.length|\.files\.length"""
+    r"""|\$\{\s*files\.length\s*\})"""
+    r"""[^;\n]*?(?:file\(s\)|files?\s+(?:downloaded|ready|saved))""",
     re.IGNORECASE)
 
 
@@ -1279,6 +1319,7 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
     """
     per_file: dict[str, int] = {}
     claims: dict[str, int] = {}
+    walks: dict[str, int] = {}
     for page, path in sorted(layout.form_templates().items()):
         html = path.read_text(encoding="utf-8", errors="replace")
         found = len(_DOWNLOAD_PER_FILE.findall(html))
@@ -1287,6 +1328,18 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
         told = len(_REPORTS_A_FILE_COUNT.findall(html))
         if told:
             claims[page] = told
+        seen = len(_ITERATES_A_FILE_LIST.findall(html))
+        if seen:
+            walks[page] = seen
+
+    # The guard.  Every loop over a file list must be one the pattern
+    # above recognises, or this finding silently under-reports -- which
+    # is how office, status and texts stayed out of it.
+    assert walks == per_file, (
+        "a page walks a response's file list in a spelling "
+        "_DOWNLOAD_PER_FILE does not recognise, so the count below would "
+        f"be too low.  Loops found: {walks}; classified: {per_file}.  Add "
+        "the spelling to _DOWNLOAD_PER_FILE in the same commit")
 
     if not per_file:
         assert not claims, (

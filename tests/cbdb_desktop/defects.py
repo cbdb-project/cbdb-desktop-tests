@@ -248,13 +248,16 @@ _DEFECTS: tuple[Defect, ...] = (
                    "尚屬合理；問題在於頁面允許使用者真的走到這個狀態。七個"
                    "勾選框沒有「至少選一項」的限制，因此全部取消後按下查詢，"
                    "回傳的是使用者明確排除掉的傳記地址，而且沒有任何提示。",
-        evidence="With every category switched off the query returned 396 "
+        evidence="Measured on address code 20056, chosen by the suite from "
+                 "the shipped data rather than by hand.  "
+                 "With every category switched off the query returned 396 "
                  "rows, and the same request with Biography alone switched "
                  "on returned the same 396 rows -- the empty selection is "
                  "not merely non-empty, it is exactly the Biography "
                  "branch's own result.  Measured through the running "
                  "binary; the substitution is then visible in the source.",
-        evidence_zh="七個類別全部取消勾選時，查詢回傳 396 列；把同一個請求"
+        evidence_zh="本次量測使用的地址代碼是 20056——由測試套件從釋出資料中"
+                    "自行挑選，而非人工指定。七個類別全部取消勾選時，查詢回傳 396 列；把同一個請求"
                     "改成只勾選「傳記」，回傳的也是同樣的 396 列——空選擇"
                     "不只是「並非真的空」，而是恰好等於傳記那一支的結果。"
                     "此結果是透過執行中的程式實測，之後在原始碼中看到對應的"
@@ -277,14 +280,14 @@ _DEFECTS: tuple[Defect, ...] = (
                "的），二是對空選擇回傳零列並明確告知使用者。只要頁面不會再"
                "送出這種請求，伺服器端的預設值可以留著當作保護。",
         steps=(
-            "Open the Places form (/LookAtPlace) and select any address.",
+            "Open the Places form (/LookAtPlace) and select an address -- address code 20056 is the one measured above.",
             "Untick all seven category checkboxes, including Biography.",
             "Press Run Query: rows come back.",
             "Tick Biography only and run again: the same rows, in the same "
             "number.",
         ),
         steps_zh=(
-            "開啟地點表單（/LookAtPlace），任選一個地址。",
+            "開啟地點表單（/LookAtPlace），選擇一個地址——上文量測使用的是地址代碼 20056。",
             "取消七個類別勾選框的全部勾選，包含「傳記」。",
             "按下執行查詢：仍有資料回傳。",
             "改為只勾選「傳記」再查一次：得到相同的資料、相同的列數。",
@@ -298,50 +301,56 @@ _DEFECTS: tuple[Defect, ...] = (
     Defect(
         key="CBDB-D-003",
         priority="P0", severity="high", origin="software",
-        title="Seventeen export buttons ask the browser to save several "
-              "files at once, and thirteen of them report every file as "
+        title="Twenty-two export buttons ask the browser to save several "
+              "files at once, and twenty-one of them report every file as "
               "saved when only the first arrived",
-        title_zh="十七個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中十三個更"
-                 "在只有第一個檔案下載成功時，回報所有檔案都已儲存",
-        area="Export buttons on seven form pages",
-        area_zh="七個表單頁面上的匯出按鈕",
+        title_zh="二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個"
+                 "更在只有第一個檔案下載成功時，回報所有檔案都已儲存",
+        area="Export buttons on ten form pages",
+        area_zh="十個表單頁面上的匯出按鈕",
         summary="These handlers loop over the file list the server returned "
                 "and trigger a download per element from a single click.  A "
                 "browser permits one automatic download per user gesture and "
                 "blocks the rest, and once blocked the restriction applies "
                 "to later exports from the same page -- which is why "
                 "pressing Export a second time can save nothing at all.  "
-                "Thirteen of the seventeen then print the count the *server* "
+                "Twenty-one of the twenty-two then print the count the *server* "
                 "returned (\"2 file(s) ready\"), having never asked the "
                 "browser what it accepted.",
         summary_zh="這些處理函式會走訪伺服器回傳的檔案清單，在單一次點擊中"
                    "為每個項目各觸發一次下載。瀏覽器對每個使用者手勢只允許"
                    "一次自動下載，其餘一律封鎖；而且一旦被封鎖，同一頁面之後"
                    "的匯出也會受限——這正是第二次按下匯出時可能完全存不到"
-                   "檔案的原因。十七個之中有十三個接著印出的是「伺服器」回傳"
+                   "檔案的原因。二十二個之中有二十一個接著印出的是「伺服器」回傳"
                    "的數量（例如「2 file(s) ready」），從未詢問瀏覽器實際接受"
                    "了幾個。",
-        evidence="Counted in the shipped templates: 17 such handlers across "
-                 "7 pages (association_pairs 4, associations 2, entry 2, "
-                 "group_data 3, kinship 2, networks 2, places 2), of which "
-                 "13 report a server-side count as though it were the "
-                 "outcome (association_pairs 4, associations 2, entry 1, "
-                 "group_data 2, kinship 2, places 2).  The server side is "
-                 "faultless: the same endpoints return every file, "
-                 "identically, on repeated requests.  Under automation "
-                 "downloads are auto-accepted and both files arrive, so the "
-                 "blocking half is established by reading the delivery code "
-                 "and was reported from real use; the misreported count is "
-                 "measured in the browser.",
-        evidence_zh="在釋出的模板中逐一計數：七個頁面共 17 處這樣的處理函式"
-                    "（association_pairs 4、associations 2、entry 2、"
-                    "group_data 3、kinship 2、networks 2、places 2），其中 13 "
-                    "處會把伺服器端的數量當成實際結果回報（association_pairs "
-                    "4、associations 2、entry 1、group_data 2、kinship 2、"
-                    "places 2）。伺服器端本身沒有問題：同樣的端點在重複請求下"
-                    "都會完整、一致地回傳每個檔案。在自動化環境中下載會被自動"
-                    "接受、兩個檔案都會到齊，因此「被封鎖」這一半是透過閱讀"
-                    "頁面的下載程式碼確認的，並且來自實際使用時的回報；"
+        evidence="Counted in the shipped templates: 22 such handlers across "
+                 "all 10 pages that export more than one file "
+                 "(association_pairs 4, associations 2, entry 2, "
+                 "group_data 3, kinship 2, networks 2, office 2, places 2, "
+                 "status 2, texts 1), of which 21 report a server-side count "
+                 "as though it were the outcome (the same, less one of "
+                 "networks').  Three spellings of the same loop are in use "
+                 "and all three are counted; a fourth would fail the check "
+                 "rather than shrink these numbers.\n\n"
+                 "The server side is faultless: the same endpoints return "
+                 "every file, identically, on repeated requests.  Under "
+                 "automation downloads are auto-accepted and every file "
+                 "arrives, so the blocking half is established by reading "
+                 "the delivery code and was reported from real use; the "
+                 "misreported count is measured in the browser.",
+        evidence_zh="在釋出的模板中逐一計數：所有 10 個會匯出多個檔案的頁面"
+                    "共 22 處這樣的處理函式（association_pairs 4、"
+                    "associations 2、entry 2、group_data 3、kinship 2、"
+                    "networks 2、office 2、places 2、status 2、texts 1），"
+                    "其中 21 處會把伺服器端的數量當成實際結果回報（與上面"
+                    "相同，只少了 networks 的一處）。同一種迴圈在這些頁面裡"
+                    "有三種寫法，三種都已計入；若出現第四種，檢查會直接失敗，"
+                    "而不是讓這些數字悄悄變小。\n\n"
+                    "伺服器端本身沒有問題：同樣的端點在重複請求下都會完整、"
+                    "一致地回傳每個檔案。在自動化環境中下載會被自動接受、"
+                    "每個檔案都會到齊，因此「被封鎖」這一半是透過閱讀頁面的"
+                    "下載程式碼確認的，並且來自實際使用時的回報；"
                     "「數量回報錯誤」這一半則是在瀏覽器中實測的。",
         impact="A user presses Export, is told two or five files are ready, "
                "and finds one on disk.  The files that did not arrive are "
@@ -375,7 +384,10 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Templates/entry/index.html:1093",
                 "Templates/associations/index.html:680",
                 "Templates/networks/index.html:1551",
-                "Templates/places/index.html:691"),
+                "Templates/places/index.html:691",
+                "Templates/office/index.html:850",
+                "Templates/status/index.html:795",
+                "Templates/texts/index.html:823"),
         tests=("test_no_page_asks_the_browser_for_more_"
                "than_one_download",),
     ),
@@ -479,7 +491,7 @@ _DEFECTS: tuple[Defect, ...] = (
                  "addrRow: sql: Scan error on column index 3, name "
                  "\"admin_type\": converting driver.Value type string "
                  "(\"Xian\") to a int: invalid syntax`.  The shipped schema "
-                 "declares the column `CHAR(255)`, and a read-only count "
+                 "declares the column `varchar(255)`, and a read-only count "
                  "over the shipped database finds all 30,100 values are of "
                  "type text, the commonest being \"Xian\" (13,687 rows).  So "
                  "a rebuild of the data would not change it: the declared "
@@ -488,7 +500,7 @@ _DEFECTS: tuple[Defect, ...] = (
                     "Scan error on column index 3, name \"admin_type\": "
                     "converting driver.Value type string (\"Xian\") to a "
                     "int: invalid syntax`。釋出的結構描述把該欄位宣告為 "
-                    "`CHAR(255)`；以唯讀方式統計釋出的資料庫，30,100 個值"
+                    "`varchar(255)`；以唯讀方式統計釋出的資料庫，30,100 個值"
                     "全部都是文字型別，最常見的是 \"Xian\"（13,687 列）。"
                     "因此重建資料不會改變結果：問題在於 Go 結構中宣告的型別"
                     "有誤。",
@@ -499,13 +511,27 @@ _DEFECTS: tuple[Defect, ...] = (
                   "無法匯出到 Neo4j，使用者只會看到伺服器錯誤。",
         fix="Declare the field `string` and read it as text -- the "
             "`COALESCE(c_admin_type, 0)` in the same SELECT should become "
-            "`COALESCE(c_admin_type, '')` to match.  The other forms' Neo4j "
-            "exports read the same table and are worth checking in the same "
-            "commit.",
+            "`COALESCE(c_admin_type, '')` to match.\n\n"
+            "The same mistake is in the build a second time, and it is not "
+            "in another Neo4j export -- no other one scans this column.  It "
+            "is `handlePlaceSearch` in `networks_form_backend.go`, which "
+            "selects `COALESCE(c_admin_type, 0)` into an `AdminType int` and "
+            "then `continue`s on a scan error, so it returns an empty list "
+            "for every search instead of an error.  Nothing in the shipped "
+            "templates calls that route today, which is why no user has "
+            "reported it; it is worth fixing in the same commit rather than "
+            "left to be found once something does.",
         fix_zh="把該欄位宣告為 `string` 並以文字讀取；同一段 SELECT 中的 "
                "`COALESCE(c_admin_type, 0)` 也應一併改為 "
-               "`COALESCE(c_admin_type, '')` 以相符。其他表單的 Neo4j 匯出"
-               "同樣讀取這個表，建議在同一次修改中一併檢查。",
+               "`COALESCE(c_admin_type, '')` 以相符。\n\n"
+               "同樣的錯誤在這一版中還有第二處，但不在別的 Neo4j 匯出裡"
+               "——沒有其他匯出會讀這個欄位。那一處是 "
+               "`networks_form_backend.go` 的 `handlePlaceSearch`：它同樣把 "
+               "`COALESCE(c_admin_type, 0)` 讀進 `AdminType int`，而且在讀取"
+               "失敗時直接 `continue`，因此任何搜尋都會回傳空清單，而不是"
+               "回報錯誤。目前釋出的模板沒有任何地方會呼叫這個路由，這也是"
+               "至今沒有使用者回報的原因；建議在同一次修改中一併處理，"
+               "而不要留到某天真的有人用到它才被發現。",
         steps=(
             "Open the Associations form (/LookAtAssociations), pick an "
             "association code and run the query.",
@@ -519,6 +545,7 @@ _DEFECTS: tuple[Defect, ...] = (
         ),
         source=("Code/associations_form_backend.go:1377",
                 "Code/associations_form_backend.go:1388",
+                "Code/networks_form_backend.go:2987",
                 "Data/cbdb.db.schema.sql:42"),
         tests=("test_an_export_produces_a_well_formed_file",
                "test_an_export_describes_the_people_the_"

@@ -86,8 +86,10 @@ def common_root(names: list[str]) -> str | None:
 def _replace_with_retry(source: Path, dest: Path, *, attempts: int = 15) -> None:
     """``os.replace`` with backoff, and an error that says what it was doing.
 
-    The budget is deliberately generous -- backoff is capped at 8 s per
-    attempt, so 15 of them wait about a minute in total.  What is being
+    The budget is deliberately generous: the backoff grows by half a
+    second per attempt, so 15 of them wait about 52 s in total (the 8 s
+    cap is a ceiling this schedule never reaches -- it is there so that
+    raising the attempt count cannot turn into a very long stall).  What is being
     waited on is another process letting go of a directory holding two
     freshly written ~30 MB executables and a 1.2 GB database: an
     antivirus sweep, or a file-sync client that has just noticed them.
