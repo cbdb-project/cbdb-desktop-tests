@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 11:30 UTC from a run of 1097 tests (369s)._
+_Generated 2026-09-09 11:40 UTC from a run of 1099 tests (374s)._
 
 Dear maintainer,
 
@@ -16,7 +16,7 @@ Most of the issues below were found by launching the shipped `cbdb.exe` and driv
 
 | outcome | count |
 | --- | --- |
-| passed | 892 |
+| passed | 894 |
 | failed | 78 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 124 |
@@ -42,7 +42,7 @@ Of the 78 failures, **77** are the tests that demonstrate the issues below -- th
 | The forms that remember | 16 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
 | Every filter, on inputs read from the data | 254 | One query per populated combination the shipped database has, plus every switch turned both ways |
-| Every export button | 495 | All 45 file-producing endpoints pressed, and the files they return read back |
+| Every export button | 497 | All 45 file-producing endpoints pressed, and the files they return read back |
 | The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
 | The working tables | 6 | Which form owns which scratch table, read out of the shipped Go |
@@ -50,7 +50,7 @@ Of the 78 failures, **77** are the tests that demonstrate the issues below -- th
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 22 | That every issue below still cites real code, in both languages |
 | This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1097 |  |
+| every test in this run | 1099 |  |
 
 ## Agreed to leave for now
 
@@ -424,7 +424,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1097 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1099 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 
