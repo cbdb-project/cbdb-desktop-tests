@@ -103,7 +103,7 @@ PRECONDITIONS: tuple[Precondition, ...] = (
     # the restore path ends in ``checkRunCriteria()``
     # (Templates/networks/index.html:1727, and again at :1671 for the
     # picker's own callback), and every control that can change the
-    # answer calls it too -- sixteen call sites.  What was left was a
+    # answer calls it too -- nineteen call sites.  What was left was a
     # state no user can reach: after the restore the button is grey
     # because no relation type is ticked, which is correct, and ticking
     # one fires the handler that un-greys it.  Removed rather than

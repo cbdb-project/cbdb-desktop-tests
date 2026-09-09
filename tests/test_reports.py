@@ -250,8 +250,8 @@ def test_a_fixed_defect_is_reported_as_fixed_rather_than_confirmed(one_defect):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("lang", LANGS)
-def test_the_committed_report_matches_the_registry_it_was_rendered_from(lang):
-    """The .md in the tree is what the registry renders today.
+def test_the_committed_report_still_says_what_the_registry_says(lang):
+    """Every word the registry holds is in the committed .md.
 
     The committed Markdown is the deliverable, and the only thing that
     keeps it honest is that nobody edits it by hand.  That is not quite
@@ -261,34 +261,49 @@ def test_the_committed_report_matches_the_registry_it_was_rendered_from(lang):
     and the committed report went on printing the superseded text and
     the old citations for two more commits.
 
-    Rendering is deterministic given a run (see
-    ``test_the_same_run_renders_the_same_bytes_twice``), so the check is
-    just byte equality against a fresh render from the run this report
-    was made from.
+    Deliberately **not** byte equality against a fresh render, which was
+    the first attempt and was wrong three ways.  A full render mixes in
+    the run's own numbers, so the check needs
+    ``reports/pytest_report.json``, which is a gitignored artefact: it
+    would skip on a fresh checkout, and inside ``run_tests.ps1`` it runs
+    *before* the report is regenerated, so a round would fail it once as
+    a matter of course.  It also pulled the build name out of ``.env``,
+    which is machine-specific, so another developer's identical registry
+    could fail it.
 
-    Skipped when there is no local run to render from: the JSON is a
-    run artefact and is not committed.
+    What is actually being checked has none of those inputs: the text of
+    each entry, in this language, is present in the committed document.
+    That fails exactly when someone edits the registry and forgets to
+    regenerate, needs nothing but two tracked files, and says the same
+    thing on every machine.
     """
-    if not gr.DEFAULT_JSON.is_file():
-        pytest.skip(f"no local run at {gr.DEFAULT_JSON.name} to render from; "
-                    "this check needs one.  Run .\\run_tests.ps1")
-
     committed = REPO_ROOT / "reports" / f"{gr.STEM[lang]}.md"
     if not committed.is_file():
-        pytest.skip(f"{committed.name} is not in the tree: a round that has "
-                    "not written its report yet")
+        pytest.skip(f"reports/{committed.name} is not in the tree: a round "
+                    "that has not written its report yet.  It is committed "
+                    "once the round files its findings")
 
-    run = gr.load_run(gr.DEFAULT_JSON)
-    # Same three inputs main() renders from: the run, the registry, and
-    # the run's own waiver record.  Leaving the waivers out would make
-    # this check pass on a report that had dropped the waiver section.
-    fresh = gr.render_markdown(run, lang, gr._build_name(),
-                               gr.load_waivers(gr.DEFAULT_WAIVERS))
+    text = committed.read_text(encoding="utf-8")
+    missing: list[str] = []
+    for key, defect in sorted(DEFECTS.items()):
+        if key not in text:
+            missing.append(f"{key}: the whole entry")
+            continue
+        for name in ("title", "summary", "evidence", "impact", "fix"):
+            # Rendered prose is re-wrapped, so compare on the paragraph's
+            # own text with newlines collapsed, the way the document has
+            # it.
+            wanted = " ".join(defect.text(name, lang).split())
+            if wanted and wanted not in " ".join(text.split()):
+                missing.append(f"{key}.{name}")
+        for reference in defect.source:
+            if reference not in text:
+                missing.append(f"{key}.source {reference}")
 
-    assert committed.read_text(encoding="utf-8") == fresh, (
-        f"{committed.name} is not what the registry renders from this run.  "
-        "Either the registry changed after the report was generated, or the "
-        "report was edited by hand.  Regenerate it: "
+    assert not missing, (
+        f"reports/{committed.name} no longer says what the registry says -- "
+        "the registry was edited after the report was generated, or the "
+        f"report was edited by hand.  Missing: {missing}.  Regenerate it: "
         "python reports\\generate_report.py")
 
 
