@@ -33,6 +33,7 @@ to be in ``reports/pytest_report.json``.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -278,14 +279,27 @@ def test_the_committed_report_still_says_what_the_registry_says(lang):
     thing on every machine.
     """
     committed = REPO_ROOT / "reports" / f"{gr.STEM[lang]}.md"
+
+    # The registry decides whether a report is owed, so both directions
+    # of the disagreement have to be checked, and neither may be a skip
+    # while the other file has content.
     if not DEFECTS:
-        # An empty registry is the normal state between rounds, and it
-        # owes no report -- main's own reports are deleted when a round
-        # is cleared.  Nothing to check, and saying so is not the same
-        # as passing vacuously with findings on the books.
-        pytest.skip("the registry is empty, so no report is owed.  This "
-                    "check has something to say once a round files "
-                    "its findings")
+        # An empty registry is the normal state between rounds and owes
+        # no report -- main's own reports are deleted when a round is
+        # cleared, so requiring one would fail every clean checkout.
+        # But a report left behind *claiming* findings the registry no
+        # longer holds is the same lie in the other direction, and
+        # emptying the registry must not be a way to silence this.
+        if not committed.is_file():
+            pytest.skip("the registry is empty and no report is committed, "
+                        "which is the normal state between rounds")
+        stale = sorted(set(re.findall(r"CBDB-D-\d+",
+                                      committed.read_text(encoding="utf-8"))))
+        assert not stale, (
+            f"the registry is empty but reports/{committed.name} still "
+            f"names {stale}.  A cleared round deletes its reports; a report "
+            "that outlives its registry reports findings nobody holds")
+        return
 
     # With entries on the books the report is the deliverable, so a
     # missing one is a failure and not a skip.  Skipping here was the
