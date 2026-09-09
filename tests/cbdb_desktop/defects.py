@@ -472,8 +472,7 @@ _DEFECTS: tuple[Defect, ...] = (
                "promises",
                "test_every_row_of_a_delimited_file_is_as_wide_as_its_"
                "header",
-               "test_a_column_the_database_calls_numeric_holds_"
-               "numbers",
+               "test_a_column_that_has_to_hold_a_number_holds_one",
                "test_a_files_byte_order_mark_is_what_its_format_"
                "needs"),
     ),
@@ -566,8 +565,7 @@ _DEFECTS: tuple[Defect, ...] = (
                "promises",
                "test_every_row_of_a_delimited_file_is_as_wide_as_its_"
                "header",
-               "test_a_column_the_database_calls_numeric_holds_"
-               "numbers",
+               "test_a_column_that_has_to_hold_a_number_holds_one",
                "test_a_files_byte_order_mark_is_what_its_format_"
                "needs"),
     ),

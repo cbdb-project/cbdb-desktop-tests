@@ -680,6 +680,14 @@ FORMAT_RULES: dict[str, FormatRule] = {
         None, BOM_REQUIRED,
         "Pajek: not a delimited table, and its UTF-8 reader expects the "
         "mark -- all four writers say so where they emit it"),
+    # A lead this table cannot express, recorded where it will be found.
+    # places_form_backend.go reads encoding="ascii", names the file
+    # network_ascii.net, and prepends the UTF-8 mark anyway (:1446 and
+    # :1524), where its own .vna and .gdf siblings never do.  Nothing
+    # drives encoding="ascii" yet -- it is one of the values this suite
+    # has never sent -- so whether that file is wrong has not been
+    # established end to end, and it is not filed as a finding.  A rule
+    # keyed on the suffix alone would call it correct either way.
     ".gdf": FormatRule(
         None, BOM_FORBIDDEN,
         "Gephi/GUESS reads the mark as part of the first field name"),

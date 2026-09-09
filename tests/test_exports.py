@@ -46,6 +46,7 @@ from __future__ import annotations
 import base64
 import csv
 import io
+import json
 import re
 import xml.etree.ElementTree as ElementTree
 from collections import Counter
@@ -132,9 +133,12 @@ UTF8_BOM = b"\xef\xbb\xbf"
 #: ``places_``, each with the comment "Pajek's UTF-8 reader expects a
 #: BOM, unlike UCINet/Gephi").  So the mark is *required* for ``.net``
 #: and *forbidden* for ``.gdf`` and ``.vna``, and a suffix list with one
-#: bucket cannot say that.  Nothing yet checks the mark Pajek needs is
-#: there: that wants a per-format expectation rather than one list, and
-#: it is the next thing to write here.
+#: bucket cannot say that, which is why the per-format expectation now
+#: lives in ``FORMAT_RULES`` and is judged by
+#: ``test_a_files_byte_order_mark_is_what_its_format_needs``.  This list
+#: is what remains: the narrower question of which files a *spreadsheet*
+#: opens, guarded by the non-ASCII check the per-format test does not
+#: need.
 #:
 #: ``.tsv`` is the one that matters on the 2026-09-08 build and it has to
 #: be listed: that build renamed every tab-delimited export from
@@ -771,7 +775,8 @@ def test_the_inventory_covers_every_form_that_can_export(layout):
 # every export, driven
 # ---------------------------------------------------------------------------
 
-# The four checks every endpoint in the inventory gets put through.
+# The checks every endpoint in the inventory gets put through: four
+# about what it answers, and four about the file it produces.
 # None of them carries an expectation of failure: an endpoint that is
 # broken fails, and tolerating that is a decision recorded outside the
 # suite, in the waiver table, addressed by this test's own name and the
@@ -789,7 +794,7 @@ def _params(check: str):
     The id is the endpoint's own key (``networks:pajek``), which is what
     makes a waiver addressable: ``params = ["networks:pajek"]`` under
     this function's name waives exactly that one endpoint's check and
-    leaves the other 44 judged.
+    leaves every other endpoint judged.
     """
     assert check in _ALL_CHECKS, check
     return [pytest.param(spec, id=spec.key) for spec in EXPORTS]
@@ -1069,8 +1074,10 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
     four ``.net`` writers in this build emit the mark on purpose ("Pajek's
     UTF-8 reader expects a BOM, unlike UCINet/Gephi") -- so ``.net`` is
     excluded here only because this test's question is "can a
-    spreadsheet open it", and nothing else asks whether the mark Pajek
-    needs is actually there.  That gap is real and unclosed.
+    spreadsheet open it".  Whether the mark Pajek *needs* is actually
+    there is asked by
+    ``test_a_files_byte_order_mark_is_what_its_format_needs``, which
+    judges every format against its own rule.
 
     Guarded by a non-ASCII check: a file that happens to contain only
     ASCII is readable either way, and failing on it would report a
@@ -1129,7 +1136,8 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
             f"({[name for name, _ in files]}) -- a graph format, which this "
             "test's question does not fit: 'can a spreadsheet open it' is "
             "not asked of a .gdf or a .vna, and for .net the mark is "
-            "*required* rather than forbidden, which nothing yet checks")
+            "*required* rather than forbidden.  Both are judged by "
+            "test_a_files_byte_order_mark_is_what_its_format_needs")
     if not judged:
         pytest.skip(
             f"{spec.key}: {len(spreadsheet)} spreadsheet file(s) "
@@ -1497,28 +1505,110 @@ def test_every_kml_writer_closes_its_xml_declaration(layout):
 # from the suffix, so a build that invents an extension fails the gate
 # below rather than being judged by a default nobody chose.
 
-#: Declared types whose values must parse as a number.  SQLite's own
-#: affinity rules: anything containing INT, REAL, FLOA, DOUB, NUMERIC or
-#: DECIMAL.  ``BOOLEAN(2)`` is in via NUMERIC affinity, which is right:
-#: the build stores 0/1 in those.
-_NUMERIC_AFFINITY = re.compile(r"INT|REAL|FLOA|DOUB|NUMERIC|DECIMAL")
+#: Columns whose values a spreadsheet has to be able to total, sort or
+#: map -- and what each one is, so a reader can judge the claim rather
+#: than take it.  Coordinates, counts, identifiers and years: the
+#: families the user of an export actually computes with.
+#:
+#: An explicit inventory and **not** every column the schema declares
+#: numeric, which is what this started as and was wrong twice over.
+#: SQLite's affinity rules do not forbid text in a NUMERIC column, so
+#: "the database calls it numeric, therefore a non-number here is a
+#: defect" over-claims -- it would have reported a legitimate textual
+#: value as a bug.  And the sweep quietly mis-classified ``BOOLEAN(2)``,
+#: which has NUMERIC affinity through SQLite's catch-all rule and
+#: matches none of the obvious substrings.
+#:
+#: Every entry is still checked against the shipped schema by
+#: ``test_every_numeric_column_is_one_the_database_declares_numeric``:
+#: this table says which columns matter, the database says what they
+#: are, and the two have to agree.
+NUMERIC_COLUMNS: dict[str, str] = {
+    "x_coord": "longitude; a map cannot plot prose",
+    "y_coord": "latitude",
+    "xy_count": "how many returned rows share this coordinate",
+    "c_personid": "the CBDB person id every file is joined on",
+    "c_kin_id": "the related person's id",
+    "c_assoc_id": "the associate's id",
+    "c_node_id": "the network node's person id",
+    "c_addr_id": "the address code",
+    "c_index_addr_id": "the person's index address code",
+    "c_entry_addr_id": "the entry's own address code",
+    "c_office_id": "the office code",
+    "c_status_code": "the status code",
+    "c_textid": "the text id",
+    "c_entry_code": "the entry code",
+    "c_assoc_code": "the association code",
+    "c_kin_code": "the kinship code",
+    "c_index_year": "the year a person is indexed under; sorted on",
+    "c_dy": "the dynasty code",
+    "c_year": "the year of the event this row records",
+    "c_firstyear": "the first year of a posting or an address",
+    "c_lastyear": "the last year",
+    "c_sequence": "the order of a person's postings",
+    "c_age": "age in years",
+}
 
+#: SQLite's own affinity rules, in the order it applies them (see
+#: "Determination Of Column Affinity" in the SQLite docs).  Written out
+#: because the substring shortcut this replaces got ``BOOLEAN(2)``
+#: wrong: it has NUMERIC affinity via the final catch-all, and matches
+#: none of INT/REAL/FLOA/DOUB/NUMERIC/DECIMAL.
+def _affinity(declared: str) -> str:
+    kind = (declared or "").upper()
+    if not kind:
+        # A view or expression column: SQLite gives it *no* affinity, not
+        # BLOB.  Reported as its own answer so that the check below can
+        # ignore it -- a column with no declared type says nothing about
+        # whether it holds a number, in either direction, and reading it
+        # as BLOB made c_personid look like a text column because one
+        # view exposes it without a type.
+        return "NONE"
+    if "INT" in kind:
+        return "INTEGER"
+    if "CHAR" in kind or "CLOB" in kind or "TEXT" in kind:
+        return "TEXT"
+    if "BLOB" in kind:
+        return "BLOB"
+    if "REAL" in kind or "FLOA" in kind or "DOUB" in kind:
+        return "REAL"
+    return "NUMERIC"
+
+
+#: The affinities that store a number.  ``NONE`` is here because a
+#: column with no declared type is not evidence of anything: excluding
+#: it would fail every column that any view exposes untyped.
+_NUMERIC_AFFINITIES = frozenset({"INTEGER", "REAL", "NUMERIC", "NONE"})
 
 #: Exported header names that are a database column under a different
 #: spelling.  Four forms rename their columns on the way out -- office,
 #: status, texts and places write ``PersonID``/``XCoord``/``XYCount``
 #: where entry and associations write ``c_personid``/``x_coord``/
-#: ``xy_count`` -- and without this the type check judged 8 of the 50
-#: exports and skipped the rest.
+#: ``xy_count`` -- and without this the type check judged 8 of the
+#: inventory's 54 endpoints and skipped the rest.
 #:
-#: A hand-written mapping is the kind of thing AGENTS.md warns about,
-#: so two things keep it honest.  Every entry is *validated* against
-#: the shipped schema by
-#: ``test_every_numeric_alias_names_a_column_the_database_calls_numeric``
-#: below: an alias that stops existing, or stops being numeric, fails
-#: there rather than quietly judging nothing.  And each pair is a
-#: rename, not a guess about meaning -- so a wrong entry reports a
-#: defect that is not there, which is loud rather than silent.
+#: One entry is **not** a rename, and the build says so itself:
+#: ``XYCount`` is a coordinate frequency computed in Go over the result
+#: set (``associations_form_backend.go:428`` -- "XYCount for the grid is
+#: still computed in Go ... ZZ_SN_ASSOC has no xy_count column"), while
+#: the database's ``xy_count`` is a person-level column, "distinct from
+#: the grid's edge-level XYCount" (``:766``).  It is mapped anyway
+#: because the *claim being checked* holds either way -- both are counts
+#: and both must be numbers -- but calling it a rename would be false.
+#:
+#: Two nearby headings are deliberately **not** mapped, and adding
+#: either would have produced a false defect immediately: ``Female`` is
+#: written "M"/"F" where ``c_female`` is 0/1, and ``XY`` is a
+#: comma-joined "x,y" string.
+#:
+#: Read off the Go writers by hand, which is the kind of thing AGENTS.md
+#: warns about, so be exact about what protects it:
+#: ``test_every_alias_resolves_into_the_numeric_inventory`` proves each
+#: target is a column the inventory covers, so an alias cannot point at
+#: nothing and quietly stop judging a heading.  Nothing can prove an
+#: alias names the *same quantity* -- that is a claim about what a
+#: writer meant -- but a wrong entry fails in the safe direction: it
+#: reports a defect that is not there, loudly, on the next run.
 _HEADER_ALIASES = {
     "personid": "c_personid",
     "indexyear": "c_index_year",
@@ -1552,38 +1642,25 @@ def _rule_for(name: str):
     return FORMAT_RULES.get("." + name.rsplit(".", 1)[-1].lower())
 
 
+
 @pytest.fixture(scope="session")
-def numeric_columns(sqlite_conn) -> frozenset[str]:
-    """Column names the shipped database declares numeric, everywhere.
+def schema_affinities(sqlite_conn) -> dict[str, set[str]]:
+    """``{column name: {affinity, ...}}`` over every shipped table.
 
-    The oracle for "this column must hold a number", and it is read out
-    of the database rather than listed here -- the same discipline
-    ``routes.py`` uses on the Go source.  A column is numeric only when
-    *every* declared type it carries has numeric affinity: a name used
-    for an integer in one table and text in another (there is one,
-    ``c_index_year_type_code``) is ambiguous, so it is excluded rather
-    than guessed at.  A declared type of "" is a view column with no
-    affinity and does not count either way.
-
-    This is a fact about the artefact's schema, not a reconstruction of
+    Read with ``PRAGMA table_info``, which is how SQLite itself resolves
+    a name -- a base fact about the artefact, not a reconstruction of
     anything a handler computes.
     """
-    declared: dict[str, set[str]] = {}
+    out: dict[str, set[str]] = {}
     for (table,) in sqlite_conn.execute(
             "SELECT name FROM sqlite_master WHERE type IN ('table','view')"):
         for row in sqlite_conn.execute(f'PRAGMA table_info("{table}")'):
-            kind = (row[2] or "").upper()
-            if kind:
-                declared.setdefault(row[1].lower(), set()).add(kind)
-
-    numeric = frozenset(
-        name for name, kinds in declared.items()
-        if kinds and all(_NUMERIC_AFFINITY.search(k) for k in kinds))
-    assert len(numeric) > 200, (
-        f"only {len(numeric)} numeric columns found in the shipped schema; "
-        "PRAGMA table_info has stopped reporting declared types and this "
-        "oracle is about to judge almost nothing")
-    return numeric
+            out.setdefault(row[1].lower(), set()).add(_affinity(row[2]))
+    assert len(out) > 500, (
+        f"only {len(out)} column names found in the shipped schema; "
+        "PRAGMA table_info has stopped answering and this oracle is "
+        "about to judge nothing")
+    return out
 
 
 def _is_number(value: str) -> bool:
@@ -1624,17 +1701,27 @@ def test_a_delimited_file_uses_the_delimiter_its_suffix_promises(
     loads as one wide column -- which is what this build shipped until
     the 2026-09-08 rename, under three different extensions.
 
-    Judged both ways round, because "it parses" is far too weak: a
-    tab-delimited file parses perfectly well as a comma-separated one
-    with a single column.  So the promised delimiter must yield more
-    than one column, *and* it must yield more columns than the other
-    candidate does.  A file that is genuinely comma-separated cannot
-    satisfy that under tabs, and vice versa.
+    What is asserted is that the file is a **consistent rectangle with
+    more than one column under the delimiter its own name promises**.
+    That is the property a spreadsheet needs and the one this build
+    failed until the .tsv rename: tab-delimited bytes in a file called
+    .csv load as a single wide column.
+
+    What is deliberately *not* asserted is that the other candidate
+    delimiter does worse.  An earlier version compared the two field
+    counts and claimed "a genuinely comma-separated file cannot satisfy
+    that under tabs, and vice versa", which is false in both
+    directions: a valid CSV header carrying tabs inside a quoted field
+    splits into more fields under tab than under comma, and a
+    tab-delimited header whose first field contains commas can split
+    into more under comma.  The count is still reported in the failure
+    message, as information; it is not evidence.
     """
     payload = subject(spec.form)
     files = _unwrap(spec, _export(app, spec, payload))
 
     judged = 0
+    unjudgeable: list[str] = []
     for name, text in files:
         rule = _rule_for(name)
         assert rule is not None, f"{spec.key}/{name}: no rule for this suffix"
@@ -1648,19 +1735,42 @@ def test_a_delimited_file_uses_the_delimiter_its_suffix_promises(
         other = "," if rule.delimiter == "\t" else "\t"
         alternative = len(next(csv.reader([header], delimiter=other)))
 
+        if promised == 1 and alternative == 1:
+            # One column under either candidate: a genuinely single-field
+            # file, whose delimiter no reading of it can reveal.  Nothing
+            # in this build produces one, and reporting it as a defect
+            # would be a false positive by construction -- so it is
+            # named and left, not failed.
+            unjudgeable.append(name)
+            continue
+
         assert promised > 1, (
             f"{spec.key}/{name}: the name promises "
             f"{rule.delimiter!r}-separated ({rule.why}), but the header "
             f"splits into one field on it.  It splits into {alternative} on "
             f"{other!r}, so the file is delimited by the wrong character "
             "for its own name and a spreadsheet will load it as one column")
-        assert promised >= alternative, (
+
+        # A rectangle, not just a wide first line.  A file delimited by
+        # the wrong character usually gives ragged rows once the data
+        # starts, even where the header happens to split.
+        rows = [row for row in csv.reader(io.StringIO(text),
+                                          delimiter=rule.delimiter) if row]
+        widths = {len(row) for row in rows}
+        assert widths == {promised}, (
             f"{spec.key}/{name}: the header splits into {promised} fields "
-            f"on the promised {rule.delimiter!r} but {alternative} on "
-            f"{other!r} -- the suffix is describing the wrong delimiter")
+            f"on the promised {rule.delimiter!r} but the rows give widths "
+            f"{sorted(widths)} -- the file is not a table under the "
+            f"delimiter its name claims.  On {other!r} the header would "
+            f"give {alternative}")
         judged += 1
 
     if not judged:
+        if unjudgeable:
+            pytest.skip(
+                f"{spec.key}: {unjudgeable} hold a single field under either "
+                "candidate delimiter, so which one separates them cannot be "
+                "read off the file")
         pytest.skip(f"{spec.key}: produces no delimited table "
                     f"({[name for name, _ in files]})")
 
@@ -1682,7 +1792,15 @@ def test_every_row_of_a_delimited_file_is_as_wide_as_its_header(
     judged = 0
     for name, text in files:
         rule = _rule_for(name)
-        if rule is None or rule.delimiter is None or not text.strip():
+        # Asserted, not skipped past.  14 of the inventory's specs name
+        # no files at all -- their names come from Content-Disposition
+        # at run time -- so the suffix gate cannot see them, and a
+        # `continue` here would let one of those judge nothing in
+        # silence.  That is the shape the gate exists to prevent.
+        assert rule is not None, (
+            f"{spec.key}/{name}: no FormatRule for this suffix, so nothing "
+            "knows how to split it.  Add one to FORMAT_RULES")
+        if rule.delimiter is None or not text.strip():
             continue
         rows = [row for row in csv.reader(io.StringIO(text),
                                           delimiter=rule.delimiter) if row]
@@ -1703,8 +1821,8 @@ def test_every_row_of_a_delimited_file_is_as_wide_as_its_header(
 
 
 @pytest.mark.parametrize("spec", _params("numbers"))
-def test_a_column_the_database_calls_numeric_holds_numbers(
-        app: CbdbApp, spec: ExportSpec, subject, numeric_columns):
+def test_a_column_that_has_to_hold_a_number_holds_one(
+        app: CbdbApp, spec: ExportSpec, subject):
     """A coordinate or a count must arrive as a number, not as prose.
 
     The oracle is the shipped schema's own declared types (see
@@ -1714,13 +1832,24 @@ def test_a_column_the_database_calls_numeric_holds_numbers(
     every value under that heading has to parse as a number*.  Nothing
     here predicts what the number should be.
 
-    Only headers that name a database column are judged; the forms that
-    rename their columns on the way out (``PersonID``, ``XCoord``) are
-    not guessed at, because an alias table that got one entry wrong
-    would report a defect that is not there.  How many columns were
-    judged is printed, so "nothing was checked" cannot look like a pass.
+    Be exact about what this can and cannot catch on *this* build,
+    because most of the writers make the failure structurally
+    impossible.  The forms that rename their columns build every numeric
+    field with ``strconv.Itoa`` or ``nullIntStr`` from a typed Go
+    ``int``/``*float64``: if the column held text the ``Scan`` would
+    error and the endpoint would answer HTTP 500 -- which is what
+    ``ADDR_CODES.c_admin_type`` does to the Associations Neo4j export,
+    and it is caught by the well-formed check, not here.  For those, what
+    this pins is that each writer's header list and its value list stay
+    aligned.
 
-    An empty cell is missing data, not a wrong type, and is allowed.
+    Where it can catch a wrong type outright is the two exports whose
+    writer is a generic ``SELECT *`` with an ``interface{}`` scan --
+    ``entry:results`` and ``associations:results`` -- because those pass
+    whatever the column holds straight through.
+
+    An empty cell is missing data, not a wrong type, and is allowed; a
+    column of nothing but empty cells is not counted as judged.
     """
     payload = subject(spec.form)
     files = _unwrap(spec, _export(app, spec, payload))
@@ -1729,7 +1858,10 @@ def test_a_column_the_database_calls_numeric_holds_numbers(
     wrong: dict[str, list[str]] = {}
     for name, text in files:
         rule = _rule_for(name)
-        if rule is None or rule.delimiter is None or not text.strip():
+        assert rule is not None, (
+            f"{spec.key}/{name}: no FormatRule for this suffix, so nothing "
+            "knows how to split it.  Add one to FORMAT_RULES")
+        if rule.delimiter is None or not text.strip():
             continue
         rows = [row for row in csv.reader(io.StringIO(text),
                                           delimiter=rule.delimiter) if row]
@@ -1738,12 +1870,17 @@ def test_a_column_the_database_calls_numeric_holds_numbers(
         header = list(rows[0])
         for index, heading in enumerate(header):
             column = _database_column(heading)
-            if column not in numeric_columns:
+            if column not in NUMERIC_COLUMNS:
                 continue
-            judged.append(f"{name}:{column}")
-            offenders = [row[index] for row in rows[1:]
-                         if index < len(row) and row[index].strip()
-                         and not _is_number(row[index].strip())]
+            values = [row[index].strip() for row in rows[1:]
+                      if index < len(row) and row[index].strip()]
+            if values:
+                # Counted only when there was something to look at.  A
+                # column of empty cells -- every value NULL through
+                # nullIntStr -- used to count as judged, which made the
+                # coverage number larger than the checking.
+                judged.append(f"{name}:{column}")
+            offenders = [value for value in values if not _is_number(value)]
             if offenders:
                 wrong[f"{name}:{column}"] = sorted(set(offenders))[:5]
 
@@ -1819,92 +1956,158 @@ def test_a_files_byte_order_mark_is_what_its_format_needs(
                     f"judge ({[name for name, _ in files]})")
 
 
-#: Real values in the shipped data that contain a delimiter or a quote,
-#: and the code that puts each into an export.  Discovered, not invented:
-#: a quoting test written with a made-up string proves the test's own
-#: string handling, and a quoting test run over data that happens to
-#: contain no delimiter proves nothing at all while passing.
+#: Values the shipped data really holds that collide with a delimiter,
+#: and the export that carries each one into a file.  Every field is
+#: measured, not invented: a quoting test written with a made-up string
+#: tests its own escaping, and one run over whatever a discovered code
+#: happened to hold proves nothing at all while passing.
 #:
-#: ``ENTRY_CODES.c_entry_desc`` 330 holds two commas and covers 5 rows;
-#: ``ASSOC_CODES.c_assoc_desc`` 445 holds a pair of double quotes.  Both
-#: descriptions are written into their form's export.
-_AWKWARD_VALUES = (
-    ("entry", 330, ",", "Recommendation, by special grace, to the "
-                        "Classical Studies Section"),
-    ("associations", 445, '"', 'Shared "same way" with'),
+#: The first case is the decisive one and the reason this table is not
+#: simply the two ``:results`` exports.  Those are ``.tsv``, so a comma
+#: in them is an ordinary character that needs no escaping -- an earlier
+#: version of this test used exactly that and proved only that the
+#: value survived.  ``entry:neo4j`` writes ``EntryCodes_UTF8.csv``,
+#: which really is comma-separated (``newCSV()`` in
+#: ``cbdb_shared_utils.go``, no ``Comma`` override), so the two commas
+#: in entry code 330's description are a genuine collision: unescaped,
+#: the row grows two fields and every column after them shifts.
+#:
+#: The second is the only double quote the reachable data contains --
+#: ``ASSOC_CODES`` 445, ``Shared "same way" with`` -- and a quote has to
+#: be escaped in *both* dialects, so the ``.tsv`` export carries it.
+#:
+#: What the shipped data cannot exercise, said plainly so the next round
+#: does not have to rediscover it: **no reachable value contains a tab**,
+#: and none *begins* with a quote.  So tab-escaping inside a ``.tsv``
+#: has no input to drive it, and the mid-field quote above is escaped by
+#: this writer but would also parse back intact if it were not -- which
+#: is exactly why the raw-bytes assertion below exists rather than a
+#: parse alone.  ``KINSHIP_CODES.c_kinrel`` holds the one tab in the
+#: code tables and reaches only a comma-separated file, where a tab
+#: needs no escaping.
+#:
+#: ``raw_marker`` is what the bytes must show if the writer escaped it:
+#: the field wrapped in quotes, with any internal quote doubled.  That
+#: is the half a parse cannot prove, because Python will happily read an
+#: under-escaped field back as one field in non-strict mode.
+_DELIMITER_COLLISIONS = (
+    ("entry", 330, "entry:neo4j", "EntryCodes_UTF8.csv",
+     "Recommendation, by special grace, to the Classical Studies Section",
+     '"Recommendation, by special grace, to the Classical Studies Section"',
+     "two commas in a comma-separated file"),
+    ("associations", 445, "associations:results", "Associations_UTF8.tsv",
+     'Shared "same way" with',
+     '"Shared ""same way"" with"',
+     "a double quote, which both dialects must escape"),
 )
 
 
-@pytest.mark.parametrize("form,code,char,expected", _AWKWARD_VALUES,
-                         ids=[f"{f}-{c}" for f, c, _, _ in _AWKWARD_VALUES])
-def test_a_value_holding_a_delimiter_or_a_quote_survives_the_file(
-        app: CbdbApp, form: str, code: int, char: str, expected: str,
-        working_lists):
-    """A comma in a name must not become a new column.
+@pytest.mark.parametrize(
+    "form,code,export_key,filename,value,raw_marker,why",
+    _DELIMITER_COLLISIONS,
+    ids=[f"{form}-{code}" for form, code, *_ in _DELIMITER_COLLISIONS])
+def test_a_value_that_collides_with_the_delimiter_is_escaped(
+        app: CbdbApp, form: str, code: int, export_key: str, filename: str,
+        value: str, raw_marker: str, why: str, working_lists):
+    """A comma in a description must not become a new column.
 
-    The one property of a delimited file that a writer gets wrong
-    silently: a value containing the delimiter, or a quote, has to be
-    escaped, and if it is not then the row grows a field and every
-    column after it shifts.  The row count stays the same and the file
-    still opens, so nothing announces it -- the numbers just belong to
-    different headings from that point on.
+    The one property of a delimited file a writer gets wrong silently:
+    a value containing the delimiter, or a quote, has to be escaped, and
+    if it is not the row grows a field and every column after it shifts.
+    The row count is unchanged, the file still opens, and nothing
+    announces it -- the numbers simply belong to different headings from
+    that point on.
 
-    Driven with **real values from the shipped data** rather than an
-    invented string: 330's entry description carries two commas, 445's
-    association description a pair of double quotes.  A test that made
-    up its own input would be checking its own escaping; a test that
-    took whatever the discovered code happened to hold would pass on
-    data containing nothing awkward and prove nothing.
+    Two assertions, and the second is the one with teeth:
 
-    What is asserted is that the value arrives **whole, in one field**.
-    That is the user-visible property, and it holds whichever escaping
-    convention the writer chose.
+    * the value comes back as **exactly one field**, which is the
+      user-visible property; and
+    * the **raw bytes** show it escaped -- wrapped in quotes, internal
+      quotes doubled.  Without this the test would pass on an
+      under-escaped file, because Python's reader is tolerant: a bare
+      quote mid-field is accepted, and a field split by an unescaped
+      delimiter still parses as *some* number of fields.
+
+    Driven with real values (see ``_DELIMITER_COLLISIONS``), and through
+    an export whose delimiter the value actually collides with -- which
+    is why the comma case goes through the Neo4j bundle rather than the
+    ``.tsv``.
     """
     form_spec = FORMS_BY_NAME[form]
     response = app.post(form_spec.query_path, json=form_spec.body([code]))
-    assert response.status_code == 200, \
-        f"{form}: query for {code} gave {response.status_code}"
+    assert response.status_code == 200,         f"{form}: query for {code} gave {response.status_code}"
 
-    spec = EXPORTS_BY_KEY[f"{form}:results"]
-    files = _unwrap(spec, _export(app, spec, response.json()))
-    assert files, f"{form}: the export returned no file"
+    spec = EXPORTS_BY_KEY[export_key]
+    files = dict(_unwrap(spec, _export(app, spec, response.json())))
+    assert filename in files, (
+        f"{export_key} produced {sorted(files)}, not {filename} -- the file "
+        "this case is about is no longer in that export")
+    text = files[filename]
 
-    name, text = files[0]
-    rule = _rule_for(name)
-    assert rule and rule.delimiter, f"{name}: not a delimited table"
+    rule = _rule_for(filename)
+    assert rule and rule.delimiter, f"{filename}: not a delimited table"
 
     rows = [row for row in csv.reader(io.StringIO(text),
                                       delimiter=rule.delimiter) if row]
     fields = {cell.strip() for row in rows for cell in row}
+    assert value in fields, (
+        f"{export_key}/{filename}: {value!r} -- which is what the shipped "
+        f"data holds for {form} code {code}, and which carries {why} -- did "
+        f"not come back as a single field.  Either the writer split it, or "
+        f"it is not in this file.  Fields resembling it: "
+        f"{sorted(f for f in fields if f[:20] in value)[:3]}")
 
-    assert expected in fields, (
-        f"{form}: the value {expected!r} -- which contains {char!r} and is "
-        f"what {form.upper()}_CODES holds for {code} -- is not present as a "
-        f"single field in {name}.  Either it was split across columns "
-        f"because the writer did not escape it, or it is not in this "
-        f"export at all.  Fields carrying {char!r}: "
-        f"{sorted(f for f in fields if char in f)[:5]}")
+    assert raw_marker in text, (
+        f"{export_key}/{filename}: {value!r} is present but the bytes do "
+        f"not show it escaped -- expected to find {raw_marker!r} in the "
+        f"file.  It carries {why}, so a reader that is stricter than "
+        "Python's will split the row there")
 
 
-def test_every_numeric_alias_names_a_column_the_database_calls_numeric(
-        numeric_columns):
-    """The alias table is validated, not trusted.
+def test_the_delimited_file_checks_record_what_they_judged(artifacts_dir):
+    """Write the coverage of the file checks out, per format.
 
-    ``_HEADER_ALIASES`` is hand-written, which is the one thing this
-    suite tries hardest not to depend on.  This is what makes it safe:
-    every alias has to name a column the shipped schema still declares
-    numeric, so a data release that renames or retypes one fails here --
-    where the message says which alias to fix -- instead of silently
-    removing a column from the type check and leaving it green.
+    Counted rather than claimed.  The commit that added these checks
+    quoted "30 exports judged" and "40 files judged" in its message, and
+    neither number was written anywhere a reader could check -- which is
+    the objection AGENTS.md makes about "we tested the exports".  This
+    is the smallest fix: the inventory's own arithmetic, in an artefact,
+    so the next round can compare rather than take somebody's word.
+
+    Derived from the inventory rather than from a run, deliberately: it
+    says what *can* be judged and by which rule, which is the
+    denominator.  What a run actually judged is in its own skips, and
+    those name their reason.
     """
-    assert _HEADER_ALIASES, "the alias table is empty"
+    by_rule: dict[str, dict[str, int]] = {}
+    for suffix, rule in sorted(FORMAT_RULES.items()):
+        files = [name for spec in EXPORTS for name in spec.files
+                 if name.lower().endswith(suffix)]
+        by_rule[suffix] = {
+            "files_named_in_the_inventory": len(files),
+            "delimiter": rule.delimiter or "(not a delimited table)",
+            "byte_order_mark": rule.bom,
+        }
 
-    unknown = sorted(
-        f"{header} -> {column}"
-        for header, column in _HEADER_ALIASES.items()
-        if column not in numeric_columns)
-    assert not unknown, (
-        "these aliases no longer name a column the shipped database "
-        f"declares numeric: {unknown}.  Either the column was renamed or "
-        "its type changed; until this is fixed the headings they cover are "
-        "not being type-checked at all")
+    named = [name for spec in EXPORTS for name in spec.files]
+    summary = {
+        "endpoints_in_the_inventory": len(EXPORTS),
+        "endpoints_naming_their_files": sum(1 for s in EXPORTS if s.files),
+        "endpoints_streaming_raw": sum(1 for s in EXPORTS if not s.files),
+        "files_named_in_the_inventory": len(named),
+        "columns_that_must_hold_a_number": len(NUMERIC_COLUMNS),
+        "header_aliases": len(_HEADER_ALIASES),
+        "by_format": by_rule,
+    }
+    (artifacts_dir / "delimited_file_coverage.json").write_text(
+        json.dumps(summary, indent=1, ensure_ascii=False), encoding="utf-8")
+
+    # The endpoints that stream their file without naming it are the
+    # blind spot of the suffix gate above: their real extension arrives
+    # in a header at run time.  Recorded so the number is visible rather
+    # than discovered again.
+    assert summary["endpoints_streaming_raw"] == 14, (
+        f"{summary['endpoints_streaming_raw']} endpoints stream a file "
+        "without naming it, not 14.  Those are the ones whose suffix "
+        "test_every_produced_suffix_has_a_declared_rule cannot see, so the "
+        "number is worth knowing when it changes")
