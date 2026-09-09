@@ -2111,3 +2111,67 @@ def test_the_delimited_file_checks_record_what_they_judged(artifacts_dir):
         "without naming it, not 14.  Those are the ones whose suffix "
         "test_every_produced_suffix_has_a_declared_rule cannot see, so the "
         "number is worth knowing when it changes")
+
+
+def test_every_numeric_column_is_one_the_database_declares_numeric(
+        schema_affinities):
+    """The inventory above and the shipped schema have to agree.
+
+    ``NUMERIC_COLUMNS`` says which columns a reader computes with;
+    ``PRAGMA table_info`` says what the database thinks they are.  If
+    the two disagree, one of them is wrong, and this is where it is
+    caught -- a column renamed or retyped by a data release fails here,
+    naming itself, instead of dropping out of the type check and
+    leaving it green.
+
+    Pinned in both directions: every entry must exist and be numeric
+    everywhere it appears, and the count is exact, so a column cannot be
+    quietly removed from the inventory either.
+    """
+    assert len(NUMERIC_COLUMNS) == 23, (
+        f"{len(NUMERIC_COLUMNS)} columns are declared to need a number, "
+        "not 23.  Adding one is welcome -- the count is pinned so that "
+        "*removing* one is a decision somebody makes on purpose")
+
+    missing = sorted(c for c in NUMERIC_COLUMNS if c not in schema_affinities)
+    assert not missing, (
+        f"these columns are not in the shipped schema at all: {missing}.  "
+        "Either a data release renamed them or the inventory has a typo, "
+        "and either way the headings they cover are not being checked")
+
+    not_numeric = {
+        column: sorted(schema_affinities[column])
+        for column in NUMERIC_COLUMNS
+        if not schema_affinities[column] <= _NUMERIC_AFFINITIES}
+    assert not not_numeric, (
+        "these columns are in the inventory as having to hold a number, "
+        "but the shipped schema gives them a text or blob affinity "
+        f"somewhere: {not_numeric}.  Either the claim is wrong or the "
+        "database changed under it")
+
+
+def test_every_alias_resolves_into_the_numeric_inventory():
+    """Each alias has to land on something the inventory covers.
+
+    Deliberately modest about what this proves.  It checks the *target*
+    is a column ``NUMERIC_COLUMNS`` knows about, so an alias cannot
+    point at nothing and quietly stop judging a heading.  It does **not**
+    prove the alias names the same quantity -- ``"x": "c_personid"``
+    would satisfy it -- and no test can, because that is a claim about
+    what a writer meant.  What makes a wrong entry survivable is the
+    direction it fails in: it would report a defect that is not there,
+    loudly, on the next run.
+    """
+    assert _HEADER_ALIASES, "the alias table is empty"
+    assert len(_HEADER_ALIASES) == 18, (
+        f"{len(_HEADER_ALIASES)} aliases, not 18.  Pinned for the same "
+        "reason as the inventory: losing one silently stops judging a "
+        "heading")
+
+    stray = sorted(f"{header} -> {column}"
+                   for header, column in _HEADER_ALIASES.items()
+                   if column not in NUMERIC_COLUMNS)
+    assert not stray, (
+        f"these aliases point outside the numeric inventory: {stray}.  An "
+        "alias exists to bring a renamed heading *into* the type check, so "
+        "one that lands elsewhere is judging nothing")
