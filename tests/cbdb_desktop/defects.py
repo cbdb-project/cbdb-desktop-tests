@@ -154,7 +154,553 @@ class Defect:
 #: is no marker to wire up any more: a finding stays a failure until it
 #: is fixed, or until it is waived by agreement in the table described
 #: in ``cbdb_desktop/waivers.py``.
-_DEFECTS: tuple[Defect, ...] = ()
+_DEFECTS: tuple[Defect, ...] = (
+    Defect(
+        key="CBDB-D-001",
+        priority="P0", severity="high", origin="software",
+        title="Both KML exports write an XML declaration that is never "
+              "closed, so no reader accepts the file",
+        title_zh="兩個 KML 匯出功能寫出的 XML 宣告沒有結尾，任何軟體都無法讀取"
+                 "這個檔案",
+        area="Entry form and Places form, KML export",
+        area_zh="入仕表單與地點表單的 KML 匯出",
+        summary="The Entry and Places forms write their KML with the opening "
+                "line `<?xml version=\"1.0\" encoding=\"UTF-8\">`.  An XML "
+                "declaration has to end `?>`; this one ends `>`.  Every XML "
+                "parser therefore rejects the document at its first line, so "
+                "the file cannot be opened in Google Earth, QGIS or ArcGIS "
+                "-- and the application reports the export as successful.",
+        summary_zh="入仕與地點兩個表單寫出的 KML，開頭一行是 "
+                   "`<?xml version=\"1.0\" encoding=\"UTF-8\">`。XML 宣告必須"
+                   "以 `?>` 結尾，這裡卻只有 `>`。因此任何 XML 解析器都會在"
+                   "第一行就拒絕整份文件，Google Earth、QGIS、ArcGIS 都打不開"
+                   "——而程式卻回報匯出成功。",
+        evidence="Measured twice, independently.  Driving the two endpoints "
+                 "through the shipped binary returns files beginning with "
+                 "that exact string (`entry:kml/entry_gis_UTF8.kml` and "
+                 "`places:kml/places_export.kml`).  Reading the shipped Go "
+                 "finds the same two writers and no others, so this cannot "
+                 "depend on the data: it is wrong for every input.",
+        evidence_zh="以兩種互相獨立的方式各測一次。透過釋出的執行檔實際呼叫"
+                    "這兩個端點，取回的檔案開頭就是上述字串（"
+                    "`entry:kml/entry_gis_UTF8.kml` 與 "
+                    "`places:kml/places_export.kml`）；直接讀釋出的 Go 原始碼，"
+                    "也只找到這兩處寫法。因此與資料內容無關：任何輸入都是錯的。",
+        impact="Two of the application's geographic exports produce nothing "
+               "usable, and nothing tells the user.  Anyone mapping entry or "
+               "place addresses gets a download that their GIS silently "
+               "refuses to open.",
+        impact_zh="程式的兩項地理匯出完全不可用，而且不會有任何提示。想把入仕"
+                  "或地點的地址繪成地圖的使用者，只會拿到一個 GIS 軟體打不開"
+                  "的檔案。",
+        fix="Add the missing `?` in both writers: "
+            "`<?xml version=\"1.0\" encoding=\"UTF-8\"?>`.  Worth checking "
+            "the other KML writers in the same commit -- they are already "
+            "correct, which is why only these two are listed.",
+        fix_zh="在兩處各補上缺少的 `?`，寫成 "
+               "`<?xml version=\"1.0\" encoding=\"UTF-8\"?>`。建議同時檢查其餘"
+               "的 KML 輸出處——它們目前是正確的，所以這裡只列出這兩處。",
+        steps=(
+            "Open the Entry form (/LookAtEntry), pick any entry code and run "
+            "the query.",
+            "Press KML and save the file.",
+            "Open it in Google Earth, or run any XML parser over it: it "
+            "fails on line 1.",
+            "Repeat on the Places form (/LookAtPlace) for the same result.",
+        ),
+        steps_zh=(
+            "開啟入仕表單（/LookAtEntry），任選一個入仕代碼並執行查詢。",
+            "按下 KML 並儲存檔案。",
+            "用 Google Earth 開啟，或用任何 XML 解析器讀取：第一行即失敗。",
+            "在地點表單（/LookAtPlace）重複一次，結果相同。",
+        ),
+        source=("Code/entry_form_backend.go:1006",
+                "Code/places_form_backend.go:764"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_every_kml_writer_closes_its_xml_"
+               "declaration"),
+    ),
+    Defect(
+        key="CBDB-D-002",
+        priority="P0", severity="high",
+        origin="software",
+        title="The Places form runs the Biography branch when the user has "
+              "switched every category off",
+        title_zh="使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支"
+                 "查詢",
+        area="Places form, category switches",
+        area_zh="地點表單的類別勾選項",
+        summary="The Places query handler substitutes `IncludeBiog = true` "
+                "when it finds all seven category switches off.  As a guard "
+                "against an empty request that is defensible; what makes it "
+                "a defect is that the page lets a user reach it.  The seven "
+                "checkboxes enforce no \"at least one\" rule, so unticking "
+                "all of them and pressing Query returns biographical "
+                "addresses the user has explicitly excluded, with no "
+                "message.",
+        summary_zh="地點查詢的處理程式發現七個類別全部未勾選時，會自動改成 "
+                   "`IncludeBiog = true`。若只是為了避免空請求，這樣的保護"
+                   "尚屬合理；問題在於頁面允許使用者真的走到這個狀態。七個"
+                   "勾選框沒有「至少選一項」的限制，因此全部取消後按下查詢，"
+                   "回傳的是使用者明確排除掉的傳記地址，而且沒有任何提示。",
+        evidence="With every category switched off the query returned 396 "
+                 "rows, and the same request with Biography alone switched "
+                 "on returned the same 396 rows -- the empty selection is "
+                 "not merely non-empty, it is exactly the Biography "
+                 "branch's own result.  Measured through the running "
+                 "binary; the substitution is then visible in the source.",
+        evidence_zh="七個類別全部取消勾選時，查詢回傳 396 列；把同一個請求"
+                    "改成只勾選「傳記」，回傳的也是同樣的 396 列——空選擇"
+                    "不只是「並非真的空」，而是恰好等於傳記那一支的結果。"
+                    "此結果是透過執行中的程式實測，之後在原始碼中看到對應的"
+                    "替換邏輯。",
+        impact="A researcher who narrows the query by unticking categories "
+               "gets results from a category they excluded, presented as "
+               "the answer to the question they asked.  Nothing in the "
+               "interface indicates that the selection was overridden.",
+        impact_zh="研究者以取消類別的方式縮小查詢範圍，卻拿到自己排除掉的"
+                  "類別的資料，並且被當成所提問題的答案。介面上沒有任何地方"
+                  "顯示選擇已被覆寫。",
+        fix="Either refuse an empty selection in the page (keep Run Query "
+            "disabled until at least one category is ticked, the way this "
+            "build's Associations form now does for its picker), or answer "
+            "an empty selection with no rows and say so.  The server-side "
+            "default can stay as a guard once the page cannot send that "
+            "request.",
+        fix_zh="兩種做法皆可：一是在頁面端拒絕空選擇（在至少勾選一項之前，"
+               "讓「執行查詢」保持停用——正如這一版的關聯表單對其選取器所做"
+               "的），二是對空選擇回傳零列並明確告知使用者。只要頁面不會再"
+               "送出這種請求，伺服器端的預設值可以留著當作保護。",
+        steps=(
+            "Open the Places form (/LookAtPlace) and select any address.",
+            "Untick all seven category checkboxes, including Biography.",
+            "Press Run Query: rows come back.",
+            "Tick Biography only and run again: the same rows, in the same "
+            "number.",
+        ),
+        steps_zh=(
+            "開啟地點表單（/LookAtPlace），任選一個地址。",
+            "取消七個類別勾選框的全部勾選，包含「傳記」。",
+            "按下執行查詢：仍有資料回傳。",
+            "改為只勾選「傳記」再查一次：得到相同的資料、相同的列數。",
+        ),
+        source=("Code/places_form_backend.go:205",
+                "Templates/places/index.html"),
+        tests=("test_turning_every_category_off_"
+               "returns_nothing",),
+    ),
+    Defect(
+        key="CBDB-D-003",
+        priority="P0", severity="high", origin="software",
+        title="Seventeen export buttons ask the browser to save several "
+              "files at once, and thirteen of them report every file as "
+              "saved when only the first arrived",
+        title_zh="十七個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中十三個更"
+                 "在只有第一個檔案下載成功時，回報所有檔案都已儲存",
+        area="Export buttons on seven form pages",
+        area_zh="七個表單頁面上的匯出按鈕",
+        summary="These handlers loop over the file list the server returned "
+                "and trigger a download per element from a single click.  A "
+                "browser permits one automatic download per user gesture and "
+                "blocks the rest, and once blocked the restriction applies "
+                "to later exports from the same page -- which is why "
+                "pressing Export a second time can save nothing at all.  "
+                "Thirteen of the seventeen then print the count the *server* "
+                "returned (\"2 file(s) ready\"), having never asked the "
+                "browser what it accepted.",
+        summary_zh="這些處理函式會走訪伺服器回傳的檔案清單，在單一次點擊中"
+                   "為每個項目各觸發一次下載。瀏覽器對每個使用者手勢只允許"
+                   "一次自動下載，其餘一律封鎖；而且一旦被封鎖，同一頁面之後"
+                   "的匯出也會受限——這正是第二次按下匯出時可能完全存不到"
+                   "檔案的原因。十七個之中有十三個接著印出的是「伺服器」回傳"
+                   "的數量（例如「2 file(s) ready」），從未詢問瀏覽器實際接受"
+                   "了幾個。",
+        evidence="Counted in the shipped templates: 17 such handlers across "
+                 "7 pages (association_pairs 4, associations 2, entry 2, "
+                 "group_data 3, kinship 2, networks 2, places 2), of which "
+                 "13 report a server-side count as though it were the "
+                 "outcome (association_pairs 4, associations 2, entry 1, "
+                 "group_data 2, kinship 2, places 2).  The server side is "
+                 "faultless: the same endpoints return every file, "
+                 "identically, on repeated requests.  Under automation "
+                 "downloads are auto-accepted and both files arrive, so the "
+                 "blocking half is established by reading the delivery code "
+                 "and was reported from real use; the misreported count is "
+                 "measured in the browser.",
+        evidence_zh="在釋出的模板中逐一計數：七個頁面共 17 處這樣的處理函式"
+                    "（association_pairs 4、associations 2、entry 2、"
+                    "group_data 3、kinship 2、networks 2、places 2），其中 13 "
+                    "處會把伺服器端的數量當成實際結果回報（association_pairs "
+                    "4、associations 2、entry 1、group_data 2、kinship 2、"
+                    "places 2）。伺服器端本身沒有問題：同樣的端點在重複請求下"
+                    "都會完整、一致地回傳每個檔案。在自動化環境中下載會被自動"
+                    "接受、兩個檔案都會到齊，因此「被封鎖」這一半是透過閱讀"
+                    "頁面的下載程式碼確認的，並且來自實際使用時的回報；"
+                    "「數量回報錯誤」這一半則是在瀏覽器中實測的。",
+        impact="A user presses Export, is told two or five files are ready, "
+               "and finds one on disk.  The files that did not arrive are "
+               "not named, and there is no error to search for.",
+        impact_zh="使用者按下匯出，被告知已備妥兩個或五個檔案，實際磁碟上只有"
+                  "一個。沒有到齊的檔案不會被列出，也沒有任何錯誤訊息可供"
+                  "追查。",
+        fix="Deliver a multi-file export as one download -- a zip archive is "
+            "the usual answer and needs no browser permission -- or save the "
+            "files one user gesture at a time.  Either way, report what was "
+            "actually delivered rather than what the response contained.",
+        fix_zh="把多檔匯出改成單一次下載——通常做成 zip 壓縮檔即可，且不需要"
+               "瀏覽器授權——或是每個使用者手勢只儲存一個檔案。無論採用哪種"
+               "方式，回報的都應該是實際送達的內容，而不是回應中包含的數量。",
+        steps=(
+            "Open the Kinship form, run a query, and press Export Results.",
+            "Note the message: three files ready.",
+            "Look in the download folder: one file.",
+            "Press Export Results again -- on a default browser profile "
+            "nothing is saved this time.",
+        ),
+        steps_zh=(
+            "開啟親屬表單，執行查詢，按下匯出結果。",
+            "留意訊息：顯示已備妥三個檔案。",
+            "檢查下載資料夾：只有一個檔案。",
+            "再按一次匯出結果——在預設的瀏覽器設定下，這一次什麼也不會存下。",
+        ),
+        source=("Templates/kinship/index.html",
+                "Templates/association_pairs/index.html",
+                "Templates/group_data/index.html",
+                "Templates/entry/index.html",
+                "Templates/associations/index.html",
+                "Templates/networks/index.html",
+                "Templates/places/index.html"),
+        tests=("test_no_page_asks_the_browser_for_more_"
+               "than_one_download",),
+    ),
+    Defect(
+        key="CBDB-D-004",
+        priority="P2", severity="high", origin="software",
+        title="Three of the Networks form's four network exports answer "
+              "HTTP 500 for every input: they select a column their own "
+              "scratch table does not have",
+        title_zh="網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500："
+                 "它們查詢了自己的暫存表所沒有的欄位",
+        area="Networks form: Pajek, Gephi/GUESS and UCINet exports",
+        area_zh="網絡表單的 Pajek、Gephi/GUESS 與 UCINet 匯出",
+        summary="All three read `c_node_dist` from `ZZ_SN_NETWORK`.  That "
+                "table is created by this same file and its column list does "
+                "not contain `c_node_dist` -- it has `c_edge_dist` and "
+                "`c_distance`.  SQLite refuses the query, so the three "
+                "buttons fail for every query result there can be.  The "
+                "sibling forms (Associations, Association Pairs) do declare "
+                "a `c_node_dist`, which is the likely origin of the name.",
+        summary_zh="三者都從 `ZZ_SN_NETWORK` 讀取 `c_node_dist`。這個表由同一"
+                   "個檔案建立，欄位清單中並沒有 `c_node_dist`，只有 "
+                   "`c_edge_dist` 與 `c_distance`。SQLite 因此拒絕該查詢，"
+                   "使得這三個按鈕對任何可能的查詢結果都失敗。相鄰的表單"
+                   "（關聯、關聯配對）確實有宣告 `c_node_dist`，這很可能就是"
+                   "欄位名稱的來源。",
+        evidence="Each endpoint answers `500 Database error: no such column: "
+                 "c_node_dist`, including when there is nothing to export -- "
+                 "so the failure is in the statement, not in the data.  "
+                 "Reading the shipped Go independently finds the same three "
+                 "SELECTs and the CREATE TABLE they contradict.",
+        evidence_zh="每個端點都回應 `500 Database error: no such column: "
+                    "c_node_dist`，即使在沒有任何資料可匯出的情況下也一樣"
+                    "——可見問題出在 SQL 敘述本身，而不是資料。另外獨立閱讀"
+                    "釋出的 Go 原始碼，也找到同樣的三段 SELECT 以及與之矛盾的 "
+                    "CREATE TABLE。",
+        impact="The Networks form is the application's social-network tool "
+               "and three of its four network formats cannot produce a file "
+               "at all.  Only Neo4j works.",
+        impact_zh="網絡表單是本程式的社會網絡分析工具，而它四種網絡格式中"
+                  "有三種完全無法產出檔案，只有 Neo4j 可用。",
+        fix="Decide which distance the three exports mean and use that "
+            "column -- `c_edge_dist` is the one `ZZ_SN_NETWORK` populates "
+            "for an edge -- or add `c_node_dist` to the CREATE TABLE and "
+            "populate it.  A `PRAGMA table_info` check over each scratch "
+            "table's declared columns at build time would have caught this, "
+            "as `Code/qbe_schema_test.go` does for the Query Builder.",
+        fix_zh="請先確定這三個匯出所指的「距離」究竟是什麼，然後改用對應的"
+               "欄位——`ZZ_SN_NETWORK` 為每條邊所填入的是 `c_edge_dist`"
+               "——或者在 CREATE TABLE 中加入 `c_node_dist` 並確實填值。"
+               "若在建置階段對每個暫存表的宣告欄位做一次 `PRAGMA table_info` "
+               "檢查，就能提前發現這個問題，正如 `Code/qbe_schema_test.go` "
+               "對查詢建構器所做的那樣。",
+        steps=(
+            "Open the Networks form (/LookAtNetworks), select a person and "
+            "run a query that returns edges.",
+            "Press Pajek.  The request answers HTTP 500.",
+            "Repeat with Gephi/GUESS and UCINet: the same error.",
+            "Press Neo4j: that one produces its files.",
+        ),
+        steps_zh=(
+            "開啟網絡表單（/LookAtNetworks），選定一個人物並執行一次會回傳"
+            "邊的查詢。",
+            "按下 Pajek：請求回傳 HTTP 500。",
+            "以 Gephi/GUESS 與 UCINet 重複，得到相同錯誤。",
+            "按下 Neo4j：這一個可以正常產生檔案。",
+        ),
+        source=("Code/networks_form_backend.go:2093",
+                "Code/networks_form_backend.go:2216",
+                "Code/networks_form_backend.go:2341",
+                "Code/networks_form_backend.go:419"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_an_export_describes_the_people_the_"
+               "grid_did",
+               "test_an_export_is_repeatable",
+               "test_an_export_with_no_result_does_not_"
+               "invent_one",
+               "test_no_query_asks_a_scratch_table_"
+               "for_a_column_it_lacks"),
+    ),
+    Defect(
+        key="CBDB-D-005",
+        priority="P2", severity="high", origin="software",
+        title="The Associations form's Neo4j export answers HTTP 500 "
+              "whenever the result has an address: a text column is scanned "
+              "into an integer",
+        title_zh="只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500："
+                 "程式把一個文字欄位讀進整數變數",
+        area="Associations form, Neo4j export",
+        area_zh="關聯表單的 Neo4j 匯出",
+        summary="The export reads `ADDR_CODES.c_admin_type` into a Go struct "
+                "field declared `AdminType int`.  That column is text: every "
+                "one of its 30,100 rows holds a string such as \"Xian\" or "
+                "\"Zhou\".  The scan therefore fails on the first address "
+                "row and the whole export returns HTTP 500.",
+        summary_zh="這個匯出把 `ADDR_CODES.c_admin_type` 讀進宣告為 "
+                   "`AdminType int` 的 Go 結構欄位。該欄位其實是文字："
+                   "全部 30,100 列都存放像 \"Xian\"、\"Zhou\" 這樣的字串。"
+                   "因此第一列地址就讀取失敗，整個匯出回傳 HTTP 500。",
+        evidence="The endpoint answers `500 Neo4j export error: scan "
+                 "addrRow: sql: Scan error on column index 3, name "
+                 "\"admin_type\": converting driver.Value type string "
+                 "(\"Xian\") to a int: invalid syntax`.  The shipped schema "
+                 "declares the column `CHAR(255)`, and a read-only count "
+                 "over the shipped database finds all 30,100 values are of "
+                 "type text, the commonest being \"Xian\" (13,687 rows).  So "
+                 "a rebuild of the data would not change it: the declared "
+                 "type in the Go struct is wrong.",
+        evidence_zh="端點回應 `500 Neo4j export error: scan addrRow: sql: "
+                    "Scan error on column index 3, name \"admin_type\": "
+                    "converting driver.Value type string (\"Xian\") to a "
+                    "int: invalid syntax`。釋出的結構描述把該欄位宣告為 "
+                    "`CHAR(255)`；以唯讀方式統計釋出的資料庫，30,100 個值"
+                    "全部都是文字型別，最常見的是 \"Xian\"（13,687 列）。"
+                    "因此重建資料不會改變結果：問題在於 Go 結構中宣告的型別"
+                    "有誤。",
+        impact="The Associations form cannot export to Neo4j for any query "
+               "whose people have addresses, which is almost all of them.  "
+               "The user sees a server error.",
+        impact_zh="只要查詢結果中的人物帶有地址（幾乎都會帶有），關聯表單就"
+                  "無法匯出到 Neo4j，使用者只會看到伺服器錯誤。",
+        fix="Declare the field `string` and read it as text -- the "
+            "`COALESCE(c_admin_type, 0)` in the same SELECT should become "
+            "`COALESCE(c_admin_type, '')` to match.  The other forms' Neo4j "
+            "exports read the same table and are worth checking in the same "
+            "commit.",
+        fix_zh="把該欄位宣告為 `string` 並以文字讀取；同一段 SELECT 中的 "
+               "`COALESCE(c_admin_type, 0)` 也應一併改為 "
+               "`COALESCE(c_admin_type, '')` 以相符。其他表單的 Neo4j 匯出"
+               "同樣讀取這個表，建議在同一次修改中一併檢查。",
+        steps=(
+            "Open the Associations form (/LookAtAssociations), pick an "
+            "association code and run the query.",
+            "Press Neo4j.",
+            "The request answers HTTP 500 with the scan error above.",
+        ),
+        steps_zh=(
+            "開啟關聯表單（/LookAtAssociations），選一個關聯代碼並執行查詢。",
+            "按下 Neo4j。",
+            "請求回傳 HTTP 500，錯誤訊息即為上述的讀取錯誤。",
+        ),
+        source=("Code/associations_form_backend.go:1377",
+                "Code/associations_form_backend.go:1388",
+                "Data/cbdb.db.schema.sql:42"),
+        tests=("test_an_export_produces_a_well_formed_file",
+               "test_an_export_describes_the_people_the_"
+               "grid_did",
+               "test_an_export_is_repeatable",
+               "test_a_spreadsheet_export_can_be_opened_"
+               "by_a_spreadsheet"),
+    ),
+    Defect(
+        key="CBDB-D-006",
+        priority="P2", severity="high", origin="software",
+        title="The Query Builder offers 30 columns that the shipped views "
+              "expose under a different name, and every one of them gives "
+              "the user a server error",
+        title_zh="查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個"
+                 "名稱呈現它們；每一個都會讓使用者得到伺服器錯誤",
+        area="Query Builder, and the view definitions in CBDBSetUpCode",
+        area_zh="查詢建構器，以及 CBDBSetUpCode 中的檢視表定義",
+        summary="Eight of the shipped views name 30 of their columns with a "
+                "`:1` suffix -- `c_personid:1`, `c_notes:1`, `c_dy:1` and so "
+                "on.  SQLite generates those names itself, because each of "
+                "these views is a deeply nested Access-style join tree and "
+                "the view does not alias its selected columns explicitly.  "
+                "The Query Builder offers the plain names, so selecting one "
+                "produces `SELECT t.c_personid` against a view whose column "
+                "is `c_personid:1`, and SQLite refuses it.  For four of the "
+                "views the affected column is the first one offered, so the "
+                "table appears completely unusable.",
+        summary_zh="釋出的檢視表中有八個，其 30 個欄位的名稱帶有 `:1` 後綴"
+                   "——例如 `c_personid:1`、`c_notes:1`、`c_dy:1` 等。這些"
+                   "名稱是 SQLite 自己產生的：這幾個檢視表都是層層嵌套的 "
+                   "Access 風格連接（join）結構，而檢視表又沒有為所選欄位"
+                   "明確取別名。查詢建構器提供的是不帶後綴的名稱，因此選取"
+                   "其中之一時，會對欄位其實叫 `c_personid:1` 的檢視表送出 "
+                   "`SELECT t.c_personid`，SQLite 隨即拒絕。其中四個檢視表"
+                   "受影響的欄位正是清單中的第一個，因此整個表看起來完全"
+                   "不能用。",
+        evidence="Driving the Query Builder through the running binary, all "
+                 "30 combinations answer `500 Query failed: no such column`, "
+                 "and for View_BiogInstAddrData, View_BiogInstData, "
+                 "View_Entry and View_KinAddr that is the first column the "
+                 "grid offers.  Reading the shipped database read-only, "
+                 "`PRAGMA table_info` reports exactly those 30 columns with "
+                 "a `:1` suffix across exactly those 8 views.  The naming is "
+                 "reproducible from the view's own SELECT alone, and adding "
+                 "an explicit `AS c_personid` to that SELECT removes the "
+                 "suffix and makes `SELECT t.c_personid` succeed -- which "
+                 "identifies the fix as well as the cause.",
+        evidence_zh="透過執行中的程式操作查詢建構器，全部 30 種組合都回應 "
+                    "`500 Query failed: no such column`；而對 "
+                    "View_BiogInstAddrData、View_BiogInstData、View_Entry 與 "
+                    "View_KinAddr 而言，那正是介面提供的第一個欄位。以唯讀"
+                    "方式讀取釋出的資料庫，`PRAGMA table_info` 回報的正是這 8 "
+                    "個檢視表中的這 30 個帶 `:1` 後綴的欄位。此命名僅由檢視表"
+                    "自己的 SELECT 即可重現；在該 SELECT 中加上明確的 "
+                    "`AS c_personid` 後，後綴消失，`SELECT t.c_personid` 也"
+                    "隨即成功——這同時指出了原因與修法。",
+        impact="A user of the Query Builder picks a column from the list the "
+               "application itself offers and gets a server error.  Four "
+               "views look entirely broken because their first offered "
+               "column is one of these.",
+        impact_zh="使用者從程式自己提供的清單中挑選欄位，卻得到伺服器錯誤。"
+                  "其中四個檢視表因為第一個可選欄位就是這類欄位，看起來像是"
+                  "整個壞掉了。",
+        fix="Alias the colliding columns explicitly in the eight view "
+            "definitions (`ENTRY_DATA.c_personid AS c_personid`), which is "
+            "the fix verified above and leaves the Query Builder's list "
+            "correct as it stands.  Failing that, have the Query Builder "
+            "read its column list from `PRAGMA table_info` on the view "
+            "rather than from a hand-maintained whitelist, so the two "
+            "cannot disagree.",
+        fix_zh="在這八個檢視表定義中為衝突的欄位明確取別名（例如 "
+               "`ENTRY_DATA.c_personid AS c_personid`）；這正是上文已驗證"
+               "有效的修法，且能讓查詢建構器現有的欄位清單維持正確。若不採"
+               "此法，則應讓查詢建構器改以檢視表上的 `PRAGMA table_info` "
+               "取得欄位清單，而不是依靠人工維護的白名單，兩者才不會互相"
+               "矛盾。",
+        steps=(
+            "Open the Query Builder (/QBE).",
+            "Choose the view View_Entry.",
+            "Select its first offered column, c_personid, and run.",
+            "The request answers 500 `no such column: t.c_personid`.",
+            "In the shipped database, PRAGMA table_info(View_Entry) shows "
+            "the column is named `c_personid:1`.",
+        ),
+        steps_zh=(
+            "開啟查詢建構器（/QBE）。",
+            "選擇檢視表 View_Entry。",
+            "選取它提供的第一個欄位 c_personid，然後執行。",
+            "請求回傳 500 `no such column: t.c_personid`。",
+            "在釋出的資料庫中執行 PRAGMA table_info(View_Entry)，可見該欄位"
+            "的名稱其實是 `c_personid:1`。",
+        ),
+        source=("CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql",
+                "Code/qbe_schema.go",
+                "Templates/qbe/qbe.html"),
+        tests=("test_every_offered_column_exists_in_the_"
+               "database",
+               "test_every_offered_table_can_actually_be_"
+               "queried",
+               "test_a_phantom_column_gives_the_user_a_server_"
+               "error"),
+    ),
+    Defect(
+        key="CBDB-D-007",
+        priority="P3", severity="low", origin="release",
+        title="The distribution ships ten dated working copies of its own "
+              "templates",
+        title_zh="發行檔中一併附上了十份帶日期的模板工作副本",
+        area="Packaging: Templates/",
+        area_zh="封裝內容：Templates/",
+        summary="Ten of the archive's 85 members are dated backups of "
+                "templates that ship alongside the live file -- "
+                "`entry/entry.index.20260906.html` next to "
+                "`entry/index.html`, `qbe/qbe.20260827.html` next to "
+                "`qbe/qbe.html`, and so on.  No route serves them and only "
+                "`Static/` is file-served, so they are not reachable pages; "
+                "they are a working directory that was packaged as it "
+                "stood.",
+        summary_zh="壓縮檔 85 個成員中有 10 個，是與正式檔案並存的帶日期模板"
+                   "備份——例如 `entry/entry.index.20260906.html` 與 "
+                   "`entry/index.html` 並列、`qbe/qbe.20260827.html` 與 "
+                   "`qbe/qbe.html` 並列等。沒有任何路由會提供這些檔案，且"
+                   "只有 `Static/` 是以檔案伺服方式對外，因此它們並不是可被"
+                   "存取的頁面；這是把工作目錄照原樣打包的結果。",
+        evidence="Read from the archive's own directory, not from the "
+                 "unpacked tree: `Templates/associations/associations.index."
+                 "20260906.html`, `associations.index.20260908.html`, "
+                 "`entry/entry.index.20260906.html`, `networks/networks."
+                 "index.20260813.html`, `office/office.index.20260815.html`, "
+                 "`pickers/address_picker.20260729.html`, `places/places."
+                 "index.20260906.html`, `qbe/qbe.20260827.html`, "
+                 "`status/status.index.20260816.html` and `texts/texts."
+                 "index.20260815.html`.  Diffing one against its live "
+                 "sibling shows it is genuinely older: the 20260906 copy of "
+                 "the Entry page has no `chkUseXY` control, which the "
+                 "shipped page has.",
+        evidence_zh="以下清單讀自壓縮檔自身的目錄，而非解開後的目錄樹："
+                    "`Templates/associations/associations.index.20260906."
+                    "html`、`associations.index.20260908.html`、"
+                    "`entry/entry.index.20260906.html`、`networks/networks."
+                    "index.20260813.html`、`office/office.index.20260815."
+                    "html`、`pickers/address_picker.20260729.html`、"
+                    "`places/places.index.20260906.html`、"
+                    "`qbe/qbe.20260827.html`、`status/status.index.20260816."
+                    "html`、`texts/texts.index.20260815.html`。把其中一份與"
+                    "其正式版本相比，可確認確實較舊：20260906 版的入仕頁面"
+                    "沒有 `chkUseXY` 這個控制項，而釋出的頁面有。",
+        impact="Small but not nil.  It makes the released tree ambiguous "
+               "about which template is current, it puts pre-release working "
+               "state in users' hands, and it is the kind of slip that "
+               "eventually ships a stale file *as* the live one.  Here it "
+               "also shows up as three test failures, because the suite "
+               "enumerates the pages and buttons it finds in the build "
+               "rather than a list of its own.",
+        impact_zh="影響不大，但並非沒有影響。它使釋出的目錄樹難以判斷哪一份"
+                  "模板才是最新版本，也把未正式發行的工作狀態交到使用者手上；"
+                  "而且正是這類疏漏，最終可能讓過時的檔案「以正式檔案的身分」"
+                  "被釋出。在本次測試中，它同時造成三項測試失敗，因為本套件"
+                  "是依據建置內容自行列舉頁面與按鈕，而不是比對一份自備清單。",
+        fix="Build the distribution from a clean export rather than from the "
+            "working directory, or exclude `*.<date>.html` when packaging.  "
+            "The backups themselves are useful; they just belong in version "
+            "control rather than in the release.",
+        fix_zh="請以乾淨的匯出結果來製作發行檔，而不要直接打包工作目錄；"
+               "或在封裝時排除 `*.<日期>.html`。這些備份本身有其用處，只是"
+               "它們該放在版本控制中，而不是發行檔裡。",
+        steps=(
+            "List the archive's contents: 7z l CBDB-Desktop_20260908.7z",
+            "Note the ten Templates/ members whose names carry a date.",
+            "Diff any one of them against index.html in the same directory.",
+        ),
+        steps_zh=(
+            "列出壓縮檔內容：7z l CBDB-Desktop_20260908.7z",
+            "留意 Templates/ 之下十個名稱帶日期的成員。",
+            "任選其中一個，與同目錄下的 index.html 進行比對。",
+        ),
+        source=("Templates/pickers/address_picker.20260729.html",
+                "Templates/qbe/qbe.20260827.html",
+                "Templates/entry/entry.index.20260906.html"),
+        tests=("test_the_distribution_ships_no_dated_working_copies",
+               "test_distribution_ships_the_expected_pieces",
+               "test_every_page_has_the_buttons_it_"
+               "shipped_with",
+               "test_every_disabled_control_has_a_"
+               "declared_precondition"),
+    ),
+)
 
 #: What the report iterates.  Keyed by ``Defect.key`` (CBDB-D-0NN),
 #: which is assigned while writing one report and means nothing outside
