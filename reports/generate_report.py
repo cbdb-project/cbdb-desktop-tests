@@ -3,17 +3,22 @@
 
 Two inputs, and neither of them is written by hand:
 
-* ``tests/cbdb_desktop/defects.py`` -- the registry of what has been
-  found, in both languages, which the tests themselves quote in their
-  xfail reasons; and
-* the JSON report of an actual run, which says whether each of those
-  tests still demonstrates its defect.
+* ``tests/cbdb_desktop/defects.py`` -- the registry of what this round
+  found, in both languages; and
+* the JSON report of an actual run, which says whether each of the
+  tests named by an entry still demonstrates its defect.
 
 So a report cannot claim a defect the tests no longer show, nor go stale
-about one that has been fixed: a fixed defect turns its strict xfail into
-an unexpected pass, which shows up here as APPARENTLY FIXED.  And because
-both languages come from one registry, the translations cannot drift
-apart either.
+about one that has been fixed.  A defect is CONFIRMED here when one of
+its tests failed carrying ``KnownShippedDefect`` -- the exception a test
+raises once it has recognised the exact signature -- and APPARENTLY
+FIXED when those tests all pass.  A failure *without* that signature is
+INCONCLUSIVE: the test broke on something else and this run neither
+confirms nor clears the entry.  (Before 2026-09-08 a finding was a
+strict ``xfail`` and confirmation meant ``xfailed``; that is still
+accepted so an older run's JSON can be re-rendered.)  Because both
+languages come from one registry, the translations cannot drift apart
+either.
 
     python reports/generate_report.py                 # .md + .docx + .pdf
     python reports/generate_report.py --format md     # Markdown only
@@ -334,9 +339,10 @@ def load_run(path: Path) -> dict:
 def outcomes_for(run: dict, defect: Defect) -> dict[str, list[str]]:
     """Group the run's outcomes for the tests that demonstrate a defect.
 
-    Tests are matched file-qualified: matching on the bare function name
-    would let a same-named test in another file confirm -- or silently
-    "fix" -- the wrong defect.
+    Matched by suffix, so an entry may name a test either bare or
+    file-qualified.  ``test_defect_registry.py`` is what keeps the names
+    honest: it fails on any entry naming a function no test module
+    defines, which is the failure mode this matching cannot see.
     """
     grouped: dict[str, list[str]] = {}
     for test in run["tests"]:
@@ -347,11 +353,40 @@ def outcomes_for(run: dict, defect: Defect) -> dict[str, list[str]]:
     return grouped
 
 
-def status_of(grouped: dict[str, list[str]]) -> str:
+#: The exception a test raises when it has recognised the exact
+#: signature of a defect, as the JSON report spells it in the crash
+#: message.  Since 2026-09-08 a finding is an ordinary failure rather
+#: than an ``xfail``, so this is what separates "the test demonstrated
+#: the defect" from "the test broke on something else" -- the job
+#: ``xfail(raises=...)`` used to do, and the same discipline the waiver
+#: table applies with its ``raises`` key.
+_SIGNATURE = "KnownShippedDefect"
+
+
+def signature_failures(run: dict, defect: Defect) -> list[str]:
+    """The defect's tests that failed *with its recognised signature*."""
+    found = []
+    for test in run["tests"]:
+        stem = test["nodeid"].split("[", 1)[0]
+        if not any(stem.endswith(name) for name in defect.tests):
+            continue
+        if test["outcome"] not in ("failed", "error"):
+            continue
+        message = (test.get("call") or {}).get("crash", {}).get("message", "")
+        if _SIGNATURE in message:
+            found.append(test["nodeid"])
+    return found
+
+
+def status_of(run: dict, defect: Defect) -> str:
+    grouped = outcomes_for(run, defect)
     if not grouped:
         return "NOT EXERCISED"
-    if grouped.get("xfailed"):
-        # Any test still demonstrating the defect means it is still there.
+    if grouped.get("xfailed") or signature_failures(run, defect):
+        # Any test still demonstrating the defect means it is still
+        # there.  A failure carrying KnownShippedDefect is the current
+        # spelling of that; xfailed is kept so a report can still be
+        # generated from an older run's JSON.
         return "CONFIRMED"
     if grouped.get("failed") or grouped.get("error"):
         # The test ran and neither confirmed the defect nor passed: it
@@ -375,7 +410,7 @@ def ranked(run: dict) -> list[Defect]:
     order = list(PRIORITIES)
     return sorted(
         DEFECTS.values(),
-        key=lambda d: (_STATUS_ORDER[status_of(outcomes_for(run, d))],
+        key=lambda d: (_STATUS_ORDER[status_of(run, d)],
                        order.index(d.priority) if d.priority in order else 9,
                        d.key))
 
@@ -546,7 +581,7 @@ def render_markdown(run: dict, lang: str, build: str,
     out.append(f"| {head[0]} | {head[1]} | {head[2]} | {head[3]} |")
     out.append("| --- | --- | --- | --- |")
     for defect in issues:
-        state = STATUS_TEXT[lang][status_of(outcomes_for(run, defect))]
+        state = STATUS_TEXT[lang][status_of(run, defect)]
         out.append(f"| {defect.key} | {defect.priority} | {state} | "
                    f"{defect.text('title', lang)} |")
     out.append("")
@@ -562,7 +597,7 @@ def render_markdown(run: dict, lang: str, build: str,
 
     for defect in issues:
         grouped = outcomes_for(run, defect)
-        state = status_of(grouped)
+        state = status_of(run, defect)
         priority_text = PRIORITIES[defect.priority][0 if lang == "en" else 1]
 
         out.append(f"## {defect.key} — {defect.text('title', lang)}")
@@ -769,12 +804,12 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
     document.add_heading(S("summary_table"), level=1)
     table_of(S("summary_head"),
              [(defect.key, defect.priority,
-               STATUS_TEXT[lang][status_of(outcomes_for(run, defect))],
+               STATUS_TEXT[lang][status_of(run, defect)],
                defect.text("title", lang)) for defect in issues])
 
     for defect in issues:
         grouped = outcomes_for(run, defect)
-        state = status_of(grouped)
+        state = status_of(run, defect)
         priority_text = PRIORITIES[defect.priority][0 if lang == "en" else 1]
 
         document.add_page_break()
@@ -965,7 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
         print(path)
 
     confirmed = sum(1 for d in DEFECTS.values()
-                    if status_of(outcomes_for(run, d)) == "CONFIRMED")
+                    if status_of(run, d) == "CONFIRMED")
     # stdout, not stderr: a caller that treats any stderr output as a
     # failure (PowerShell does) would otherwise report a successful run
     # as an error.

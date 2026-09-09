@@ -76,17 +76,30 @@ _SAMPLE = Defect(
 
 
 def _run(tests: dict[str, str], *, duration: float = 12.5,
-         created: float = 1788864324.0) -> dict:
-    """A pytest-json-report run, from {nodeid: outcome}."""
+         created: float = 1788864324.0,
+         crash: dict[str, str] | None = None) -> dict:
+    """A pytest-json-report run, from {nodeid: outcome}.
+
+    ``crash`` attaches a crash message to a node, the way pytest's JSON
+    report does for a failure.  That message is how the renderer tells a
+    test that *demonstrated* its defect (it carries
+    ``KnownShippedDefect``) from one that merely broke.
+    """
+    crash = crash or {}
     outcomes: dict[str, int] = {}
     for outcome in tests.values():
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
+    entries = []
+    for nodeid, outcome in tests.items():
+        entry = {"nodeid": nodeid, "outcome": outcome}
+        if nodeid in crash:
+            entry["call"] = {"crash": {"message": crash[nodeid]}}
+        entries.append(entry)
     return {
         "created": created,
         "duration": duration,
         "summary": {**outcomes, "total": len(tests), "collected": len(tests)},
-        "tests": [{"nodeid": nodeid, "outcome": outcome}
-                  for nodeid, outcome in tests.items()],
+        "tests": entries,
     }
 
 
@@ -140,16 +153,22 @@ def test_the_report_is_derived_only_from_the_registry_and_the_run(lang):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("lang", LANGS)
-def test_the_report_names_no_issue_the_registry_does_not_hold(lang):
+def test_the_report_names_no_issue_the_registry_does_not_hold(lang,
+                                                             monkeypatch):
     """A report cannot mention a finding nobody filed.
 
     Rendered from an empty registry -- the state every round starts in --
     the document must contain no CBDB-D id at all.  This is the check
     that a reader of the report is really being shown the registry and
     not something the renderer remembers.
+
+    The registry is emptied here rather than asserted empty.  It used to
+    be asserted, which made this test pass only between rounds and fail
+    for the whole of the one round that actually has findings to report
+    -- exactly when the renderer is being trusted with real content.
     """
+    monkeypatch.setattr(gr, "DEFECTS", {})
     run = _run({"tests/test_qbe.py::test_x": "passed"})
-    assert not gr.DEFECTS, "this test needs the empty registry"
     text = gr.render_markdown(run, lang, "b.7z")
     assert "CBDB-D-" not in text
     assert gr.STRINGS["no_issues"][lang] in text
@@ -181,13 +200,27 @@ def test_a_fixed_defect_is_reported_as_fixed_rather_than_confirmed(one_defect):
     entry is still there -- otherwise the reader is told a fixed problem
     is present.
     """
-    confirmed = _run({"tests/test_qbe.py::test_the_sample_finding": "xfailed"})
-    fixed = _run({"tests/test_qbe.py::test_the_sample_finding": "xpassed"})
+    node = "tests/test_qbe.py::test_the_sample_finding"
+    # How a finding is spelled since 2026-09-08: an ordinary failure
+    # whose message carries the exception the test raised once it
+    # recognised the defect's signature.
+    signature = _run(
+        {node: "failed"},
+        crash={node: "cbdb_desktop.defects.KnownShippedDefect: "
+                     "the sample finding, with its numbers"})
+    # A failure with no such signature: the test broke on something
+    # else, and the run neither confirms nor clears the entry.
+    unrelated = _run({node: "failed"},
+                     crash={node: "AssertionError: something unrelated"})
+    confirmed = _run({node: "xfailed"})
+    fixed = _run({node: "xpassed"})
     silent = _run({"tests/test_qbe.py::test_something_else": "passed"})
 
-    assert gr.status_of(gr.outcomes_for(confirmed, one_defect)) == "CONFIRMED"
-    assert gr.status_of(gr.outcomes_for(fixed, one_defect)) == "APPARENTLY FIXED"
-    assert gr.status_of(gr.outcomes_for(silent, one_defect)) == "NOT EXERCISED"
+    assert gr.status_of(signature, one_defect) == "CONFIRMED"
+    assert gr.status_of(unrelated, one_defect) == "INCONCLUSIVE"
+    assert gr.status_of(confirmed, one_defect) == "CONFIRMED"
+    assert gr.status_of(fixed, one_defect) == "APPARENTLY FIXED"
+    assert gr.status_of(silent, one_defect) == "NOT EXERCISED"
 
     text = gr.render_markdown(fixed, "en", "b.7z")
     assert gr.STATUS_TEXT["en"]["APPARENTLY FIXED"] in text
