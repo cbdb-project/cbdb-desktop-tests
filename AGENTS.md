@@ -651,13 +651,24 @@ emptied on 2026-09-08, together with the previous round's reports and
 every run artefact, for a deliberately stateless assessment of the next
 distribution.
 
-There is no list here of what earlier builds did, and that is the point.
-The record is the git history of `defects.py` and of
+There is no *inventory* here of what earlier builds did, and that is the
+point.  The record is the git history of `defects.py` and of
 `reports/CBDB_Desktop_Issues_*.md`; reading it before a fresh round is
 exactly what this clearing exists to prevent, because a reader who knows
 last round's nine findings looks for those nine.  If you want to know
 what an earlier build did *after* forming your own judgement,
 `git log -p tests/cbdb_desktop/defects.py` has it.
+
+Be exact about what that forbids, because this file does describe past
+defects and has to.  A **checklist** is banned: nothing here may read as
+"these are the things to look for in this build".  A past defect used to
+teach **method** stays — how an origin was decided, why a landmine is a
+landmine, what a reviewer's claim turned out to be worth — because that
+is what a context file is for, and losing it costs the next round the
+same afternoon twice.  The examples in § *Where a defect comes from* and
+§ *Operating principles* are there on that basis; none of them names an
+identifier, because an identifier belongs to one round's report and
+points at a different finding by the next.
 
 What survived the clearing is every mechanism that finds a defect: the
 inventories, the discovered matrix, the browser layer, and each test's

@@ -109,16 +109,22 @@ STRINGS: dict[str, dict] = {
         "en": "Of the {failed} failures, **{demonstrating}** are the tests "
               "that demonstrate the issues below -- they are how those "
               "issues are established, and they will pass again when the "
-              "issues are fixed.  The remaining **{ours}** point to gaps "
-              "in this test suite rather than defects in the distribution: "
-              "a control or an endpoint we have not yet driven. They are "
-              "listed here so the two are not confused, and they are ours "
-              "to close, not yours.",
+              "issues are fixed.  The remaining **{rest}** are accounted "
+              "for underneath, so that a reader does not have to reconcile "
+              "these numbers against the list of issues and find that they "
+              "do not add up.",
         "zh": "在 {failed} 項失敗中，有 **{demonstrating}** 項是用來證明"
               "下列問題的測試——這些問題正是由它們認定的，問題修好之後它們"
-              "就會恢復通過。其餘 **{ours}** 項並不是釋出版本的缺陷，而是"
-              "本測試套件自身的覆蓋缺口：某個我們尚未驅動的控制項或端點。"
-              "列在這裡是為了避免兩者混淆；那部分該由我們補上，與您無關。",
+              "就會恢復通過。其餘 **{rest}** 項在下方逐一交代，以免讀者拿"
+              "這些數字去對照問題清單，卻發現兩邊對不起來。",
+    },
+    "ours_intro": {
+        "en": "**{n}** of them: gaps in this test suite rather than defects "
+              "in the distribution -- something the interface offers that we "
+              "have not yet driven.  Ours to close, not yours.",
+        "zh": "其中 **{n}** 項指向的是本測試套件自身的覆蓋缺口，而不是釋出"
+              "版本的缺陷：介面上有、但我們尚未驅動過的東西。那部分該由"
+              "我們補上，與您無關。",
     },
     "failure_split_none": {
         "en": "Every one of the {failed} failures is a test that "
@@ -127,6 +133,20 @@ STRINGS: dict[str, dict] = {
     },
     "ours_head": {"en": ("Check", "What it says we have not driven"),
                   "zh": ("對應檢查", "指出我們尚未驅動的部分")},
+    "unclassified": {
+        "en": "**{n} failure(s) in this run are not yet classified.**  They "
+              "are not among the issues below and they are not one of our "
+              "known coverage gaps, which means this run found something "
+              "nobody has looked at yet.  Each may turn out to be a defect "
+              "worth filing or a problem with the check itself; please read "
+              "them rather than trusting this list to be complete.",
+        "zh": "**本次執行有 {n} 項失敗尚未歸類。**它們既不屬於下列問題，也不"
+              "屬於我們已知的覆蓋缺口——換句話說，這次執行發現了還沒有人看過"
+              "的東西。它們可能是值得立案的缺陷，也可能是檢查本身的問題；"
+              "請務必逐一閱讀，不要把下面的清單當成已經完整。",
+    },
+    "unclassified_head": {"en": ("Check", "What it reported"),
+                          "zh": ("對應檢查", "回報的內容")},
     #: A Chinese reason per check that reports one of our own gaps.  The
     #: fallback is the test's own message, which is written in English
     #: because it is written for whoever is fixing the suite -- so a new
@@ -435,6 +455,25 @@ def signature_failures(run: dict, defect: Defect) -> list[str]:
     return found
 
 
+#: The checks that report a gap in **this suite** rather than a defect
+#: in the distribution, and why each one is ours.  A named set and not a
+#: default: every other unfiled failure is something a run found that
+#: nobody has classified yet, and telling the maintainer it is our
+#: problem would be wrong -- most obviously on a fresh round, whose
+#: registry starts empty.
+#:
+#: Adding an entry here is a claim that the failure is a hole in our
+#: coverage.  It costs a line, and it should.
+SUITE_OWN_CHECKS: dict[str, dict[str, str]] = {
+    "test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run": {
+        "en": "an endpoint the interface can reach that this run never "
+              "requested -- a hole in our coverage, not in the build",
+        "zh": "介面可以到達、但本次執行從未請求過的端點——這是我們覆蓋範圍"
+              "的缺口，不是版本的缺陷",
+    },
+}
+
+
 def _table_safe(text: str) -> str:
     r"""One cell of a Markdown table: no pipes, no line breaks."""
     return " ".join(text.replace("|", r"\|").split())
@@ -465,8 +504,19 @@ def ours_rows(ours: list[tuple[str, str]], lang: str) -> list[tuple[str, str]]:
 def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
     """Split this run's failures into findings and our own gaps.
 
-    Returns ``([node ids that demonstrate a filed issue],
-    [(node id, one-line reason) for the rest])``.
+    Returns three lists: the node ids that demonstrate a filed issue,
+    the failures that are **this suite's own** gaps, and the failures
+    that are neither.
+
+    That third list is the one that matters and the reason this is not a
+    two-way split.  Calling every unfiled failure "ours" reads as "not a
+    defect in the distribution", and that is a lie the moment a run
+    finds something nobody has filed yet -- an endpoint that has just
+    started answering HTTP 500, say.  On a fresh round, whose registry
+    is empty by design, it would have said that about **every** finding
+    in the run.  So "ours" is a named set of checks
+    (``SUITE_OWN_CHECKS``) rather than a default, and anything else
+    unfiled is reported as needing to be read.
 
     The distinction is not cosmetic.  A failure named by a registry entry
     is *how that entry is established*, and it will pass again when the
@@ -487,6 +537,7 @@ def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
 
     demonstrating: list[str] = []
     ours: list[tuple[str, str]] = []
+    unclassified: list[tuple[str, str]] = []
     for test in run["tests"]:
         if test["outcome"] not in ("failed", "error"):
             continue
@@ -512,12 +563,16 @@ def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
         # failures -- the exact arithmetic this section exists to fix.
         # And a message can carry a pipe, which would break the Markdown
         # table it is rendered into.
-        ours.append((stem, _table_safe(why[:200]) or "no message"))
+        row = (stem, _table_safe(why[:200]) or "no message")
+        if stem.split("::")[-1] in SUITE_OWN_CHECKS:
+            ours.append(row)
+        else:
+            unclassified.append(row)
     # De-duplicated for the table, but the *count* the prose quotes has
     # to stay the number of failures, or the arithmetic stops
     # reconciling again: several parametrisations of one unfiled test
     # carrying one message are one row and several failures.
-    return demonstrating, ours
+    return demonstrating, ours, unclassified
 
 
 def unique_rows(ours: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -696,22 +751,35 @@ def render_markdown(run: dict, lang: str, build: str,
     # reconcile an arithmetic that does not work -- and the honest answer
     # is that some failures are this suite's own coverage gaps, which are
     # not the maintainer's problem and should not read as if they were.
-    demonstrating, ours = failures_by_kind(run)
+    demonstrating, ours, unclassified = failures_by_kind(run)
     failed = summary.get("failed", 0) + summary.get("error", 0)
     if failed:
-        if ours:
+        if ours or unclassified:
             out.append(S("failure_split").format(
                 failed=failed, demonstrating=len(demonstrating),
-                ours=len(ours)))
+                rest=len(ours) + len(unclassified)))
+            out.append("")
+        else:
+            out.append(S("failure_split_none").format(failed=failed))
+            out.append("")
+        if ours:
+            out.append(S("ours_intro").format(n=len(ours)))
             out.append("")
             head = S("ours_head")
             out.append(f"| {head[0]} | {head[1]} |")
             out.append("| --- | --- |")
             for name, why in ours_rows(unique_rows(ours), lang):
                 out.append(f"| `{name}` | {why} |")
-        else:
-            out.append(S("failure_split_none").format(failed=failed))
-        out.append("")
+            out.append("")
+        if unclassified:
+            out.append(S("unclassified").format(n=len(unclassified)))
+            out.append("")
+            head = S("unclassified_head")
+            out.append(f"| {head[0]} | {head[1]} |")
+            out.append("| --- | --- |")
+            for name, why in unique_rows(unclassified):
+                out.append(f"| `{name.split('::')[-1]}` | {why} |")
+            out.append("")
 
     out.append(f"## {S('coverage')}")
     out.append("")
@@ -955,18 +1023,27 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
     # The same split the Markdown carries.  Both formats go to the same
     # reader, so a paragraph in one and not the other is how the two
     # documents start disagreeing about the run they describe.
-    demonstrating, ours = failures_by_kind(run)
+    demonstrating, ours, unclassified = failures_by_kind(run)
     failed = summary.get("failed", 0) + summary.get("error", 0)
     if failed:
-        if ours:
+        if ours or unclassified:
             document.add_paragraph(S("failure_split").format(
                 failed=failed, demonstrating=len(demonstrating),
-                ours=len(ours)).replace("**", ""))
-            table_of(S("ours_head"),
-                     ours_rows(unique_rows(ours), lang))
+                rest=len(ours) + len(unclassified)).replace("**", ""))
         else:
             document.add_paragraph(
                 S("failure_split_none").format(failed=failed))
+        if ours:
+            document.add_paragraph(
+                S("ours_intro").format(n=len(ours)).replace("**", ""))
+            table_of(S("ours_head"), ours_rows(unique_rows(ours), lang))
+        if unclassified:
+            document.add_paragraph(
+                S("unclassified").format(n=len(unclassified))
+                .replace("**", ""))
+            table_of(S("unclassified_head"),
+                     [(name.split("::")[-1], why)
+                      for name, why in unique_rows(unclassified)])
 
     document.add_heading(S("coverage"), level=1)
     table_of(S("coverage_head"), coverage_rows(run, lang))

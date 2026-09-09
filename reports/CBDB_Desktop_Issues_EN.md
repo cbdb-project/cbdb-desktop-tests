@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 10:23 UTC from a run of 877 tests (291s)._
+_Generated 2026-09-09 10:35 UTC from a run of 877 tests (295s)._
 
 Dear maintainer,
 
@@ -21,7 +21,9 @@ Most of the issues below were found by launching the shipped `cbdb.exe` and driv
 | xfailed (a known defect, still present) | 3 |
 | skipped | 56 |
 
-Of the 62 failures, **61** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **1** point to gaps in this test suite rather than defects in the distribution: a control or an endpoint we have not yet driven. They are listed here so the two are not confused, and they are ours to close, not yours.
+Of the 62 failures, **61** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **1** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
+
+**1** of them: gaps in this test suite rather than defects in the distribution -- something the interface offers that we have not yet driven.  Ours to close, not yours.
 
 | Check | What it says we have not driven |
 | --- | --- |
