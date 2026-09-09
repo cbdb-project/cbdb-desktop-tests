@@ -278,10 +278,24 @@ def test_the_committed_report_still_says_what_the_registry_says(lang):
     thing on every machine.
     """
     committed = REPO_ROOT / "reports" / f"{gr.STEM[lang]}.md"
-    if not committed.is_file():
-        pytest.skip(f"reports/{committed.name} is not in the tree: a round "
-                    "that has not written its report yet.  It is committed "
-                    "once the round files its findings")
+    if not DEFECTS:
+        # An empty registry is the normal state between rounds, and it
+        # owes no report -- main's own reports are deleted when a round
+        # is cleared.  Nothing to check, and saying so is not the same
+        # as passing vacuously with findings on the books.
+        pytest.skip("the registry is empty, so no report is owed.  This "
+                    "check has something to say once a round files "
+                    "its findings")
+
+    # With entries on the books the report is the deliverable, so a
+    # missing one is a failure and not a skip.  Skipping here was the
+    # last way this check could be made vacuous: delete the .md and it
+    # went quiet about seven filed findings.
+    assert committed.is_file(), (
+        f"{len(DEFECTS)} findings are filed in the registry but "
+        f"reports/{committed.name} is not in the tree.  The report is the "
+        "deliverable of a round, not an optional by-product.  Write it: "
+        "python reports\\generate_report.py")
 
     text = committed.read_text(encoding="utf-8")
     missing: list[str] = []
