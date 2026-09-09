@@ -1173,11 +1173,10 @@ def _go_functions(text: str) -> list[tuple[str, str]]:
     part of it -- correct here, because a writer that delegates to its
     own local helper is still one writer.
 
-    Boundaries are found in a copy with raw strings blanked, and the
-    bodies are sliced out of the original.  Without that, a line inside
-    one of this build's multi-line backtick SQL strings that happened to
-    start with ``func`` would split a handler in two and attribute
-    everything after it to a function that does not exist.
+    What stops a line inside one of this build's multi-line backtick SQL
+    strings from splitting a handler in two is ``_GO_FUNC`` requiring
+    the shape of a declaration, not a blanking pass -- see the note
+    there for why blanking was tried and rejected.
     """
     starts = [(m.start(), m.group(1))
               for m in _GO_FUNC.finditer(text)]
