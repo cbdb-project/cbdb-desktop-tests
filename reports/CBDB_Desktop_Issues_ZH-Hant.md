@@ -157,7 +157,8 @@ _本報告產生於 2026-09-09 06:21 UTC，依據一次 870 項測試的執行�
 #### 對應的程式位置
 
 - `Code/places_form_backend.go:205`
-- `Templates/places/index.html`
+- `Templates/places/index.html:90`
+- `Templates/places/index.html:540`
 
 #### 對應的測試
 
@@ -198,13 +199,13 @@ _本報告產生於 2026-09-09 06:21 UTC，依據一次 870 項測試的執行�
 
 #### 對應的程式位置
 
-- `Templates/kinship/index.html`
-- `Templates/association_pairs/index.html`
-- `Templates/group_data/index.html`
-- `Templates/entry/index.html`
-- `Templates/associations/index.html`
-- `Templates/networks/index.html`
-- `Templates/places/index.html`
+- `Templates/kinship/index.html:630`
+- `Templates/association_pairs/index.html:936`
+- `Templates/group_data/index.html:914`
+- `Templates/entry/index.html:1093`
+- `Templates/associations/index.html:680`
+- `Templates/networks/index.html:1551`
+- `Templates/places/index.html:691`
 
 #### 對應的測試
 
@@ -302,7 +303,7 @@ _本報告產生於 2026-09-09 06:21 UTC，依據一次 870 項測試的執行�
 
 ## CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤
 
-**涉及範圍：** 查詢建構器，以及 CBDBSetUpCode 中的檢視表定義
+**涉及範圍：** 產生出來的查詢建構器結構檔，以及 CBDBSetUpCode 中的檢視表定義
 
 **嚴重等級：** P2 — 可見的執行時錯誤——使用者的操作以伺服器錯誤收場。
 
@@ -312,7 +313,9 @@ _本報告產生於 2026-09-09 06:21 UTC，依據一次 870 項測試的執行�
 
 #### 問題描述
 
-釋出的檢視表中有八個，其 30 個欄位的名稱帶有 `:1` 後綴——例如 `c_personid:1`、`c_notes:1`、`c_dy:1` 等。這些名稱是 SQLite 自己產生的：這幾個檢視表都是層層嵌套的 Access 風格連接（join）結構，而檢視表又沒有為所選欄位明確取別名。查詢建構器提供的是不帶後綴的名稱，因此選取其中之一時，會對欄位其實叫 `c_personid:1` 的檢視表送出 `SELECT t.c_personid`，SQLite 隨即拒絕。其中四個檢視表受影響的欄位正是清單中的第一個，因此整個表看起來完全不能用。
+釋出的檢視表中有八個，其 30 個欄位的名稱帶有 `:1` 後綴——例如 `c_personid:1`、`c_notes:1`、`c_dy:1` 等。這些名稱是 SQLite 自己產生的：這幾個檢視表都是層層嵌套的 Access 風格連接（join）結構，而所選欄位又沒有明確取別名。
+
+介面提供的欄位清單來自 `Data/qbe_schema.json`，由 `gen_qbe_schema.py` 產生。這支腳本其實**知道這個問題**：它會偵測到重複名稱，只保留第一個並去掉後綴，同時印出警告，而且它自己的檔頭就寫著「真正的修法是在檢視表定義中加上明確的 AS 別名」。但它保留不帶後綴的名稱，是基於「SQLite 自己就是這樣解析對多個同名欄位的未限定參照」這個假設——而對這幾個檢視表來說，這個假設是錯的。真正可用的是帶後綴的名稱：`SELECT t."c_personid:1" FROM View_Entry t` 可以取回資料，而不帶後綴的 `SELECT t.c_personid FROM View_Entry t` 則被拒絕。也就是說，產生腳本把一個查得到的名稱換成了一個查不到的名稱；其中四個檢視表受影響的還是清單中的第一個欄位，整個表看起來就像完全不能用。
 
 #### 實測依據
 
@@ -332,13 +335,16 @@ _本報告產生於 2026-09-09 06:21 UTC，依據一次 870 項測試的執行�
 
 #### 建議修復方式
 
-在這八個檢視表定義中為衝突的欄位明確取別名（例如 `ENTRY_DATA.c_personid AS c_personid`）；這正是上文已驗證有效的修法，且能讓查詢建構器現有的欄位清單維持正確。若不採此法，則應讓查詢建構器改以檢視表上的 `PRAGMA table_info` 取得欄位清單，而不是依靠人工維護的白名單，兩者才不會互相矛盾。
+`gen_qbe_schema.py` 自己的檔頭已經指出修法：在這八個檢視表定義中為衝突的欄位明確取別名（例如 `ENTRY_DATA.c_personid AS c_personid`）。這正是上文已驗證有效的修法——後綴會消失，`SELECT t.c_personid` 也隨即成功——而且能讓已產生的欄位清單維持正確。
+
+在那之前，產生腳本不應輸出自己無法驗證的名稱。它的警告只在產生時印出一次，之後就再也沒人看到；若某個欄位名稱通不過 `SELECT t.<欄位> FROM <檢視表> t LIMIT 0`，那麼把它從 JSON 中略去，會比提供給使用者更好——而這項檢查在產生階段只需要每個欄位一次查詢的成本。另一種可行做法是輸出真正的、帶後綴的名稱，並在產生的 SQL 中加上引號——因為那才是能解析的名稱；但取別名仍是更好的修法，畢竟研究者看到的欄位標題不該帶著 `:1`。
 
 #### 對應的程式位置
 
-- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
-- `Code/qbe_schema.go`
-- `Templates/qbe/qbe.html`
+- `Data/gen_qbe_schema.py:52`
+- `Data/qbe_schema.json:5456`
+- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql:1254`
+- `Code/qbe_schema.go:53`
 
 #### 對應的測試
 

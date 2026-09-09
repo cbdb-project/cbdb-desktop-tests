@@ -554,12 +554,13 @@ _DEFECTS: tuple[Defect, ...] = (
                 "assumption that this is \"how SQLite itself resolves an "
                 "unqualified reference to one of several same-named "
                 "columns\" -- and for these views that assumption is wrong.  "
-                "The unsuffixed name cannot be queried either: "
-                "`SELECT t.c_personid FROM View_Entry t` is refused, just as "
-                "`t.\"c_personid:1\"` would be.  So the grid offers a name "
-                "that resolves to nothing, and for four of the views it is "
-                "the first column offered, which makes the whole view look "
-                "unusable.",
+                "The suffixed name is the one that works: "
+                "`SELECT t.\"c_personid:1\" FROM View_Entry t` returns rows, "
+                "while the unsuffixed `SELECT t.c_personid FROM View_Entry t` "
+                "is refused.  So the generator took a name that could be "
+                "queried and wrote down one that cannot, and for four of the "
+                "views it is the first column offered, which makes the whole "
+                "view look unusable.",
         summary_zh="釋出的檢視表中有八個，其 30 個欄位的名稱帶有 `:1` 後綴"
                    "——例如 `c_personid:1`、`c_notes:1`、`c_dy:1` 等。這些"
                    "名稱是 SQLite 自己產生的：這幾個檢視表都是層層嵌套的 "
@@ -571,12 +572,14 @@ _DEFECTS: tuple[Defect, ...] = (
                    "警告，而且它自己的檔頭就寫著「真正的修法是在檢視表定義"
                    "中加上明確的 AS 別名」。但它保留不帶後綴的名稱，是基於"
                    "「SQLite 自己就是這樣解析對多個同名欄位的未限定參照」"
-                   "這個假設——而對這幾個檢視表來說，這個假設是錯的。不帶"
-                   "後綴的名稱同樣無法查詢："
-                   "`SELECT t.c_personid FROM View_Entry t` 會被拒絕，"
-                   "`t.\"c_personid:1\"` 也一樣。於是介面提供了一個解析不到"
-                   "任何東西的名稱；其中四個檢視表受影響的還是清單中的第一個"
-                   "欄位，整個表看起來就像完全不能用。",
+                   "這個假設——而對這幾個檢視表來說，這個假設是錯的。真正"
+                   "可用的是帶後綴的名稱："
+                   "`SELECT t.\"c_personid:1\" FROM View_Entry t` 可以取回"
+                   "資料，而不帶後綴的 "
+                   "`SELECT t.c_personid FROM View_Entry t` 則被拒絕。也就是"
+                   "說，產生腳本把一個查得到的名稱換成了一個查不到的名稱；"
+                   "其中四個檢視表受影響的還是清單中的第一個欄位，整個表"
+                   "看起來就像完全不能用。",
         evidence="Driving the Query Builder through the running binary, all "
                  "30 combinations answer `500 Query failed: no such column`, "
                  "and for View_BiogInstAddrData, View_BiogInstData, "
@@ -584,7 +587,9 @@ _DEFECTS: tuple[Defect, ...] = (
                  "grid offers.  Reading the shipped database read-only, "
                  "`PRAGMA table_info` reports exactly those 30 columns with "
                  "a `:1` suffix across exactly those 8 views.  The naming is "
-                 "reproducible from the view's own SELECT alone, and adding "
+                 "reproducible from the view's own SELECT alone; the "
+                 "suffixed name is queryable when quoted, the unsuffixed one "
+                 "is not, and adding "
                  "an explicit `AS c_personid` to that SELECT removes the "
                  "suffix and makes `SELECT t.c_personid` succeed -- which "
                  "identifies the fix as well as the cause.",
@@ -615,7 +620,11 @@ _DEFECTS: tuple[Defect, ...] = (
             "where nobody sees it again; a column whose name does not "
             "survive `SELECT t.<name> FROM <view> t LIMIT 0` would be "
             "better omitted from the JSON than offered to the user, and "
-            "that check costs one query per column at generation time.",
+            "that check costs one query per column at generation time.  "
+            "Emitting the real, suffixed name and quoting it in the "
+            "generated SQL would also work -- it is the name that resolves "
+            "-- but the alias is the better fix, because the label a "
+            "scholar reads should not have a `:1` in it.",
         fix_zh="`gen_qbe_schema.py` 自己的檔頭已經指出修法：在這八個檢視表"
                "定義中為衝突的欄位明確取別名（例如 "
                "`ENTRY_DATA.c_personid AS c_personid`）。這正是上文已驗證"
@@ -625,7 +634,10 @@ _DEFECTS: tuple[Defect, ...] = (
                "產生時印出一次，之後就再也沒人看到；若某個欄位名稱通不過 "
                "`SELECT t.<欄位> FROM <檢視表> t LIMIT 0`，那麼把它從 JSON "
                "中略去，會比提供給使用者更好——而這項檢查在產生階段只需要"
-               "每個欄位一次查詢的成本。",
+               "每個欄位一次查詢的成本。另一種可行做法是輸出真正的、帶"
+               "後綴的名稱，並在產生的 SQL 中加上引號——因為那才是能解析"
+               "的名稱；但取別名仍是更好的修法，畢竟研究者看到的欄位標題"
+               "不該帶著 `:1`。",
         steps=(
             "Open the Query Builder (/QBE).",
             "Choose the view View_Entry.",
