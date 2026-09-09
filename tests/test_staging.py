@@ -10,12 +10,15 @@ guarantee every other test in the suite rests on.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 import zipfile
 from pathlib import Path
 
 import pytest
+
+from cbdb_desktop.defects import KnownShippedDefect
 
 from cbdb_desktop.config import (
     REPO_ROOT,
@@ -1092,6 +1095,44 @@ def test_distribution_ships_the_expected_pieces(layout: AppLayout):
         "entry_picker.html", "office_picker.html", "people_picker.html",
         "status_picker.html", "texts_picker.html",
     ], pickers
+
+
+#: A template that was saved with the date in its name and shipped next
+#: to the live one: ``entry.index.20260906.html``, ``qbe.20260827.html``,
+#: ``address_picker.20260729.html``.
+_DATED_WORKING_COPY = re.compile(r"\.\d{8}\.html$")
+
+
+def test_the_distribution_ships_no_dated_working_copies(config):
+    """Read the archive's own directory: what did the release include?
+
+    Separate from ``test_distribution_ships_the_expected_pieces``, which
+    pins the *shape* the build has to have and fails on anything new for
+    a reader to judge.  This one recognises one specific thing and names
+    it, so the finding is reported as a finding rather than as "the
+    shape changed".
+
+    Read from the archive rather than from the staged tree on purpose:
+    the question is what the release contains, and a tree can be
+    modified after extraction.  No application and no database needed --
+    the cheapest check in the suite, for a defect that cannot depend on
+    data.
+    """
+    if config.app_dir_override is not None:
+        pytest.skip("CBDB_APP_DIR points at a hand-unpacked tree: there is "
+                    "no archive whose contents could be judged.")
+
+    with Archive.open(config.zip_path) as archive:
+        names = [member.name for member in archive.members]
+
+    assert names, "the archive listed no members at all"
+    dated = sorted(name for name in names
+                   if _DATED_WORKING_COPY.search(name))
+    if dated:
+        raise KnownShippedDefect(
+            f"{len(dated)} of the archive's {len(names)} members are dated "
+            f"working copies of templates, shipped beside the live file: "
+            f"{dated}")
 
 
 @pytest.mark.slow
