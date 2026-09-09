@@ -21,9 +21,12 @@ and (when it quotes a defect id) keyed to something that stops existing
 the moment the next stateless round starts.
 
 Neither needs the application, so this file is fast and carries no
-``app`` marker.  With ``CBDB_WAIVERS`` unset -- the default, and every
-fresh checkout -- there is nothing to waive and the gates pass having
-measured zero, which is the honest reading and is printed as such.
+``app`` marker.  With ``CBDB_WAIVERS`` unset there is nothing to waive
+and the gates pass having measured zero, which is the honest reading and
+is printed as such.  ``.env.example`` does set it, at this repo's own
+``waivers.toml``, and ``test_the_shipped_env_example_points_at_a_usable
+_table`` keeps that setting working -- an example that does not load is
+how a feature nobody can configure gets shipped.
 """
 from __future__ import annotations
 
@@ -309,6 +312,46 @@ def test_broken_toml_names_the_file_it_came_from(tmp_path):
     path.write_text("[test_x\n", encoding="utf-8")
     with pytest.raises(WaiverError, match=str(path.name)):
         load(path)
+
+
+def test_the_shipped_env_example_points_at_a_usable_table():
+    """``.env.example`` enables waivers, so its setting has to work.
+
+    Two failures this exists for, and the second is the reason it reads
+    the example file rather than the maintainer's own ``.env``.
+
+    * An example that does not load.  ``CBDB_WAIVERS`` is active in
+      ``.env.example`` -- the agreements are committed with the repo, so
+      a fresh checkout should judge the build the way the maintainer
+      does -- and a path or a table that has rotted turns every fresh
+      checkout's first run into a ``UsageError``.
+    * A waiver file that stops parsing.  ``waivers.toml`` is edited by
+      hand, in two languages, by whoever negotiated the agreement; the
+      parser refuses anything it cannot fully honour, and that refusal
+      should arrive here rather than in the middle of somebody's run.
+
+    Read through ``load_config`` rather than by parsing the file here,
+    because the resolution being checked is the real one: a relative
+    path against the repo root, and the process environment *not*
+    consulted (``env={}``), so a maintainer whose own environment sets
+    ``CBDB_WAIVERS`` still tests the example.
+    """
+    from cbdb_desktop.config import load_config
+
+    configured = load_config(env={}, env_file=REPO_ROOT / ".env.example")
+    assert configured.waivers_path is not None, \
+        ".env.example no longer enables CBDB_WAIVERS; the docs say it does"
+    assert configured.waivers_path == REPO_ROOT / "waivers.toml", \
+        f"a relative path must resolve against the repo root, not the "\
+        f"working directory: {configured.waivers_path}"
+
+    table = load(configured.waivers_path)
+    assert table.enabled
+    for waiver in table.waivers:
+        assert waiver.function.startswith("test_")
+        assert not waiver.expired(), \
+            f"{waiver.test} expired on {waiver.expires} and would fail " \
+            "every run until it is re-negotiated or deleted"
 
 
 def test_no_table_configured_means_no_waivers():

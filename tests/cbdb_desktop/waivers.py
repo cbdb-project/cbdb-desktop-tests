@@ -51,12 +51,15 @@ Two modes, and the default is the one that keeps working:
     correct -- coverage is measured, not assumed -- and it is why
     ``tolerate`` is the default.
 
-Enabled by pointing ``CBDB_WAIVERS`` at the file.  Unset -- the default,
-and the state of every fresh checkout -- means no waivers exist and the
-suite behaves exactly as if this module were not here.  Set but
-unreadable, malformed, or missing a required field is a **hard error**:
-a waiver table that silently fails to load would quietly re-expose
-everything in it, and the run would look normal.
+Enabled by pointing ``CBDB_WAIVERS`` at the file.  ``.env.example``
+points it at this repo's own ``waivers.toml``, so a fresh checkout
+judges the build the way the maintainer does; comment that line out and
+nothing is tolerated at all, which is the right way to see what a build
+really does.  Unset means no waivers exist and the suite behaves exactly
+as if this module were not here.  Set but unreadable, malformed, or
+missing a required field is a **hard error**: a waiver table that
+silently fails to load would quietly re-expose everything in it, and the
+run would look normal.
 
 The table is data, not code, and nothing in it can invent a tolerated
 outcome by itself: every entry has to match a test the program actually

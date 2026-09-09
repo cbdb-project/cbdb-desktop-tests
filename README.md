@@ -119,10 +119,10 @@ is byte-identical when rendered twice from one run, names no issue the
 registry does not hold, drops none of them, and hides no waiver.
 
 **Tolerated.** Something discussed and agreed to leave for now goes in
-the optional table `CBDB_WAIVERS` points at — absent by default, and
-keyed by **the test function's own name plus the parametrisation ids it
-ran with**, because no identifier this suite invents survives a
-stateless round:
+the table `CBDB_WAIVERS` points at — `waivers.toml` in this repo, which
+`.env.example` enables — keyed by **the test function's own name plus
+the parametrisation ids it ran with**, because no identifier this suite
+invents survives a stateless round:
 
 ```toml
 [test_an_export_produces_a_well_formed_file]
