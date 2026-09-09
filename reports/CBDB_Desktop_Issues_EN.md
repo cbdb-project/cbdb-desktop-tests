@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-09 10:35 UTC from a run of 877 tests (295s)._
+_Generated 2026-09-09 11:01 UTC from a run of 1097 tests (344s)._
 
 Dear maintainer,
 
@@ -16,12 +16,12 @@ Most of the issues below were found by launching the shipped `cbdb.exe` and driv
 
 | outcome | count |
 | --- | --- |
-| passed | 756 |
-| failed | 62 |
+| passed | 892 |
+| failed | 78 |
 | xfailed (a known defect, still present) | 3 |
-| skipped | 56 |
+| skipped | 124 |
 
-Of the 62 failures, **61** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **1** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
+Of the 78 failures, **77** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **1** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
 
 **1** of them: gaps in this test suite rather than defects in the distribution -- something the interface offers that we have not yet driven.  Ours to close, not yours.
 
@@ -42,7 +42,7 @@ Of the 62 failures, **61** are the tests that demonstrate the issues below -- th
 | The forms that remember | 16 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
 | Every filter, on inputs read from the data | 254 | One query per populated combination the shipped database has, plus every switch turned both ways |
-| Every export button | 275 | All 45 file-producing endpoints pressed, and the files they return read back |
+| Every export button | 495 | All 45 file-producing endpoints pressed, and the files they return read back |
 | The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
 | The working tables | 6 | Which form owns which scratch table, read out of the shipped Go |
@@ -50,7 +50,7 @@ Of the 62 failures, **61** are the tests that demonstrate the issues below -- th
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 22 | That every issue below still cites real code, in both languages |
 | This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 877 |  |
+| every test in this run | 1097 |  |
 
 ## Agreed to leave for now
 
@@ -266,9 +266,9 @@ Decide which distance the three exports mean and use that column -- `c_edge_dist
 
 #### Demonstrated by
 
-- 18 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
-- 176 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+172)
-- 23 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+19)
+- 34 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+30)
+- 308 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+304)
+- 91 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+87)
 
 ## CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer
 
@@ -313,9 +313,9 @@ The same mistake is in the build a second time, and it is not in another Neo4j e
 
 #### Demonstrated by
 
-- 18 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
-- 147 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+143)
-- 41 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+37)
+- 34 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+30)
+- 279 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+275)
+- 109 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+105)
 
 ## CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error
 
@@ -424,7 +424,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 877 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1097 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

@@ -467,7 +467,15 @@ _DEFECTS: tuple[Defect, ...] = (
                "test_an_export_with_no_result_does_not_"
                "invent_one",
                "test_no_query_asks_a_scratch_table_"
-               "for_a_column_it_lacks"),
+               "for_a_column_it_lacks",
+               "test_a_delimited_file_uses_the_delimiter_its_suffix_"
+               "promises",
+               "test_every_row_of_a_delimited_file_is_as_wide_as_its_"
+               "header",
+               "test_a_column_the_database_calls_numeric_holds_"
+               "numbers",
+               "test_a_files_byte_order_mark_is_what_its_format_"
+               "needs"),
     ),
     Defect(
         key="CBDB-D-005",
@@ -553,7 +561,15 @@ _DEFECTS: tuple[Defect, ...] = (
                "grid_did",
                "test_an_export_is_repeatable",
                "test_a_spreadsheet_export_can_be_opened_"
-               "by_a_spreadsheet"),
+               "by_a_spreadsheet",
+               "test_a_delimited_file_uses_the_delimiter_its_suffix_"
+               "promises",
+               "test_every_row_of_a_delimited_file_is_as_wide_as_its_"
+               "header",
+               "test_a_column_the_database_calls_numeric_holds_"
+               "numbers",
+               "test_a_files_byte_order_mark_is_what_its_format_"
+               "needs"),
     ),
     Defect(
         key="CBDB-D-006",
