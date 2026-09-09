@@ -131,10 +131,20 @@ def cheap_codes(app: CbdbApp, sqlite_conn):
 
 
 def _csv_rows(data_url: str) -> list[list[str]]:
-    """Decode one exported file: a base64 data URL of tab-separated text."""
+    """Decode one exported file: a base64 data URL of tab-separated text.
+
+    Decoded as ``utf-8-sig``, so a leading byte-order mark is consumed
+    rather than read as data.  The 2026-09-08 build writes one to every
+    spreadsheet-facing export -- which is what makes the file readable in
+    Excel, and is checked in ``test_exports.py`` -- and a reader that
+    keeps it finds the header's first column named with the mark still
+    attached, and therefore no person column at all.  A spreadsheet
+    consumes the mark; so must this.  ``utf-8-sig`` decodes a file
+    *without* a mark unchanged, so this stays correct either way.
+    """
     assert data_url.startswith("data:"), data_url[:60]
     blob = data_url.split("base64,", 1)[1]
-    text = base64.b64decode(blob).decode("utf-8")
+    text = base64.b64decode(blob).decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(text), delimiter="\t"))
     # A trailing newline yields one empty row; anything else blank is
     # kept, so an unexpectedly empty exported line is visible.
