@@ -127,6 +127,18 @@ STRINGS: dict[str, dict] = {
     },
     "ours_head": {"en": ("Check", "What it says we have not driven"),
                   "zh": ("對應檢查", "指出我們尚未驅動的部分")},
+    #: A Chinese reason per check that reports one of our own gaps.  The
+    #: fallback is the test's own message, which is written in English
+    #: because it is written for whoever is fixing the suite -- so a new
+    #: gap reads in English in the Chinese report until it is given a row
+    #: here.  Better than a machine rendering of a sentence about our
+    #: internals, and the counts and the explanation around it are
+    #: translated either way.
+    "ours_reason_zh": {
+        "test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run":
+            "介面上可以到達、但本次執行從未實際請求過的端點；"
+            "完整清單見 artifacts/endpoint_coverage.json",
+    },
     "outcomes": {
         "en": {"passed": "passed", "failed": "failed", "error": "error",
                "xfailed": "xfailed (a known defect, still present)",
@@ -423,6 +435,33 @@ def signature_failures(run: dict, defect: Defect) -> list[str]:
     return found
 
 
+def _table_safe(text: str) -> str:
+    r"""One cell of a Markdown table: no pipes, no line breaks."""
+    return " ".join(text.replace("|", r"\|").split())
+
+
+def ours_rows(ours: list[tuple[str, str]], lang: str) -> list[tuple[str, str]]:
+    """The gap table's rows, in one language.
+
+    The reason a check gives is its own failure message, and those are
+    written in English because they are written for whoever is fixing
+    the suite.  For the Chinese report a translated sentence is used
+    where one exists, with the measured English detail kept alongside it
+    -- dropping the measurement to translate the sentence would be a
+    worse trade, and machine-rendering a sentence about our internals a
+    worse one still.
+    """
+    rows = []
+    for node, why in ours:
+        name = node.split("::")[-1]
+        if lang == "zh":
+            translated = STRINGS["ours_reason_zh"].get(name)
+            if translated:
+                why = f"{translated}（{why}）"
+        rows.append((name, why))
+    return rows
+
+
 def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
     """Split this run's failures into findings and our own gaps.
 
@@ -467,7 +506,13 @@ def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
         if ": " in why:
             why = why.split(": ", 1)[1]
         why = why.rstrip(" :")
-        ours.append((stem.split("::")[-1], why[:200] or "no message"))
+        # The node id keeps its module.  Keying on the bare function name
+        # would fold two same-named failures in different files into one
+        # row, and the prose above the table would then say "1" over two
+        # failures -- the exact arithmetic this section exists to fix.
+        # And a message can carry a pipe, which would break the Markdown
+        # table it is rendered into.
+        ours.append((stem, _table_safe(why[:200]) or "no message"))
     return demonstrating, sorted(set(ours))
 
 
@@ -653,7 +698,7 @@ def render_markdown(run: dict, lang: str, build: str,
             head = S("ours_head")
             out.append(f"| {head[0]} | {head[1]} |")
             out.append("| --- | --- |")
-            for name, why in ours:
+            for name, why in ours_rows(ours, lang):
                 out.append(f"| `{name}` | {why} |")
         else:
             out.append(S("failure_split_none").format(failed=failed))
@@ -908,7 +953,7 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
             document.add_paragraph(S("failure_split").format(
                 failed=failed, demonstrating=len(demonstrating),
                 ours=len(ours)).replace("**", ""))
-            table_of(S("ours_head"), ours)
+            table_of(S("ours_head"), ours_rows(ours, lang))
         else:
             document.add_paragraph(
                 S("failure_split_none").format(failed=failed))

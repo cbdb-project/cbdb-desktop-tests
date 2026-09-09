@@ -126,9 +126,9 @@ UTF8_BOM = b"\xef\xbb\xbf"
 #: ``places_``, each with the comment "Pajek's UTF-8 reader expects a
 #: BOM, unlike UCINet/Gephi").  So the mark is *required* for ``.net``
 #: and *forbidden* for ``.gdf`` and ``.vna``, and a suffix list with one
-#: bucket cannot say that.  Judged per format in
-#: ``test_delimited_files.py`` instead, which is where the whole
-#: encoding-and-shape question now lives.
+#: bucket cannot say that.  Nothing yet checks the mark Pajek needs is
+#: there: that wants a per-format expectation rather than one list, and
+#: it is the next thing to write here.
 #:
 #: ``.tsv`` is the one that matters on the 2026-09-08 build and it has to
 #: be listed: that build renamed every tab-delimited export from
@@ -1055,8 +1055,14 @@ def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
 
     So the assertion is about the first three bytes, for the file
     families a spreadsheet opens.  KML and the SNA formats are excluded
-    deliberately -- XML declares its own encoding and Pajek, GDF and VNA
-    readers do not expect a mark, so adding one there would break them.
+    deliberately, though not all for the same reason: XML declares its
+    own encoding, and GDF and VNA readers do not expect a mark, so
+    adding one there would break them.  **Pajek is the exception** -- all
+    four ``.net`` writers in this build emit the mark on purpose ("Pajek's
+    UTF-8 reader expects a BOM, unlike UCINet/Gephi") -- so ``.net`` is
+    excluded here only because this test's question is "can a
+    spreadsheet open it", and nothing else asks whether the mark Pajek
+    needs is actually there.  That gap is real and unclosed.
 
     Guarded by a non-ASCII check: a file that happens to contain only
     ASCII is readable either way, and failing on it would report a
@@ -1137,8 +1143,23 @@ def _strip_go_comments(source: str) -> str:
     return re.sub(r"(?m)//[^\n\"'`]*$", "", source)           # safe trailers
 
 
-#: The start of a top-level Go declaration, method or plain function.
-_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)", re.MULTILINE)
+
+#: The start of a top-level Go declaration, so a finding can be reported
+#: by the function it sits in rather than by a line number that the next
+#: build moves.  The trailing ``(`` matters: it requires the shape of a
+#: real declaration, so a line inside one of this build's multi-line SQL
+#: strings that happens to begin with the word "func" is not mistaken
+#: for one.
+#:
+#: The obvious alternative -- blank the backtick strings first, then look
+#: for boundaries -- was tried and rejected, because it is *less* safe.
+#: ``networks_form_backend.go`` contains an odd number of backticks (517
+#: once comments are stripped), so pairing them shifts and a naive blank
+#: swallowed six real declarations, moving every finding after them into
+#: a function that does not exist.  Requiring the signature shape cannot
+#: eat code, which is the failure mode that matters here.
+_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)\s*[(\[]",
+                      re.MULTILINE)
 
 
 def _go_functions(text: str) -> list[tuple[str, str]]:
@@ -1149,8 +1170,15 @@ def _go_functions(text: str) -> list[tuple[str, str]]:
     thing treated as a boundary, so a closure inside a handler stays
     part of it -- correct here, because a writer that delegates to its
     own local helper is still one writer.
+
+    Boundaries are found in a copy with raw strings blanked, and the
+    bodies are sliced out of the original.  Without that, a line inside
+    one of this build's multi-line backtick SQL strings that happened to
+    start with ``func`` would split a handler in two and attribute
+    everything after it to a function that does not exist.
     """
-    starts = [(m.start(), m.group(1)) for m in _GO_FUNC.finditer(text)]
+    starts = [(m.start(), m.group(1))
+              for m in _GO_FUNC.finditer(text)]
     starts.append((len(text), ""))
     return [(name, text[begin:starts[index + 1][0]])
             for index, (begin, name) in enumerate(starts[:-1])]

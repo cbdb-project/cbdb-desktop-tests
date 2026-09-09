@@ -82,8 +82,20 @@ def _form_of(filename: str) -> str:
 
 #: The start of a top-level Go declaration, so a finding can be reported
 #: by the function it sits in rather than by a line number that the next
-#: build moves.
-_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)", re.MULTILINE)
+#: build moves.  The trailing ``(`` matters: it requires the shape of a
+#: real declaration, so a line inside one of this build's multi-line SQL
+#: strings that happens to begin with the word "func" is not mistaken
+#: for one.
+#:
+#: The obvious alternative -- blank the backtick strings first, then look
+#: for boundaries -- was tried and rejected, because it is *less* safe.
+#: ``networks_form_backend.go`` contains an odd number of backticks (517
+#: once comments are stripped), so pairing them shifts and a naive blank
+#: swallowed six real declarations, moving every finding after them into
+#: a function that does not exist.  Requiring the signature shape cannot
+#: eat code, which is the failure mode that matters here.
+_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)\s*[(\[]",
+                      re.MULTILINE)
 
 
 def _strip_comments(source: str) -> str:
