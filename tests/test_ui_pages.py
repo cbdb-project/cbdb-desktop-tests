@@ -47,7 +47,7 @@ import pytest
 
 from cbdb_desktop import browser, controls
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.defects import KnownShippedDefect
 
 pytestmark = [pytest.mark.app, pytest.mark.browser]
 
@@ -205,14 +205,6 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
               "btn-tab"),
 }
 
-#: Which of the declared preconditions are known to fail, and why.
-#: Keyed by (page, the controls it asserts) so a marker cannot drift
-#: onto the wrong row.
-_KNOWN_BROKEN = {
-    ("networks", ("btn-run",)): "stale-enable-state",
-}
-
-
 @dataclass
 class _Result:
     states: dict[str, str] = field(default_factory=dict)
@@ -329,15 +321,14 @@ def test_every_disabled_control_has_a_declared_precondition(layout):
           f"have a declared precondition")
 
 
+# One test per declared precondition, id'd by the page and the controls
+# it must un-grey ("networks-btn-run").  No precondition is expected to
+# fail: one that does is a control the user cannot press having done
+# everything the form asks, and it is reported as a failure.  Tolerating
+# one is a decision recorded in the waiver table under this function's
+# name plus that id -- never as a marker here.
 @pytest.mark.parametrize("pre", [
-    pytest.param(
-        pre,
-        id=f"{pre.page}-{'+'.join(pre.must_enable)}",
-        marks=[pytest.mark.xfail(
-            strict=True, raises=KnownShippedDefect,
-            reason=BY_NAME[_KNOWN_BROKEN[(pre.page, pre.must_enable)]].reason)]
-        if (pre.page, pre.must_enable) in _KNOWN_BROKEN else [],
-    )
+    pytest.param(pre, id=f"{pre.page}-{'+'.join(pre.must_enable)}")
     for pre in PRECONDITIONS
 ])
 def test_a_control_is_enabled_once_its_precondition_is_met(app: CbdbApp,

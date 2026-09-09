@@ -62,15 +62,19 @@ agreement, not that two renderings match" is the right level of honesty.
 - [ ] Anything that rewrites `BIOG_MAIN` runs on its own app and its own
       database copy.
 
-## E. If a defect was added, changed or retired
+## E. If a defect was found, filed, waived or retired
 
 - [ ] `issue-report-maintainer.md` was followed end to end.
 - [ ] The defect was verified through the running binary, and the
       innocent explanation was actively looked for and ruled out.
 - [ ] Both languages written; the Chinese reads as Chinese.
-- [ ] `xfail(strict=True, raises=KnownShippedDefect)`, reason quoted from
-      the registry, and the raise happens only on the exact signature.
-- [ ] Reports regenerated and read.
+- [ ] The test still **fails**: no marker was added anywhere, and the
+      `KnownShippedDefect` is raised only on the exact signature, with
+      the measured numbers in its message.
+- [ ] Anything agreed to leave alone is in the `CBDB_WAIVERS` table,
+      keyed by the test function name (plus parametrisation ids), dated,
+      bilingual, and narrowed with `raises` where it can be.
+- [ ] Reports regenerated and read, including the waived section.
 
 ## F. Documentation
 

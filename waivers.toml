@@ -1,0 +1,58 @@
+# waivers.toml -- outcomes discussed and agreed to leave as they are.
+#
+# Enabled by CBDB_WAIVERS in .env; absent or unset means no waivers at
+# all.  Every entry is keyed by a test function's own name (quote the key
+# if it carries a module: ["test_exports.py::test_x"]), optionally
+# narrowed with params to the parametrisation ids pytest prints.  That is
+# the only address that survives a round started with no state -- see
+# tests/cbdb_desktop/waivers.py, and AGENTS.md § "How a defect is
+# recorded, and how one is tolerated".
+#
+# Everything here is printed in both issue reports, with its reason, who
+# agreed and when.  Nothing is tolerated invisibly.
+#
+# mode defaults to "tolerate": the test still runs and its failure is
+# tolerated, so the day the problem disappears the run reports an
+# unexpected pass and the entry gets removed.  Deleting an entry is how a
+# waiver ends; there is no "fixed" state to record here.
+
+
+# --- One result per application, not per tab or per process ---------------
+#
+# The application keeps a query's result in scratch tables that are one
+# set per database, and nothing in a request identifies the tab or the
+# process it came from.  So a second query -- in another tab, or from a
+# second copy of cbdb.exe against the same Data/CBDB.db -- replaces what
+# the first was about to export, and main.go takes no single-instance
+# lock to prevent the second copy.
+#
+# Agreed to leave alone: giving each session its own namespace is a
+# redesign of how every form stores its working state, and the users of
+# this build work in one window at a time.  The three entries below are
+# one agreement, split only because they are three separate measurements
+# of it -- the export, the working list, and the missing lock.
+#
+# raises narrows each one to the recognised signature, so an unrelated
+# failure of the same test (a 500, a malformed response, a different
+# wrong answer) is still a failure rather than being covered by this.
+
+[test_a_second_query_replaces_what_the_first_would_export]
+raises    = "KnownShippedDefect"
+reason    = "Agreed to leave as it is: the scratch tables are one set per database, so a query in a second tab replaces what the first tab would export.  Namespacing them per session is a redesign of every form's working state, and this build's users work in one window at a time."
+reason_zh = "已協商暫時維持現狀：暫存表每個資料庫只有一組，因此在第二個分頁執行查詢，會取代第一個分頁即將匯出的內容。若要改成依工作階段（session）劃分命名空間，等於重新設計所有表單儲存工作狀態的方式；而這一版的使用者一次只會開一個視窗作業。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-09
+
+[test_a_second_working_list_replaces_the_first]
+raises    = "KnownShippedDefect"
+reason    = "The same agreement, one step earlier: two tabs of one form share a single working list, so the second import replaces the first and the query that follows is about the wrong people.  Left alone for the same reason."
+reason_zh = "同一項協商，發生在更早的一步：同一個表單的兩個分頁共用一份工作清單，因此第二次匯入會取代第一次，接下來的查詢對象也就換成了另一批人。基於同樣的理由暫時維持現狀。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-09
+
+[test_nothing_stops_a_second_instance_opening_the_database]
+raises    = "KnownShippedDefect"
+reason    = "The same agreement, at the process level: main.go takes no single-instance lock and chooses its port at random, so cbdb.exe can be launched twice against one database.  A lock file would be the cheap half of a fix, and it was agreed to leave that for a later build too."
+reason_zh = "同一項協商，發生在行程層級：main.go 沒有取得單一實例鎖，通訊埠也是隨機選取，因此 cbdb.exe 可以對同一個資料庫啟動兩次。加一個鎖檔是這個問題最便宜的一半修法，經協商同樣留待日後的版本處理。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-09

@@ -53,7 +53,7 @@ import pytest
 from cbdb_desktop import discovery
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import REPO_ROOT
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import (FORMS_BY_NAME, NARROWS, TOGGLES,
                                 WIDENS, FormSpec, Toggle)
 
@@ -395,8 +395,6 @@ def _resolve_needs(toggle: Toggle, sqlite_conn) -> dict:
     return out
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["ignored-empty-selection"].reason)
 def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
     """Ask the Places form for no categories at all, and see what arrives.
 
