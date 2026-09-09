@@ -71,6 +71,13 @@ EXPECTED_BUTTONS = {
     "texts": 18,
 }
 
+#: How many distinct ``/api/`` endpoints the shipped pages can reach.
+#: Pinned so that the gate below cannot certify coverage of a reachable
+#: set that has quietly shrunk: it is the denominator of the only
+#: coverage number this suite reports, and a denominator nobody checks
+#: is how "105 of 105" came to mean nothing.
+EXPECTED_REACHABLE_ENDPOINTS = 105
+
 #: Endpoints the pages can reach that this suite deliberately does not
 #: request, with the reason.  Every entry is a decision; the gate
 #: subtracts exactly these and nothing else, so an endpoint that stops
@@ -245,10 +252,38 @@ def test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run(
     it does.  Path variables are folded to ``{id}`` on both sides so a
     per-person sub-resource matches the route that declares it.
 
-    Methods are deliberately ignored.  A page's ``fetch`` carries its
-    method in an options object this extractor does not read, and
-    matching on the path alone is the conservative choice: it can only
-    under-report a gap, never invent one.
+    Methods are deliberately ignored *here*.  A page's ``fetch`` carries
+    its method in an options object this extractor does not read, so the
+    reachable set has no method to match against.
+
+    That was once the whole story, and the reasoning -- "matching on the
+    path alone can only under-report a gap, never invent one" -- was
+    wrong in the one way that mattered.  ``test_routes.py`` sends a
+    ``PATCH`` to every registered ``/api/`` path to prove the route
+    still exists, mux answers 405 without entering the handler, and
+    ``CbdbApp.requested`` recorded it anyway.  One probe therefore
+    marked every endpoint driven, this gate reported 105 reachable /
+    105 covered / 0 gaps, and fourteen endpoints nothing had ever really
+    requested sat inside that 100%.
+
+    The fix is in the recorder, not here: ``CbdbApp`` no longer records
+    a request the router refused with 405 (see ``_ROUTER_REFUSED``), so
+    the probe leaves no trace and a path is "driven" only when some
+    handler actually ran for it.  Ignoring the method is safe again.
+
+    "Driven" still means only that a handler ran -- a 400, a 409 or a
+    500 counts.  This gate measures whether the suite *reached* every
+    endpoint the interface can, which is the question it is named
+    after; whether each answer was right is every other test's job.
+
+    Worth naming where that is generous, because it is the PATCH probe's
+    shape one level up: the kinship and networks ``store-person-ids``
+    endpoints count as reached on the strength of
+    ``test_stateful_forms.py``, which posts to them only to assert they
+    answer **409** and refuse to overwrite.  The suite has watched those
+    two decline; it has never seen either succeed.  Their ``/confirmed``
+    siblings -- what the page calls once the user says yes -- are two of
+    the gaps below, which is how that shows up rather than being hidden.
     """
     filtered = _run_was_filtered(request.config)
     if filtered:
@@ -262,6 +297,24 @@ def test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run(
         html = path.read_text(encoding="utf-8", errors="replace")
         for endpoint in controls.endpoints_in_page(html):
             reachable.setdefault(endpoint, set()).add(page)
+
+    # The gate's own liveness, pinned exactly.  With no reachable set
+    # there are no gaps and this passes while measuring nothing -- "a
+    # check that can silently skip is not a check", which is what this
+    # file is for.  One extractor regression away, and it would write
+    # "reachable_from_the_ui": 0 into the artefact and go green.
+    #
+    # Exact and not "> 90": a floor that admits 91 admits an extractor
+    # that has quietly stopped seeing ten endpoints, which is the same
+    # partial decay this whole commit is about.  § *Pin exactly, not
+    # with a floor* -- and a build that gains or drops an endpoint is
+    # expected to fail here and be read.
+    assert len(reachable) == EXPECTED_REACHABLE_ENDPOINTS, (
+        f"{len(reachable)} endpoints were found in the shipped pages, not "
+        f"{EXPECTED_REACHABLE_ENDPOINTS}.  If the build gained or dropped "
+        "one, update the number in the same commit as the reason; if it did "
+        "not, controls.endpoints_in_page has stopped reading some and this "
+        "gate is about to certify coverage of less than it thinks")
 
     driven = {path for _method, path in CbdbApp.requested}
     excused = set(ENDPOINTS_NOT_DRIVEN)
