@@ -41,7 +41,10 @@ class FormSpec:
     #: Build the export body from the query response.  Some forms take the
     #: rows back; others re-read the scratch tables and take nothing.
     export_body: Callable[[Any], dict[str, Any]] = lambda payload: {"data": payload}
-    #: CSV files the export is expected to return.
+    #: Files the export is expected to return.  Tab-delimited and named
+    #: ``.tsv`` since the 2026-09-08 build, which renamed every one of
+    #: them from ``.csv`` -- see the note above ``EXPORTS`` in
+    #: ``exports.py``, which pins the same names for all 42 endpoints.
     export_files: tuple[str, ...] = ()
     #: True when the export ignores the request body and re-reads the
     #: scratch tables the last query filled.  Entry and associations do
@@ -124,7 +127,7 @@ FORMS: tuple[FormSpec, ...] = (
         body=lambda codes: {"entryCodes": codes, "addrIds": [],
                             "addrSubUnits": False, "addressFrame": 1,
                             "yearFilterType": "none"},
-        export_files=("EntryData_UTF8.csv", "EntryPeopleData_UTF8.csv"),
+        export_files=("EntryData_UTF8.tsv", "EntryPeopleData_UTF8.tsv"),
         export_reads_scratch=True,
         subunit_field="addrSubUnits",
         row_has_dynasty_code=True,
@@ -141,7 +144,7 @@ FORMS: tuple[FormSpec, ...] = (
                             "peopleAddrSubUnits": False, "officeAddrIds": [],
                             "officeAddrSubUnits": False,
                             "yearFilterType": "none"},
-        export_files=("OfficePostings.csv", "OfficePostingsPeople.csv"),
+        export_files=("OfficePostings.tsv", "OfficePostingsPeople.tsv"),
         addr_field="peopleAddrIds",
         subunit_field="peopleAddrSubUnits",
     ),
@@ -159,7 +162,7 @@ FORMS: tuple[FormSpec, ...] = (
         people_key="people",
         export_body=lambda payload: {"statusData": payload["status"],
                                      "peopleData": payload["people"]},
-        export_files=("StatusRecords.csv", "StatusRecordsPeople.csv"),
+        export_files=("StatusRecords.tsv", "StatusRecordsPeople.tsv"),
         year_filter_field="yearFilter",
         index_year_mode="index",
         notes="uses yearFilter, not yearFilterType, and its own vocabulary",
@@ -179,7 +182,7 @@ FORMS: tuple[FormSpec, ...] = (
         body=lambda codes: {"textIds": codes, "addrIds": [],
                             "includeSubUnits": False, "yearFilterType": "",
                             "queryMode": "source"},
-        export_files=("TextSourceRecords.csv", "TextSourceRecordsPeople.csv"),
+        export_files=("TextSourceRecords.tsv", "TextSourceRecordsPeople.tsv"),
     ),
     FormSpec(
         name="associations",
@@ -196,7 +199,7 @@ FORMS: tuple[FormSpec, ...] = (
         # the query filled, which makes it the strongest available
         # cross-check of the two paths against each other.
         export_body=lambda payload: {},
-        export_files=("Associations_UTF8.csv", "AssociationsPeople_UTF8.csv"),
+        export_files=("Associations_UTF8.tsv", "AssociationsPeople_UTF8.tsv"),
         export_reads_scratch=True,
     ),
     FormSpec(
@@ -208,7 +211,7 @@ FORMS: tuple[FormSpec, ...] = (
         body=lambda codes: {"addrIds": codes, "includeSubUnits": False,
                             "yearFilterType": "none", "includeBiog": True,
                             "filterBac": False, "bacCodes": []},
-        export_files=("PlacePeopleRecords.csv", "PlacePeopleRecordsPeople.csv"),
+        export_files=("PlacePeopleRecords.tsv", "PlacePeopleRecordsPeople.tsv"),
         row_has_dynasty_code=True,
     ),
 )

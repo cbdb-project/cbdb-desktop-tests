@@ -96,6 +96,15 @@ class ExportSpec:
     #: multi-file envelope; the single file's name for SINGLE_FILE;
     #: empty for RAW, which names its file in a header instead.
     files: tuple[str, ...] = ()
+    #: True when the files are an import set for another program to read
+    #: rather than something a person opens.  The Neo4j exports are the
+    #: only ones: they are staged for ``LOAD CSV``, which reads a
+    #: byte-order mark as part of the first column's name, so the build
+    #: omits the mark there on purpose while writing it to every
+    #: spreadsheet-facing ``.tsv``.  Recorded here rather than decided
+    #: in a test, so the exclusion is one line of the inventory that the
+    #: next round inherits.
+    machine_import: bool = False
     notes: str = ""
 
     @property
@@ -161,6 +170,21 @@ def _group_records(**extra: Any) -> Callable[[Any], dict]:
     return build
 
 
+#: On the 2026-09-08 build every tab-delimited export is named ``.tsv``.
+#: It ships one writer for them -- ``csv.NewWriter`` with ``Comma =
+#: '\t'`` -- and until this build the files it produced were handed out
+#: as ``.csv``, ``.tab`` or ``.txt`` depending on the form, none of
+#: which described a tab-delimited file.  The rename is deliberate and
+#: it is consistent across all eleven of them (see e.g.
+#: ``entry_form_backend.go:944`` "Tab-delimited .tsv file -- matches VBA
+#: GIS header exactly"), so the pins below follow the build.
+#:
+#: The Neo4j bundles are the deliberate exception and keep ``.csv``:
+#: they are an import set for ``LOAD CSV``, not a file anyone opens in a
+#: spreadsheet, and the same commit that added the Excel byte-order mark
+#: to the ``.tsv`` writers left the Neo4j ones without it on purpose
+#: ("Excel needs the BOM to recognize UTF-8; Neo4j exports omit it").
+#
 #: The six Neo4j exports that ship a fixed six-file set, and the two
 #: that do not, are all pinned individually below.  Written out rather
 #: than generated: the file *order* differs between forms (office puts
@@ -176,7 +200,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="entry", path="/api/entry/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_nothing,
         reads_scratch=True,
-        files=("EntryData_UTF8.csv", "EntryPeopleData_UTF8.csv"),
+        files=("EntryData_UTF8.tsv", "EntryPeopleData_UTF8.tsv"),
         notes="dumps ZZ_SCRATCH_ENTRY; ignores the request body",
     ),
     ExportSpec(
@@ -196,6 +220,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=_NEO4J_PEOPLE_PLACES + ("PeopleEntry_UTF8.csv",
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "EntryCodes_UTF8.csv"),
+        machine_import=True,
     ),
     ExportSpec(
         form="entry", path="/api/entry/save-entry-codes", family="save",
@@ -204,7 +229,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
             {"code": row["entryCode"], "desc": row.get("entryDesc", ""),
              "descChn": row.get("entryChn", "")}
             for row in payload[:5]]},
-        files=("entry_codes.txt",),
+        files=("entry_codes.tsv",),
         notes="saves the picker's selection so it can be re-imported",
     ),
 
@@ -212,7 +237,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="office", path="/api/office/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
-        files=("OfficePostings.csv", "OfficePostingsPeople.csv"),
+        files=("OfficePostings.tsv", "OfficePostingsPeople.tsv"),
     ),
     ExportSpec(
         form="office", path="/api/office/export-gis", family="gis",
@@ -236,13 +261,14 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=("People_UTF8.csv", "PeopleOffice_UTF8.csv", "Places_UTF8.csv",
                "PeoplePlaces_UTF8.csv", "PeoplePlacesCodes_UTF8.csv",
                "OfficeCode_UTF8.csv"),
+        machine_import=True,
     ),
 
     # -- status (registered at the top level, without /status/) ------------
     ExportSpec(
         form="status", path="/api/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_status_and_people(),
-        files=("StatusRecords.csv", "StatusRecordsPeople.csv"),
+        files=("StatusRecords.tsv", "StatusRecordsPeople.tsv"),
     ),
     ExportSpec(
         form="status", path="/api/export-gis", family="gis",
@@ -261,13 +287,14 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=_NEO4J_PEOPLE_PLACES + ("PeopleStatus_UTF8.csv",
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "StatusCode_UTF8.csv"),
+        machine_import=True,
     ),
 
     # -- texts ------------------------------------------------------------
     ExportSpec(
         form="texts", path="/api/texts/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
-        files=("TextSourceRecords.csv", "TextSourceRecordsPeople.csv"),
+        files=("TextSourceRecords.tsv", "TextSourceRecordsPeople.tsv"),
     ),
     ExportSpec(
         form="texts", path="/api/texts/export-gis", family="gis",
@@ -285,13 +312,14 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=("People_UTF8.csv", "PeopleText_UTF8.csv", "Places_UTF8.csv",
                "PeoplePlaces_UTF8.csv", "PeoplePlacesCodes_UTF8.csv",
                "TextCode_UTF8.csv"),
+        machine_import=True,
     ),
 
     # -- places -----------------------------------------------------------
     ExportSpec(
         form="places", path="/api/places/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
-        files=("PlacePeopleRecords.csv", "PlacePeopleRecordsPeople.csv"),
+        files=("PlacePeopleRecords.tsv", "PlacePeopleRecordsPeople.tsv"),
     ),
     ExportSpec(
         form="places", path="/api/places/export-gis", family="gis",
@@ -310,6 +338,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
                "Places_UTF8.csv", "PeoplePlaceRelations_UTF8.csv",
                "PeoplePlaceRelationCodes_UTF8.csv",
                "IndexAddrCode_UTF8.csv"),
+        machine_import=True,
     ),
     ExportSpec(
         form="places", path="/api/places/export-pajek", family="pajek",
@@ -332,7 +361,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="associations", path="/api/associations/export-query",
         family="results", envelope=STATUS_FILES, content=TABLE,
         body=_nothing, reads_scratch=True,
-        files=("Associations_UTF8.csv", "AssociationsPeople_UTF8.csv"),
+        files=("Associations_UTF8.tsv", "AssociationsPeople_UTF8.tsv"),
         notes="re-reads ZZ_SN_ASSOC / ZZ_SP_ASSOC (per-form since "
               "2026-09-07; the shared tables were CBDB-D-004)",
     ),
@@ -354,20 +383,21 @@ EXPORTS: tuple[ExportSpec, ...] = (
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "AssociationCodes_UTF8.csv"),
         notes="answers HTTP 500 on this build -- see CBDB-D-009",
+        machine_import=True,
     ),
 
     # -- kinship ----------------------------------------------------------
     ExportSpec(
         form="kinship", path="/api/kinship/export-results", family="results",
         envelope=FILES, content=TABLE, body=_nothing, reads_scratch=True,
-        files=("KinshipNetwork.csv", "EgoRelativeKinship.csv",
-               "KinshipPeople.csv"),
+        files=("KinshipNetwork.tsv", "EgoRelativeKinship.tsv",
+               "KinshipPeople.tsv"),
         notes="reads ZZ_SCRATCH_KINNET and friends under kinshipMu",
     ),
     ExportSpec(
         form="kinship", path="/api/kinship/export-gis", family="gis",
         envelope=SINGLE_FILE, content=TABLE,
-        body=_whole_payload(format="tab"), files=("kin_gis.tab",),
+        body=_whole_payload(format="tab"), files=("kin_gis.tsv",),
     ),
     ExportSpec(
         form="kinship", path="/api/kinship/export-gis", family="kml",
@@ -380,6 +410,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=("People_UTF8.csv", "PeopleKinship_UTF8.csv",
                "Places_UTF8.csv", "PeoplePlaces_UTF8.csv",
                "KinshipCodes_UTF8.csv"),
+        machine_import=True,
     ),
     ExportSpec(
         form="kinship", path="/api/kinship/export-pajek", family="pajek",
@@ -405,12 +436,12 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="networks", path="/api/networks/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_nothing,
         reads_scratch=True,
-        files=("Networks_UTF8.csv", "NetworkPeople_UTF8.csv"),
+        files=("Networks_UTF8.tsv", "NetworkPeople_UTF8.tsv"),
     ),
     ExportSpec(
         form="networks", path="/api/networks/export-gis", family="gis",
         envelope=SINGLE_FILE, content=TABLE, body=_nothing,
-        reads_scratch=True, files=("network_gis_UTF8.tab",),
+        reads_scratch=True, files=("network_gis_UTF8.tsv",),
     ),
     ExportSpec(
         form="networks", path="/api/networks/export-kml", family="kml",
@@ -423,6 +454,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=_NEO4J_PEOPLE_PLACES + ("PeopleAssociations_UTF8.csv",
                                       "AssociationCodes_UTF8.csv",
                                       "KinshipCodes_UTF8.csv"),
+        machine_import=True,
     ),
     ExportSpec(
         form="networks", path="/api/networks/export-pajek", family="pajek",
@@ -449,14 +481,15 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="assocpairs", path="/api/assocpairs/export-results",
         family="results", envelope=STATUS_FILES, content=TABLE,
         body=_nothing, reads_scratch=True,
-        files=("AssocPairsNetwork.csv", "AssocPairsPeople.csv"),
+        files=("AssocPairsNetwork.tsv", "AssocPairsPeople.tsv"),
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-gis", family="gis",
         envelope=SINGLE_FILE, content=TABLE,
         body=_whole_payload(format="tab"),
-        files=("assocpairs_network.txt",),
-        notes="the only GIS export named .txt rather than .tab",
+        files=("assocpairs_network.tsv",),
+        notes="was the only GIS export named .txt; the 2026-09-08 "
+              "build renamed every tab-delimited export to .tsv",
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-gis", family="kml",
@@ -469,6 +502,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         family="neo4j", envelope=STATUS_FILES, content=TABLE,
         body=_whole_payload(),
         files=_NEO4J_PEOPLE_PLACES + ("AssociationRecords_UTF8.csv",),
+        machine_import=True,
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-sna", family="pajek",
@@ -498,9 +532,9 @@ EXPORTS: tuple[ExportSpec, ...] = (
             {"personIds": payload["_personIds"]},
             queryStatus=True, queryOffice=True, queryEntry=True,
             queryText=True, queryAddr=True),
-        files=("GroupStatusData_UTF8.csv", "GroupPostingsData_UTF8.csv",
-               "GroupEntryData_UTF8.csv", "GroupTextData_UTF8.csv",
-               "GroupPlacesData_UTF8.csv"),
+        files=("GroupStatusData_UTF8.tsv", "GroupPostingsData_UTF8.tsv",
+               "GroupEntryData_UTF8.tsv", "GroupTextData_UTF8.tsv",
+               "GroupPlacesData_UTF8.tsv"),
         notes="re-runs the query from the person ids rather than "
               "formatting the rows it is given",
     ),
@@ -511,10 +545,11 @@ EXPORTS: tuple[ExportSpec, ...] = (
                             exportOffice=True, exportOfficePeople=True,
                             exportEntry=True, exportText=True,
                             exportAddr=True),
-        files=("status_gis_UTF8.tab", "office_office_gis_UTF8.txt",
-               "office_people_gis_UTF8.tab", "entry_gis_UTF8.tab",
-               "text_gis_UTF8.tab", "place_gis_UTF8.tab"),
-        notes="six files for six sections; one of them is named .txt",
+        files=("status_gis_UTF8.tsv", "office_office_gis_UTF8.tsv",
+               "office_people_gis_UTF8.tsv", "entry_gis_UTF8.tsv",
+               "text_gis_UTF8.tsv", "place_gis_UTF8.tsv"),
+        notes="six files for six sections; on earlier builds five were "
+              "named .tab and one .txt, all six now .tsv",
     ),
     ExportSpec(
         form="groupdata", path="/api/groupdata/export-gis", family="kml",
@@ -539,6 +574,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
         notes="the one Neo4j export with a conditional file: "
               "InstitutionCodes_UTF8.csv appears only when the result "
               "has institution data, and this fixture's does not",
+        machine_import=True,
     ),
 )
 
