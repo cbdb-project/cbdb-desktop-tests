@@ -41,23 +41,41 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 822 tests, ~689 passing, 86 xfailed against nine
-confirmed defects, ~47 skipped, nothing failing.**  Measured on the
-2026-09-07 build, from a cold restage: the tests take ~280 s, of which
-the browser tests are ~110 s, and `run_tests.ps1` adds ~15 s for
-`generate_report.py` (most of that is Word starting twice to write the
-PDFs).  Every skip says what it could not judge and why -- a discovered
+**Current state: 803 tests collected, and the defect registry is
+deliberately empty.**  Cleared on 2026-09-08, together with the previous
+round's reports and every run artefact, so that the next distribution is
+assessed with no carried-over knowledge of what an earlier build did --
+§ *Every run is a fresh assessment*, taken to its limit at the
+maintainer's request.  What was removed is the *expectation*: the nine
+registry entries and every `xfail` marker that quoted them.  What was
+kept is the *detection*: the tests still raise `KnownShippedDefect` on
+the exact signatures they check for, so a defect that is still there
+reports as an ordinary **failure** with its signature in the message,
+and is triaged and re-filed from scratch.  Expect the first run on a new
+build to be red, and read every failure as a lead rather than a
+regression.
+
+For scale, from the last measured round (2026-09-07 build, cold
+restage): ~280 s for the tests, of which the browser tests are ~110 s,
+plus ~15 s for `generate_report.py` (most of that is Word starting twice
+to write the PDFs).  Every skip says what it could not judge and why -- a discovered
 combination with no rows, a file with no non-ASCII text, a switch whose
 two positions this data cannot distinguish -- which is also why the
-passed/skipped split moves by one or two between runs.  The total, the
-xfail count and *zero failures* are the numbers to read.
+passed/skipped split moves by one or two between runs.
+
+There is no expected-failure count to read any more, and that is
+deliberate -- see § *How a defect is recorded, and how one is
+tolerated*. A failure is either something to fix, something to file, or
+something to agree to leave alone in the waiver table; it is never
+something the suite quietly expects.
 
 Of those tests, 254 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep) and 247 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`: **105 of 105** endpoints reachable
-from the user interface were actually requested, with nothing excused.
+`artifacts/endpoint_coverage.json`; last measured, on the 2026-09-07
+build, **105 of 105** endpoints reachable from the user interface were
+actually requested, with nothing excused.
 Enable-state coverage is the honest counterpart: 14 of the 106 controls
 that ship `disabled` have a declared precondition, and the other 92 are
 pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
@@ -316,15 +334,16 @@ what makes it an oracle.
 
 Everything except `test_ui_pages.py` talks HTTP, and that covers what
 the server computes and nothing about what the user gets. Four of the
-defects in this build live in the gap, and three of them arrived as the
-maintainer's own reports rather than as a test failure:
+2026-09-07 round's findings lived in that gap, and three of them arrived
+as the maintainer's own reports rather than as a test failure. The
+*shapes* are what to carry forward, not the ids:
 
-| defect | the server | the user |
-|---|---|---|
-| CBDB-D-013 | answers every request correctly | Run Query is grey with its precondition met |
-| CBDB-D-012 | returns both files, identically, every time | gets one file and is told it got two |
-| CBDB-D-011 | writes valid UTF-8 | opens it in Excel and sees mojibake |
-| CBDB-D-014 | applies a documented fallback | gets a category they unticked |
+| the server | the user |
+|---|---|
+| answers every request correctly | a button is grey with its precondition met |
+| returns both files, identically, every time | gets one file and is told it got two |
+| writes valid UTF-8 | opens it in Excel and sees mojibake |
+| applies a documented fallback | gets a category they unticked |
 
 `cbdb_desktop/browser.py` drives the shipped pages in a real Chromium
 through Playwright and reports three things a page cannot hide: what it
@@ -573,14 +592,22 @@ tests/cbdb_desktop/     infrastructure only — no *oracle* SQL lives here
   exports.py            the 45-endpoint export inventory (envelope, files)
   controls.py           every button in Templates/, and what it calls
   discovery.py          picks populated inputs out of the shipped database
-  defects.py            the defect registry, in English and Chinese
+  defects.py            this round's findings, in English and Chinese --
+                        read only while its report is written
+  waivers.py            the optional CBDB_WAIVERS table: outcomes agreed
+                        to leave alone, keyed by test function name
 tests/test_*.py         the tests themselves
+  test_waivers.py         the waiver table, and the ban on any other
+                          way to tolerate a failure
+  test_reports.py         the report: reproducible, invents nothing,
+                          drops nothing, hides no waiver
   test_zz_controls.py     ...runs LAST: judges the whole run's coverage
 reports/generate_report.py   registry + one run → both reports, 3 formats
 run_tests.ps1           stage → test → report, one command
 stage.py                stage without running pytest
 artifacts/              gitignored: app logs, test_inputs.json,
-                        endpoint_coverage.json — a run's measurements
+                        endpoint_coverage.json, waivers_applied.json —
+                        a run's measurements
 work/                   gitignored: the staged distribution (1.4 GB)
 ```
 
@@ -616,57 +643,62 @@ after extraction is restaged, not served.
 
 ## Confirmed defects in the shipped build
 
-Full accounts, in both languages, in `reports/CBDB_Desktop_Issues_*.md`.
-The registry is `tests/cbdb_desktop/defects.py`.
+**None recorded.**  The registry (`tests/cbdb_desktop/defects.py`) was
+emptied on 2026-09-08, together with the previous round's reports and
+every run artefact, for a deliberately stateless assessment of the next
+distribution.
 
-| id | pri | origin | what |
-|---|---|---|---|
-| CBDB-D-011 | P0 | software | Every exported CSV is UTF-8 without a byte-order mark, so Excel shows Chinese names as mojibake |
-| CBDB-D-012 | P0 | software | A multi-file export saves only the first file and reports that it saved them all |
-| CBDB-D-013 | P0 | software | Run Query stays greyed out on the Networks form after the page is reopened |
-| CBDB-D-008 | P2 | software | Three of the Networks form's export buttons always fail |
-| CBDB-D-009 | P2 | software | The Associations form's Neo4j export always fails |
-| CBDB-D-007 | P0 | software | Two KML exports produce a file no mapping tool will open |
-| CBDB-D-002 | P2 | software | The Query Builder offers 30 columns that do not exist |
-| CBDB-D-010 | P0 | software | Two browser tabs, or two copies of the application, share one result |
-| CBDB-D-014 | P0 | software | Unticking every category on the Places form still returns biographical addresses |
+There is no list here of what earlier builds did, and that is the point.
+The record is the git history of `defects.py` and of
+`reports/CBDB_Desktop_Issues_*.md`; reading it before a fresh round is
+exactly what this clearing exists to prevent, because a reader who knows
+last round's nine findings looks for those nine.  If you want to know
+what an earlier build did *after* forming your own judgement,
+`git log -p tests/cbdb_desktop/defects.py` has it.
 
-Where they cluster is not a coincidence. Six are about exports and
-three are in the pages' own JavaScript -- the two places this suite had
-no coverage at all until 2026-09-08, and between them most of where a
-user's experience of the application actually happens.
+What survived the clearing is every mechanism that finds a defect: the
+inventories, the discovered matrix, the browser layer, and each test's
+`raise KnownShippedDefect(<the exact signature>)`.  Only the `xfail`
+markers and the registry entries came off, so the first run on a new
+build reports its findings as **failures**.  Triage each one, verify it
+end to end (§ *Reproduce it yourself*), and file it into the empty
+registry in both languages -- see
+`docs/skills/issue-report-maintainer.md`.
 
-**Fixed in the 2026-09-07 build**, entries deleted per § *Every run is a
-fresh assessment*; listed here only so a reader of an older report knows
-where they went. Do not re-add them without evidence from the build in
-front of you.
+Two things from earlier rounds that are method, not findings, and worth
+carrying:
 
-| id | what | how it was resolved |
-|---|---|---|
-| CBDB-D-001 | Person search finds nothing for terms of 3+ characters | `RunZZZNames` now compares `ZZZ_NAMES_FTS_docsize` against `ZZZ_NAMES` inside its own transaction and rolls back on a mismatch. The shipped index has all 869,754 rows |
-| CBDB-D-004 | Another form's query empties the Associations export | per-form scratch tables (§3) |
-| CBDB-D-005 | The release ships a previous session's working state | `release` origin: a fresh build per release. All `ZZ_*` ship empty |
-| CBDB-D-003 | A name indexed for a person the database lacks | `data` origin: a clean rebuild. Zero orphans |
-| CBDB-D-006 | A malformed ranking is accepted and applied to every person | `buildCleanRanks` — the contract changed rather than tightened, see below |
+* **Where defects clustered was not a coincidence:** the exports and the
+  pages' own JavaScript, which is where most of a user's experience of
+  this application actually happens.  Press every export and load every
+  page before concluding a build is clean.
+* **Never drop a finding because a previous build called it fixed**, and
+  equally never re-add one because an earlier report had it.  Both are
+  the same mistake: judging this build by the last one.
 
-CBDB-D-006 is the one worth reading before touching
-`test_index_addr.py`: the fix does **not** reject a malformed ranking,
-it reinterprets it. A short array's zero padding is now "not set"
-rather than address type 0; a repeated address type is silently folded
-to its first occurrence instead of rejecting the whole request; and a
-gap no longer truncates the ranking, because survivors are packed to the
-front. Three tests that used to assert a 400 now assert the new
-behaviour, and one (`test_a_short_ranking_is_applied_as_exactly_what_it
-_named`) asserts the thing that actually mattered: nothing the request
-did not name comes back as a priority.
+One piece of *build* knowledge worth keeping, because it changes how a
+test must be read rather than asserting anything about a defect: as of
+the 2026-09-07 build, `buildCleanRanks` does **not** reject a malformed
+index-address ranking, it reinterprets it.  A short array's zero padding
+is "not set" rather than address type 0; a repeated address type is
+silently folded to its first occurrence instead of rejecting the whole
+request; and a gap no longer truncates the ranking, because survivors
+are packed to the front.  That is why several tests in
+`test_index_addr.py` assert the new behaviour rather than a 400, and why
+one (`test_a_short_ranking_is_applied_as_exactly_what_it_named`) asserts
+the thing that actually mattered: nothing the request did not name comes
+back as a priority.  Read it before touching that file.
 
-Those titles are copied from the registry verbatim, and
-`test_defect_registry.py` keeps the rest of each entry honest -- it
-checks that every `source` reference still resolves in the staged
-build, that both languages are filled in, and that the named tests
-exist. Do not paraphrase a title here: "an Association Pairs query"
-and "an 8-slot ranking" were both wrong, because Networks and Kinship
-trigger D-004 too and an 11-slot ranking is accepted as well.
+`test_defect_registry.py` is what keeps a filed entry honest -- it
+checks that every `source` reference still resolves in the staged build,
+that both languages are filled in, and that the named tests exist.  With
+an empty registry it collects one test and reports the rest as an empty
+parameter set, which pytest prints as a skip; that is the correct
+reading of "there is nothing to check yet", and those skips should come
+back as tests the moment a defect is filed.  Do not paraphrase a title
+when you file one: "an Association Pairs query" and "an 8-slot ranking"
+were both wrong in an earlier round, and a wrong title in a report costs
+the whole report its credibility.
 
 **Things that look like defects and are not** — check before filing.
 Each of these was investigated and left alone; the reasoning is in the
@@ -707,30 +739,94 @@ named test, and re-deriving it costs an hour.
 
 ---
 
-## How a defect is recorded
+## ⭐ How a defect is recorded, and how one is tolerated
 
-Never a bare `assert`. Every defect is:
+Two different things, deliberately in two different places, and neither
+of them is a marker next to a test.
+
+### Found: the test says which failure it found
 
 ```python
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["name-search"].reason)
 def test_...:
     ...
     if <the exact known signature>:
-        raise KnownShippedDefect("...")
+        raise KnownShippedDefect("<the signature, in the message>")
     assert <what should happen>
 ```
 
-That combination is doing three jobs: the run stays green (a permanently
-red suite trains people to ignore it), the reason prints on every run,
-and a **fix** turns the test green-unexpectedly, which pytest reports as
-an error so the marker gets removed. Narrowing to `raises=` is what stops
-the marker from swallowing a *different* failure of the same test.
+`KnownShippedDefect` is an `AssertionError`, so this **fails**. That is
+the point: the suite reports what the build does, and a finding stays a
+failure until somebody fixes it or somebody agrees to leave it. What the
+`raise` buys over a bare `assert` is the message -- the exact signature
+that was recognised, so triage starts from "this is the known shape"
+rather than from a diff of two numbers.
+
+There is no `xfail` anywhere in this suite, and
+`test_waivers.py::test_no_test_file_expects_a_failure_of_its_own` reads
+every test module's syntax tree to keep it that way. The reason is worth
+stating, because the marker model is what this repo used until
+2026-09-08 and it fails in a specific way: a marker quotes a registry
+entry, the registry entry survives into the next round, and from then on
+the suite measures the registry rather than the build. The first agent
+to assess a new distribution starts by reading nine findings and looks
+for those nine.
+
+### Filed: the registry, for as long as it takes to write the report
+
+`tests/cbdb_desktop/defects.py` holds one round's findings while that
+round writes its report, in both languages, each entry citing where it
+lives in the build and which tests demonstrate it.
+`reports/generate_report.py` renders it plus that run's JSON; the next
+round starts empty. Nothing else reads it, and
+`test_waivers.py::test_the_registry_is_not_wired_into_any_expectation`
+enforces that: no test module may import anything from the registry but
+`KnownShippedDefect`. `test_defect_registry.py` keeps a filed entry
+honest -- the sources it cites resolve in the staged build, both
+languages are filled in, the tests it names exist -- and
+`test_reports.py` keeps the report honest about the registry: rendered
+twice it is byte-identical, it names no issue the registry does not
+hold, it drops none, and it hides nothing that was waived.
 
 See `docs/skills/issue-report-maintainer.md` before adding or changing
-one.
+an entry.
 
----
+### Tolerated: the waiver table, keyed by the program's own names
+
+Some findings are negotiated rather than fixed -- "yes, that is wrong;
+for our readers it does not matter this year". That is legitimate, and
+it is the one thing that has to persist across rounds, so it lives in a
+table **outside** the suite, at `CBDB_WAIVERS`, absent by default:
+
+```toml
+[test_an_export_produces_a_well_formed_file]
+params    = ["entry:kml", "places:kml"]
+reason    = "Agreed 2026-09-10: the KML preamble is cosmetic for us."
+reason_zh = "2026-09-10 協商：KML 檔頭對我們的使用者只是外觀問題。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-10
+expires   = 2026-12-01          # optional; past it, the run goes red
+```
+
+**The key is a test function's name, plus the parametrisation ids it
+ran with, and that is not a convenience.** It is the only address that
+survives a stateless round: an id of our own -- `W-001`, `CBDB-D-007` --
+is assigned while one report is written and points at nothing the next
+time the table is read. A function name is part of the program; rename
+or delete the test and the table stops matching and says so, which is
+exactly the failure mode a waiver list must have. (Quote the key when it
+carries a module: `["test_exports.py::test_x"]`.)
+
+The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
+
+| | |
+|---|---|
+| `mode = "tolerate"` (default) | the test still runs; a failure becomes a **strict** xfail, so the waived thing going away is reported and the waiver gets retired. A waiver is not a way to stop measuring |
+| `mode = "skip"` | the test does not run. Costs coverage: a skipped test issues no requests, so `test_zz_controls.py` may fail *because* of the waiver -- correctly. Needs a `note` saying why `tolerate` would not do |
+| `raises = "KnownShippedDefect"` | narrows the tolerance to the recognised signature, so an unrelated crash of the same test still fails. The only value allowed |
+| unset `CBDB_WAIVERS` | no waivers, which is every fresh checkout |
+| set but missing or malformed | the run stops. A table that silently fails to load would quietly re-expose everything in it, with the run looking normal |
+| a waiver matching nothing | `test_waivers.py` fails, naming the collected ids it could not match. A mistyped waiver un-waives what it meant to cover, and the failure then reads as a fresh regression |
+| every applied waiver | recorded in `artifacts/waivers_applied.json` and printed in **both** reports with its reason, who agreed and when. Nothing is tolerated invisibly |
 
 ## Standard workflow after a new distribution zip
 
@@ -813,7 +909,7 @@ These are the ones that actually bit during this project.
 | `cbdb-desktop-probe.md` | driving the real binary, or writing a probe script |
 | `oracle-discipline.md` | writing or reviewing any assertion |
 | `coverage-inventories.md` | adding coverage of anything — an endpoint, a button, a filter |
-| `issue-report-maintainer.md` | adding, changing or retiring a defect |
+| `issue-report-maintainer.md` | adding, changing or retiring a defect, or waiving one |
 | `programmer-self-review-template.md` | reporting any change back |
 
 ---

@@ -53,7 +53,7 @@ from collections import Counter
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.exports import (
     EXPORTS,
     FILES,
@@ -744,59 +744,27 @@ def test_the_inventory_covers_every_form_that_can_export(layout):
 # every export, driven
 # ---------------------------------------------------------------------------
 
-# Which of the four checks below each known defect makes fail, so the
-# marker goes on exactly those parameters and a fix shows up as an XPASS
-# on precisely the check that was broken.  A blanket xfail per endpoint
-# would swallow the three checks that still pass -- and then report the
-# fix as three unexpected passes nobody can interpret.
+# The four checks every endpoint in the inventory gets put through.
+# None of them carries an expectation of failure: an endpoint that is
+# broken fails, and tolerating that is a decision recorded outside the
+# suite, in the waiver table, addressed by this test's own name and the
+# parametrisation id below (``cbdb_desktop/waivers.py``).  A marker
+# written here instead would be invisible policy -- and, keyed to a
+# defect id that only exists while a report is being written, would
+# stop meaning anything on the next stateless round.
 _ALL_CHECKS = frozenset({"well_formed", "people", "repeatable", "empty"})
-_KNOWN_BROKEN: dict[str, tuple[str, frozenset[str]]] = {
-    # HTTP 500 on every request, so every check that presses the button.
-    "networks:pajek": ("networks-sna-exports", _ALL_CHECKS),
-    "networks:gephi": ("networks-sna-exports", _ALL_CHECKS),
-    "networks:ucinet": ("networks-sna-exports", _ALL_CHECKS),
-    # HTTP 500 whenever the result involves an address, which is every
-    # non-empty result -- but *not* on an empty one, where there is no
-    # ADDR_CODES row to scan and the export succeeds.  So the
-    # nothing-to-export check is the one that still passes, and marking
-    # it xfail would report a fix that had not happened.
-    "associations:neo4j": ("associations-neo4j-export",
-                           _ALL_CHECKS - {"empty"}),
-    # A file that parses as nothing: only the well-formedness check can
-    # see it.  The people check skips KML, and a consistently malformed
-    # file is still repeatable and still has no placemarks when empty.
-    "entry:kml": ("kml-declaration", frozenset({"well_formed"})),
-    "places:kml": ("kml-declaration", frozenset({"well_formed"})),
-}
 
 
 def _params(check: str):
-    """The inventory as pytest params, xfailing the known-broken ones."""
-    assert check in _ALL_CHECKS, check
-    out = []
-    for spec in EXPORTS:
-        marks = []
-        known = _KNOWN_BROKEN.get(spec.key)
-        if known and check in known[1]:
-            marks.append(pytest.mark.xfail(
-                strict=True, raises=KnownShippedDefect,
-                reason=BY_NAME[known[0]].reason))
-        out.append(pytest.param(spec, id=spec.key, marks=marks))
-    return out
+    """The inventory as pytest params, one per export endpoint.
 
-
-def test_the_known_broken_exports_are_all_in_the_inventory():
-    """Nothing may be excused by a name the inventory does not know.
-
-    A typo in ``_KNOWN_BROKEN`` would silently mark nothing, and the
-    endpoint's failure would then look like a new regression rather than
-    the recorded defect it is.
+    The id is the endpoint's own key (``networks:pajek``), which is what
+    makes a waiver addressable: ``params = ["networks:pajek"]`` under
+    this function's name waives exactly that one endpoint's check and
+    leaves the other 44 judged.
     """
-    keys = {spec.key for spec in EXPORTS}
-    unknown = sorted(set(_KNOWN_BROKEN) - keys)
-    assert not unknown, f"_KNOWN_BROKEN names no such export: {unknown}"
-    for key, (alias, _checks) in _KNOWN_BROKEN.items():
-        assert alias in BY_NAME, f"{key} cites an unknown defect: {alias}"
+    assert check in _ALL_CHECKS, check
+    return [pytest.param(spec, id=spec.key) for spec in EXPORTS]
 
 
 @pytest.mark.parametrize("spec", _params("well_formed"))
@@ -1041,23 +1009,15 @@ def _raw_files(spec: ExportSpec, response) -> list[tuple[str, bytes]]:
             for entry in entries]
 
 
-#: The endpoints that answer HTTP 500 for every input, so they produce
-#: no file whose encoding could be judged.  Excluded from the encoding
-#: test rather than left in it: ``_export`` turns a 500 into a
-#: ``KnownShippedDefect``, and an xfail narrowed to that exception would
-#: swallow it and report CBDB-D-008's dead button as CBDB-D-011's
-#: missing byte-order mark.  Marker-swallowing of exactly the kind
-#: AGENTS.md warns about, one defect wearing another's name.
-_PRODUCE_NO_FILE = frozenset(
-    key for key, (alias, _checks) in _KNOWN_BROKEN.items()
-    if alias in ("networks-sna-exports", "associations-neo4j-export"))
-
-
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["missing-utf8-bom"].reason)
+# Every table-shaped export, judged on its encoding.  An endpoint that
+# answers HTTP 500 for every input produces no file whose encoding could
+# be judged, so it fails here as well as in the four checks above --
+# two failures for one cause, which is the honest reading and is why
+# nothing is excluded up front.  A waiver, if one is agreed, names this
+# function and the endpoint key.
 @pytest.mark.parametrize("spec", [
     pytest.param(spec, id=spec.key) for spec in EXPORTS
-    if spec.content == TABLE and spec.key not in _PRODUCE_NO_FILE
+    if spec.content == TABLE
 ])
 def test_a_spreadsheet_export_can_be_opened_by_a_spreadsheet(
         app: CbdbApp, spec: ExportSpec, subject):
@@ -1153,8 +1113,6 @@ _REPORTS_A_FILE_COUNT = re.compile(
     re.IGNORECASE)
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["multi-file-download"].reason)
 def test_no_page_asks_the_browser_for_more_than_one_download(layout):
     """A multi-file export cannot be delivered as several downloads.
 

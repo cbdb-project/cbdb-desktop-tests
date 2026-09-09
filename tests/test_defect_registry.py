@@ -1,9 +1,10 @@
 """The defect registry has to stay true, and stay bilingual.
 
-`tests/cbdb_desktop/defects.py` is the single source of truth for what
-this suite has found: the tests quote it in their xfail reasons and the
-reports are generated from it.  That makes two failure modes worth
-catching automatically rather than by eye.
+`tests/cbdb_desktop/defects.py` holds one round's findings for as long
+as it takes to write that round's report -- nothing else reads it, and
+nothing in it makes a test tolerate a failure.  The report *is*
+generated from it, which makes two failure modes worth catching
+automatically rather than by eye.
 
 * A `source` reference rots.  Every entry cites `file:line` in the
   shipped build, and a new distribution moves those lines.  A bug report
@@ -22,8 +23,7 @@ import re
 
 import pytest
 
-from cbdb_desktop.defects import (BY_NAME, DEFECTS, ORIGINS, PRIORITIES,
-                                  Defect)
+from cbdb_desktop.defects import DEFECTS, ORIGINS, PRIORITIES, Defect
 from cbdb_desktop.staging import AppLayout
 
 #: "Code/main.go:42 (why)" or "Code/main.go:handleThing (why)" -> parts.
@@ -186,7 +186,7 @@ def test_every_defect_is_demonstrated_by_a_test_that_exists(defect: Defect,
 
 
 def test_the_registry_is_internally_consistent():
-    """Keys, priorities and aliases line up."""
+    """Keys, priorities and origins line up."""
     for key, defect in DEFECTS.items():
         assert defect.key == key
         assert defect.priority in PRIORITIES, \
@@ -199,12 +199,7 @@ def test_the_registry_is_internally_consistent():
         assert defect.origin in ORIGINS, \
             f"{key} has origin {defect.origin!r}, not one of {sorted(ORIGINS)}"
 
-    aliased = {defect.key for defect in BY_NAME.values()}
-    assert aliased == set(DEFECTS), \
-        f"aliases and registry disagree: {aliased ^ set(DEFECTS)}"
-
-    # The xfail reason is what a maintainer sees in a run; it has to name
-    # the defect and point at the report.
-    for defect in DEFECTS.values():
-        assert defect.key in defect.reason
-        assert "CBDB_Desktop_Issues_EN.md" in defect.reason
+    # The report's table of contents and its per-issue anchors are built
+    # from these keys, so two entries sharing one would silently merge in
+    # the deliverable.
+    assert len(set(DEFECTS)) == len(DEFECTS)

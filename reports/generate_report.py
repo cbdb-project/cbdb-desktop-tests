@@ -106,6 +106,36 @@ STRINGS: dict[str, dict] = {
     "coverage": {"en": "What the suite covers", "zh": "測試套件的涵蓋範圍"},
     "coverage_head": {"en": ("Area", "Tests", "What it checks"),
                       "zh": ("範圍", "測試數", "檢查內容")},
+    "coverage_total": {"en": "every test in this run", "zh": "本次執行的全部測試"},
+    "coverage_undescribed": {
+        "en": "(no description yet -- add one to reports/generate_report.py)",
+        "zh": "（尚無說明——請在 reports/generate_report.py 中補上）",
+    },
+    "waived": {"en": "Agreed to leave for now",
+               "zh": "已協商暫時擱置的項目"},
+    "waived_intro": {
+        "en": "These outcomes are known and were agreed to be left as they "
+              "are for the time being.  They are listed so that nothing is "
+              "tolerated invisibly: each one names the check that reports "
+              "it, so it can be picked up again at any time.",
+        "zh": "以下項目均為已知情形，並已協商暫時維持現狀。列於此處是為了"
+              "避免任何問題被無聲地忽略：每一項都指明了對應的檢查名稱，"
+              "隨時可以重新處理。",
+    },
+    "waived_head": {
+        "en": ("Check", "Applies to", "Effect", "Agreed", "Until", "Why"),
+        "zh": ("對應檢查", "適用範圍", "處理方式", "協商紀錄", "有效期至",
+               "原因"),
+    },
+    "waived_none": {"en": "None -- nothing was waived in this run.",
+                    "zh": "無——本次執行沒有任何擱置項目。"},
+    "waived_all": {"en": "all cases", "zh": "全部情況"},
+    "waived_modes": {
+        "en": {"tolerate": "still checked, failure tolerated",
+               "skip": "not checked in this run"},
+        "zh": {"tolerate": "仍然檢查，失敗予以容忍", "skip": "本次未檢查"},
+    },
+    "waived_forever": {"en": "no end date", "zh": "未設期限"},
     "toc": {"en": "Table of contents", "zh": "目錄"},
     "summary_table": {"en": "Summary", "zh": "問題總覽"},
     "summary_head": {
@@ -202,9 +232,39 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_index_addr.py",
      "Index-address rankings",
      "The only endpoints that rewrite CBDB data rather than scratch"),
+    ("test_query_matrix.py",
+     "Every filter, on inputs read from the data",
+     "One query per populated combination the shipped database has, plus "
+     "every switch turned both ways"),
+    ("test_exports.py",
+     "Every export button",
+     "All 45 file-producing endpoints pressed, and the files they return "
+     "read back"),
+    ("test_ui_pages.py",
+     "The pages in a real browser",
+     "That every page loads without throwing, and that a control waiting "
+     "on the user un-greys when they do it"),
+    ("test_sessions.py",
+     "Two tabs at once",
+     "Whether one query can replace what another was about to export"),
+    ("test_scratch_tables.py",
+     "The working tables",
+     "Which form owns which scratch table, read out of the shipped Go"),
+    ("test_zz_controls.py",
+     "This run's own coverage",
+     "That every endpoint the shipped pages can reach was actually "
+     "requested by this run"),
+    ("test_waivers.py",
+     "What was agreed to leave alone",
+     "That every waived outcome still names a check this run has, and "
+     "that nothing else in the suite tolerates a failure"),
     ("test_defect_registry.py",
      "This report's own sources",
      "That every issue below still cites real code, in both languages"),
+    ("test_reports.py",
+     "This report itself",
+     "That it is reproducible from the run above, invents no issue, drops "
+     "none, and hides nothing that was waived"),
 )
 
 COVERAGE_ZH: dict[str, tuple[str, str]] = {
@@ -223,9 +283,31 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "——工作清單"),
     "test_index_addr.py": ("索引地址排序",
                            "唯一會改寫 CBDB 正式資料（而非暫存表）的端點"),
+    "test_query_matrix.py": ("每一個篩選條件，輸入取自資料本身",
+                             "依釋出資料庫中實際有資料的組合各跑一次查詢，"
+                             "並將每個開關的兩種狀態都測過"),
+    "test_exports.py": ("所有匯出按鈕",
+                        "45 個會產生檔案的端點全部按過，並回讀所得檔案"),
+    "test_ui_pages.py": ("在真實瀏覽器中的頁面",
+                         "每個頁面載入時不拋錯；等待使用者操作的控制項"
+                         "在條件滿足後確實解除停用"),
+    "test_sessions.py": ("同時開兩個分頁",
+                         "一次查詢是否會取代另一個分頁即將匯出的內容"),
+    "test_scratch_tables.py": ("暫存工作表",
+                               "各表單各自擁有哪些暫存表——從釋出的 Go "
+                               "原始碼讀出並釘住"),
+    "test_zz_controls.py": ("本次執行自身的覆蓋率",
+                            "釋出頁面能觸及的每一個端點，本次執行是否"
+                            "真的都請求過"),
+    "test_waivers.py": ("已協商擱置的項目",
+                        "每一條擱置項目是否仍對應到本次執行中存在的檢查，"
+                        "以及套件中沒有其他地方私自容忍失敗"),
     "test_defect_registry.py": ("本報告自身的依據",
                                 "以下每一項問題所引用的程式位置仍然存在，"
                                 "且中英文皆已填寫"),
+    "test_reports.py": ("本報告本身",
+                        "本報告可由上述執行結果完整重現，不會憑空產生問題、"
+                        "不會遺漏問題，也不會隱藏任何擱置項目"),
 }
 
 STATUS_TEXT = {
@@ -309,17 +391,92 @@ def anchor(text: str) -> str:
     return "".join(out).strip("-")
 
 
-def coverage_row(filename: str, area_en: str, what_en: str, lang: str):
-    if lang == "en":
-        return area_en, what_en
-    return COVERAGE_ZH.get(filename, (area_en, what_en))
+def _describe(filename: str, lang: str) -> tuple[str, str]:
+    """How one test file is described, in one language."""
+    for name, area_en, what_en in COVERAGE:
+        if name == filename:
+            if lang == "en":
+                return area_en, what_en
+            return COVERAGE_ZH.get(filename, (area_en, what_en))
+    # Not described.  Named anyway, rather than dropped: a coverage table
+    # that quietly omits a test file understates the suite, which is the
+    # failure this function replaced -- the hand-written list had grown
+    # stale and accounted for 277 of 823 tests while looking complete.
+    # ``test_reports.py`` fails until every file in the run is described.
+    return filename, STRINGS["coverage_undescribed"][lang]
+
+
+def undescribed_files(run: dict) -> list[str]:
+    """Test files this run has and the coverage table does not describe."""
+    described = {name for name, _area, _what in COVERAGE}
+    return sorted(set(tests_per_file(run)) - described)
+
+
+def coverage_rows(run: dict, lang: str) -> list[tuple[str, int, str]]:
+    """The coverage table, derived from the run rather than declared.
+
+    Every file the run collected gets a row, in the declared order first
+    and then whatever else appeared, and the last row is the run's own
+    total -- so the rows have to add up to the number of tests reported
+    above them, and a file nobody described cannot hide by being absent.
+    """
+    counts = tests_per_file(run)
+    declared = [name for name, _area, _what in COVERAGE]
+    order = declared + [name for name in sorted(counts) if name not in declared]
+
+    rows = []
+    for filename in order:
+        area, what = _describe(filename, lang)
+        rows.append((area, counts.get(filename, 0), what))
+    rows.append((STRINGS["coverage_total"][lang], sum(counts.values()), ""))
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# waived outcomes
+# ---------------------------------------------------------------------------
+
+DEFAULT_WAIVERS = ROOT / "artifacts" / "waivers_applied.json"
+
+
+def load_waivers(path: Path = DEFAULT_WAIVERS) -> dict | None:
+    """What this run agreed to leave alone, or None if nothing was recorded.
+
+    Written by ``tests/conftest.py`` on every run (see
+    ``cbdb_desktop/waivers.py``).  Absent means the suite ran before this
+    existed, or outside pytest -- not "nothing was waived", so the
+    section is omitted rather than claiming a zero it cannot vouch for.
+    """
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def waived_rows(waivers: dict, lang: str) -> list[tuple[str, ...]]:
+    """One row per agreed-tolerated outcome, in the report's language."""
+    modes = STRINGS["waived_modes"][lang]
+    rows = []
+    for entry in waivers.get("entries", ()):
+        params = ", ".join(entry.get("params") or ())             or STRINGS["waived_all"][lang]
+        agreed = entry.get("agreed_on") or ""
+        by = entry.get("agreed_by") or ""
+        rows.append((
+            entry["test"],
+            params,
+            modes.get(entry.get("mode", "tolerate"), entry.get("mode", "")),
+            f"{agreed} ({by})" if by else agreed,
+            entry.get("expires") or STRINGS["waived_forever"][lang],
+            entry.get("reason_zh" if lang == "zh" else "reason", ""),
+        ))
+    return rows
 
 
 # ---------------------------------------------------------------------------
 # markdown
 # ---------------------------------------------------------------------------
 
-def render_markdown(run: dict, lang: str, build: str) -> str:
+def render_markdown(run: dict, lang: str, build: str,
+                    waivers: dict | None = None) -> str:
     def S(key):
         return STRINGS[key][lang]
 
@@ -352,16 +509,31 @@ def render_markdown(run: dict, lang: str, build: str) -> str:
             out.append(f"| {labels[key]} | {summary[key]} |")
     out.append("")
 
-    counts = tests_per_file(run)
     out.append(f"## {S('coverage')}")
     out.append("")
     head = S("coverage_head")
     out.append(f"| {head[0]} | {head[1]} | {head[2]} |")
     out.append("| --- | --- | --- |")
-    for filename, area_en, what_en in COVERAGE:
-        area, what = coverage_row(filename, area_en, what_en, lang)
-        out.append(f"| {area} | {counts.get(filename, 0)} | {what} |")
+    for area, count, what in coverage_rows(run, lang):
+        out.append(f"| {area} | {count} | {what} |")
     out.append("")
+
+    if waivers is not None:
+        out.append(f"## {S('waived')}")
+        out.append("")
+        rows = waived_rows(waivers, lang)
+        if not rows:
+            out.append(S("waived_none"))
+            out.append("")
+        else:
+            out.append(S("waived_intro"))
+            out.append("")
+            head = S("waived_head")
+            out.append("| " + " | ".join(head) + " |")
+            out.append("| " + " | ".join(["---"] * len(head)) + " |")
+            for row in rows:
+                out.append("| " + " | ".join(row) + " |")
+            out.append("")
 
     issues = ranked(run)
     if not issues:
@@ -528,7 +700,8 @@ def _rich_runs(paragraph, text: str, lang: str) -> None:
         rpr.get_or_add_rFonts().set(qn("w:eastAsia"), east_asian)
 
 
-def render_docx(run: dict, lang: str, build: str, out_path: Path) -> Path:
+def render_docx(run: dict, lang: str, build: str, out_path: Path,
+                waivers: dict | None = None) -> Path:
     """Write the Word version, from the same content as the Markdown."""
     import docx
     from docx.shared import Pt
@@ -575,13 +748,17 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path) -> Path:
               for key in ("passed", "failed", "error", "xfailed", "xpassed",
                           "skipped") if summary.get(key)])
 
-    counts = tests_per_file(run)
     document.add_heading(S("coverage"), level=1)
-    table_of(S("coverage_head"),
-             [(*coverage_row(filename, area_en, what_en, lang)[:1],
-               counts.get(filename, 0),
-               coverage_row(filename, area_en, what_en, lang)[1])
-              for filename, area_en, what_en in COVERAGE])
+    table_of(S("coverage_head"), coverage_rows(run, lang))
+
+    if waivers is not None:
+        document.add_heading(S("waived"), level=1)
+        rows = waived_rows(waivers, lang)
+        if not rows:
+            document.add_paragraph(S("waived_none"))
+        else:
+            _rich_runs(document.add_paragraph(), S("waived_intro"), lang)
+            table_of(S("waived_head"), rows)
 
     issues = ranked(run)
     if not issues:
@@ -732,6 +909,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", type=Path, default=DEFAULT_JSON,
                         help="pytest JSON report to read (default: %(default)s)")
     parser.add_argument("--out-dir", type=Path, default=REPORTS)
+    parser.add_argument("--waivers", type=Path, default=DEFAULT_WAIVERS,
+                        help="the run's waiver record, written by pytest "
+                             "(default: %(default)s).  Absent means the "
+                             "section is omitted rather than claimed empty.")
     parser.add_argument("--lang", default="en,zh",
                         help="languages to write (default: %(default)s)")
     parser.add_argument("--format", default="md,docx,pdf",
@@ -740,6 +921,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run = load_run(args.json)
     build = _build_name()
+    waivers = load_waivers(args.waivers)
     langs = [lang.strip() for lang in args.lang.split(",") if lang.strip()]
     formats = [fmt.strip() for fmt in args.format.split(",") if fmt.strip()]
 
@@ -758,7 +940,7 @@ def main(argv: list[str] | None = None) -> int:
             # Write beside the target and rename: a crash halfway through
             # must not leave a truncated report where the good one was.
             scratch = stem.with_suffix(".md.new")
-            scratch.write_text(render_markdown(run, lang, build),
+            scratch.write_text(render_markdown(run, lang, build, waivers),
                                encoding="utf-8")
             os.replace(scratch, stem.with_suffix(".md"))
             written.append(stem.with_suffix(".md"))
@@ -766,7 +948,7 @@ def main(argv: list[str] | None = None) -> int:
         if "docx" in formats or "pdf" in formats:
             try:
                 docx_path = render_docx(run, lang, build,
-                                        stem.with_suffix(".docx"))
+                                        stem.with_suffix(".docx"), waivers)
                 written.append(docx_path)
             except Exception as exc:
                 problems.append(f"{STEM[lang]}.docx: {exc}")
@@ -788,6 +970,15 @@ def main(argv: list[str] | None = None) -> int:
     # failure (PowerShell does) would otherwise report a successful run
     # as an error.
     print(f"{confirmed} of {len(DEFECTS)} recorded issues confirmed by this run")
+    if waivers:
+        print(f"{len(waivers.get('entries', ()))} waived outcome(s) listed "
+              f"from {args.waivers.name}")
+    missing = undescribed_files(run)
+    if missing:
+        # Printed rather than raised: the report is still better written
+        # than not, and tests/test_reports.py is what makes this fail.
+        print("test files with no description in the coverage table: "
+              + ", ".join(missing))
 
     if problems:
         print("could not write:")

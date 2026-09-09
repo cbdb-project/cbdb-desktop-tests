@@ -1,7 +1,17 @@
 # Skill: issue-report-maintainer
 
-**Status:** repo-local (2026-09-04). Read before adding, changing or
-retiring anything in the defect registry or the issue reports.
+**Status:** repo-local (updated 2026-09-09). Read before adding,
+changing or retiring anything in the defect registry or the issue
+reports, and before waiving anything.
+
+**What changed on 2026-09-08, and it changes this whole skill.** The
+registry is no longer persistent state. It holds one round's findings
+for as long as it takes that round to write its report, and the next
+round starts empty. There are no `xfail` markers any more: a finding is
+a **failure** until it is fixed or until it is agreed away in the
+`CBDB_WAIVERS` table, which is keyed by test function names because no
+identifier of ours survives a stateless round. AGENTS.md § *How a
+defect is recorded, and how one is tolerated* is the short version.
 
 ## When to use
 
@@ -26,11 +36,14 @@ Nothing else may state a defect's content. In particular:
 | File | What it may say |
 |---|---|
 | `reports/CBDB_Desktop_Issues_*.{md,docx,pdf}` | **generated** — never hand-edit |
-| a test's `xfail` reason | `BY_NAME["..."].reason` — never a literal string |
-| `README.md`, `AGENTS.md` | the count and the one-line titles only |
+| a test | the signature it recognised, in the `KnownShippedDefect` message. Never a registry lookup: `test_waivers.py` fails on any test module that imports more of the registry than that one exception |
+| `README.md`, `AGENTS.md` | nothing per-defect. The registry is emptied between rounds, and a table of last round's findings in a context file is how the next round gets anchored to them |
 
 The reports are rewritten from the registry plus one real run, so a
 hand-edit is lost on the next run and, worse, is invisible until then.
+`test_reports.py` is the mechanical half of this: rendered twice from
+one run the report is byte-identical, it names no issue the registry
+does not hold, it drops none, and it prints every waiver.
 
 ## Before you file: verify
 
@@ -149,11 +162,9 @@ reads like a machine and undermines the report. Terms already in use:
 
 Keep identifiers, SQL, routes and file paths in English inside backticks.
 
-### 3. Wire the test
+### 3. Leave the test failing, and make it say what it found
 
 ```python
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["your-alias"].reason)
 def test_the_thing_that_should_work(app):
     result = app.json(...)
     if <the exact known-bad signature>:
@@ -161,17 +172,19 @@ def test_the_thing_that_should_work(app):
     assert <what a correct build would do>
 ```
 
-Three properties, all load-bearing:
+There is **no marker to add**. `KnownShippedDefect` is an
+`AssertionError`, so this fails, and it should: the run reports what the
+build does. Two properties are still load-bearing:
 
-- **`strict=True`** — a fix reports XPASS, which fails the run, so the
-  marker cannot be forgotten.
-- **`raises=KnownShippedDefect`** — a *different* failure of the same
-  test is still a failure. Without it the marker swallows a new crash, a
-  malformed response, or a different wrong answer.
 - **The signature check** — raise only on the exact known state, and
-  include the measured numbers in the message.
+  include the measured numbers in the message. Anything else about the
+  same test still arrives as a plain assertion failure, which is how a
+  *new* problem stays visible instead of wearing this one's name.
+- **The plain assertion underneath** — what a correct build does. The
+  day the defect is fixed, that is the test that keeps it fixed.
 
-Then add the alias to `BY_NAME`.
+Do not wire the test to the registry. Filing the entry is a separate
+act, and the test must read the same whether or not anything is filed.
 
 ### 4. Regenerate and read
 
@@ -186,15 +199,17 @@ bilingual documents).
 
 ## Retiring a defect
 
-A test XPASSes → the defect is *apparently* fixed. Do not delete
+A test that used to fail now passes → the defect is *apparently* fixed.
+(If it was waived in `tolerate` mode the run tells you loudly: a strict
+xfail that passes is an XPASS, and that fails the run.) Do not delete
 anything yet.
 
 1. Confirm by hand, through the running binary, that the behaviour is
    genuinely correct now — not merely different.
-2. Remove the `xfail` marker and the `KnownShippedDefect` branch, leaving
-   the plain assertion. The test is now an ordinary regression test and
-   should stay.
-3. Remove the registry entry and its `BY_NAME` alias.
+2. Remove the `KnownShippedDefect` branch, leaving the plain assertion.
+   The test is now an ordinary regression test and should stay.
+3. Remove its waiver from the `CBDB_WAIVERS` table, if it had one, and
+   the registry entry if the current round had filed it.
 4. Regenerate. The count in `README.md` and `AGENTS.md` changes too.
 5. Say in the commit message which build fixed it.
 
@@ -222,6 +237,47 @@ ordinary regression test, and where the origin was `release` or `data`
 that test is the *only* thing that would notice a recurrence — a process
 fix is exactly the kind that quietly stops being followed.
 
+## Waiving something instead of fixing it
+
+Sometimes the answer is "yes, that is wrong, and we are not doing
+anything about it this year". That is a legitimate outcome, and it is
+the only thing allowed to persist between rounds — but it is an
+*agreement*, so it is recorded as one, outside the suite, in the file
+`CBDB_WAIVERS` points at:
+
+```toml
+[test_an_export_produces_a_well_formed_file]
+params    = ["entry:kml", "places:kml"]   # the ids pytest prints
+reason    = "Agreed 2026-09-10: the KML preamble is cosmetic for us."
+reason_zh = "2026-09-10 協商：KML 檔頭對我們的使用者只是外觀問題。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-10
+expires   = 2026-12-01                    # optional; past it the run goes red
+```
+
+Rules worth knowing before writing one:
+
+- **Address it by the program's name, never by ours.** The key is the
+  test function (quoted if it carries a module:
+  `["test_exports.py::test_x"]`), plus the parametrisation ids in
+  `params`. A `CBDB-D-0NN` is assigned while one report is written and
+  points at nothing by the next round; a function name is part of the
+  program, and if it is renamed the waiver fails loudly instead of
+  silently covering nothing.
+- **`tolerate` (the default) keeps measuring.** The test still runs and
+  its failure is tolerated, so the day the problem disappears the run
+  says so. `mode = "skip"` stops the test entirely, costs endpoint
+  coverage, and needs a `note` justifying it.
+- **Narrow it.** `raises = "KnownShippedDefect"` tolerates only the
+  recognised signature, so an unrelated crash of the same test still
+  fails.
+- **It will be printed.** Every waiver appears in both reports with its
+  reason, who agreed and when. If you would not want the CBDB team to
+  read it, do not write it.
+- **File it as well, when it is a real finding.** A waiver says "not
+  now"; a report entry says "here is what is wrong". A round that waives
+  something worth knowing about should still describe it.
+
 ## When the numbers change
 
 A new data release moves counts. `evidence` and `steps` contain figures
@@ -231,7 +287,8 @@ bug report get the whole report distrusted.
 
 ## Checklist before handing the reports over
 
-- [ ] `.\run_tests.ps1` is green and the reports are freshly generated
+- [ ] `.\run_tests.ps1` has been read failure by failure: each one is
+      fixed, filed, or waived by agreement — none left unexplained
 - [ ] every recorded issue is CONFIRMED (or its status is explained)
 - [ ] no `NOT EXERCISED` — that means a test was deselected or renamed
 - [ ] both `.md` files committed; `.docx`/`.pdf` regenerated and *not*
@@ -241,4 +298,7 @@ bug report get the whole report distrusted.
 - [ ] `test_defect_registry.py` passes — it checks mechanically that
       every `source` reference resolves in the staged build, that both
       languages are filled in, and that the named tests exist
+- [ ] `test_reports.py` and `test_waivers.py` pass — the report is
+      reproducible and invents nothing, and every waiver still names a
+      check this run has
 - [ ] no issue says "we think" — if it is not verified, it is not filed

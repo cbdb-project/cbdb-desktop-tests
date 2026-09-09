@@ -59,6 +59,11 @@ class Config:
     http_timeout: float
     suppress_browser: bool
     keep_run_dir: bool
+    #: Optional table of test outcomes the maintainer has agreed to
+    #: tolerate for now -- see ``cbdb_desktop/waivers.py``.  ``None``
+    #: means no waivers at all, which is the default and the state every
+    #: fresh checkout is in.
+    waivers_path: Path | None = None
 
     @property
     def stage_root(self) -> Path:
@@ -135,6 +140,7 @@ def load_config(env: dict[str, str] | None = None, env_file=_DEFAULT_ENV_FILE) -
     zip_raw = get("CBDB_DESKTOP_ZIP")
     app_raw = get("CBDB_APP_DIR")
     work_raw = get("CBDB_WORK_DIR")
+    waivers_raw = get("CBDB_WAIVERS")
 
     return Config(
         zip_path=Path(zip_raw) if zip_raw else None,
@@ -148,4 +154,11 @@ def load_config(env: dict[str, str] | None = None, env_file=_DEFAULT_ENV_FILE) -
                                   name="CBDB_SUPPRESS_BROWSER"),
         keep_run_dir=_as_bool(get("CBDB_KEEP_RUN_DIR", "0"),
                               name="CBDB_KEEP_RUN_DIR"),
+        # Relative paths resolve against the repo root, not the working
+        # directory: pytest is run from several places here and a waiver
+        # table that silently fails to load is the one outcome this
+        # feature must never have.
+        waivers_path=(None if not waivers_raw
+                      else Path(waivers_raw) if Path(waivers_raw).is_absolute()
+                      else REPO_ROOT / waivers_raw),
     )

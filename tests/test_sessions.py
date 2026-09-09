@@ -36,7 +36,7 @@ import re
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import BY_NAME, KnownShippedDefect
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import FORMS_BY_NAME
 
 pytestmark = pytest.mark.app
@@ -80,8 +80,6 @@ def two_association_codes(app: CbdbApp, sqlite_conn) -> list[int]:
                 f"(tried {len(candidates)})")
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["shared-session-state"].reason)
 def test_a_second_query_replaces_what_the_first_would_export(
         app: CbdbApp, two_association_codes):
     """Two tabs, one result.
@@ -130,8 +128,6 @@ def test_a_second_query_replaces_what_the_first_would_export(
         f"rows, then {len(again) - 1}, for a grid of {len(grid_a)}")
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["shared-session-state"].reason)
 def test_a_second_working_list_replaces_the_first(app: CbdbApp, sqlite_conn):
     """The same thing one step earlier: two tabs, one working list.
 
@@ -172,8 +168,6 @@ def test_a_second_working_list_replaces_the_first(app: CbdbApp, sqlite_conn):
         f"the result is about neither list: {sorted(subjects)}"
 
 
-@pytest.mark.xfail(strict=True, raises=KnownShippedDefect,
-                   reason=BY_NAME["shared-session-state"].reason)
 def test_nothing_stops_a_second_instance_opening_the_database(layout):
     """A second cbdb.exe against the same database must be refused.
 

@@ -19,6 +19,7 @@ Session scopes:
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -30,9 +31,17 @@ from pathlib import Path
 
 import pytest
 
+from cbdb_desktop import waivers
 from cbdb_desktop.config import REPO_ROOT, Config, MissingConfig, load_config
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import (AppLayout, StagingError, _rmtree,
                                   stage_once)
+
+#: Where the waiver table lives for the duration of a session.  A stash
+#: key rather than an attribute on ``config``: pytest owns that object
+#: and a bare attribute is the kind of thing a plugin quietly collides
+#: with.
+_WAIVER_TABLE = pytest.StashKey["waivers.WaiverTable"]()
 
 
 def pytest_addoption(parser):
@@ -316,3 +325,89 @@ def artifacts_dir() -> Path:
     path = REPO_ROOT / "artifacts"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+# ---------------------------------------------------------------------------
+# waived outcomes (CBDB_WAIVERS)
+# ---------------------------------------------------------------------------
+#
+# Applied here rather than in the test files on purpose.  A marker in a
+# test file is policy written by whoever was closest to the code; this
+# table is negotiated, dated, bilingual, printed in the report, and
+# absent unless someone configures it.  See cbdb_desktop/waivers.py.
+
+
+def pytest_collection_modifyitems(session, config, items):
+    """Attach the configured waivers to the tests they name.
+
+    Addressed by the program's own name for each test -- the function,
+    plus the parametrisation ids it ran with -- because that is the only
+    address that survives a round with no state.  A waiver that matches
+    nothing is *not* silently dropped: it is recorded as unmatched and
+    ``test_waivers.py`` fails the run, since a mistyped waiver un-waives
+    what it meant to cover and the failure then reads as a regression.
+    """
+    try:
+        table = waivers.load(load_config().waivers_path)
+    except (MissingConfig, waivers.WaiverError) as exc:
+        # A configured table that cannot be honoured stops the run.  The
+        # alternative is a green run that quietly waived nothing, or
+        # waived something nobody wrote down.
+        raise pytest.UsageError(f"CBDB_WAIVERS: {exc}") from exc
+
+    config.stash[_WAIVER_TABLE] = table
+    if not table.enabled:
+        return
+
+    for item in items:
+        param = item.callspec.id if hasattr(item, "callspec") else None
+        waiver = table.matching(module=Path(str(item.fspath)).name,
+                                function=item.originalname or item.name,
+                                param=param)
+        if waiver is None:
+            continue
+        if waiver.expired():
+            # Deliberately still unmatched: an expired waiver tolerates
+            # nothing, so the test fails as it would have, and the gate
+            # reports the expiry as the reason the run is red.
+            continue
+        table.record(waiver, item.nodeid)
+        why = (f"WAIVED [{waiver.test}] {waiver.reason} "
+               f"(agreed {waiver.agreed_on.isoformat()} by {waiver.agreed_by})")
+        if waiver.mode == "skip":
+            item.add_marker(pytest.mark.skip(reason=why))
+        else:
+            marker = {"strict": True, "reason": why}
+            if waiver.raises == "KnownShippedDefect":
+                marker["raises"] = KnownShippedDefect
+            item.add_marker(pytest.mark.xfail(**marker))
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Record what this run actually waived, next to the other measurements.
+
+    Written whether the run passed or not, and written as zero when the
+    feature is off: "how much did we agree not to look at" is a number a
+    reader of the report should not have to re-run the suite to get.
+    """
+    table = session.config.stash.get(_WAIVER_TABLE, None)
+    if table is None:
+        return
+    summary = {
+        "table": str(table.path) if table.path else None,
+        "waivers": len(table.waivers),
+        "applied": {test: sorted(ids) for test, ids in sorted(table.applied.items())},
+        "unmatched": [w.test for w in table.unmatched()],
+        "expired": [w.test for w in table.expired()],
+        "entries": [w.as_json() for w in table.waivers],
+    }
+    out = REPO_ROOT / "artifacts" / "waivers_applied.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=1, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+
+
+@pytest.fixture(scope="session")
+def waiver_table(request) -> waivers.WaiverTable:
+    """The waiver table this run used, for the gate in test_waivers.py."""
+    return request.config.stash.get(_WAIVER_TABLE, waivers.WaiverTable())

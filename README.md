@@ -13,38 +13,29 @@ shipped database, a second endpoint of the same app, or a frozen golden
 — never a hand-written transcription of the Go logic, which would only
 test the transcription.
 
-**On the 2026-09-07 build it finds nine defects.** Four of the six it
-reported against 2026-09-01 are fixed; one is not, for a reason the
-remediation could not have found by the method it used. The nine:
+**Every round is stateless.** The suite carries no list of what an
+earlier build did: the defect registry is emptied between rounds, there
+are no expected failures anywhere, and a distribution is judged only by
+what this run measures on it. A finding is a failure until somebody
+fixes it, files it in that round's report, or agrees to leave it alone
+in the waiver table (see *How a defect is recorded* below). So the first
+run against a new archive is expected to be red, and every failure is a
+lead rather than a regression.
 
-- every exported CSV is UTF-8 with no byte-order mark, so Excel opens it
-  in the system code page and every Chinese name is mojibake;
-- a multi-file export saves only the first file and reports that it
-  saved them all;
-- Run Query stays greyed out on the Networks form after the page is
-  reopened, with the person still selected;
-- four export buttons fail on every input (three on Networks, one on
-  Associations);
-- two KML exports produce a file no mapping tool will open;
-- thirty Query Builder columns do not exist under the names it offers;
-- two browser tabs share one result;
-- unticking every category on the Places form still returns
-  biographical addresses.
+Where past rounds found things is still worth knowing as *method*, not
+as findings: the exports and the pages' own JavaScript, between them
+most of where a user's experience of this application actually happens.
+Runs that reported no export problems at all had driven 6 of the 42
+file-producing endpoints; the first run that pressed the other 36 found
+four defect families in one go. So the suite enumerates its own coverage
+from the build rather than trusting a test plan, and drives the pages in
+a real browser for the layer HTTP cannot reach.
 
-Where they cluster is the point. Six are about exports and three are in
-the pages' own JavaScript — the two places the suite had no coverage at
-all, and between them most of where a user's experience of the
-application actually happens. Runs against the previous build reported
-no export problems while driving 6 of the 42 file-producing endpoints;
-the first run that pressed the other 36 found four defect families in
-one go. So the suite now enumerates its own coverage from the build
-rather than trusting a test plan, and drives the pages in a real browser
-for the layer HTTP cannot reach.
-
-The findings are reported in English and Traditional Chinese, as
-Markdown, Word and PDF, all regenerated from every run:
-[`CBDB_Desktop_Issues_EN.md`](./reports/CBDB_Desktop_Issues_EN.md) ·
-[`CBDB_Desktop_Issues_ZH-Hant.md`](./reports/CBDB_Desktop_Issues_ZH-Hant.md).
+Findings are reported in English and Traditional Chinese, as Markdown,
+Word and PDF, regenerated from every run into `reports/` — with the
+run's own numbers, a coverage table derived from the run itself, and
+every waived outcome printed with the reason and the date it was
+agreed.
 
 ---
 
@@ -98,6 +89,8 @@ most of it Word starting twice to write the PDFs.
 | `test_ui_pages.py` | the pages in a real Chromium: do they load without throwing, and does each control un-grey when its precondition is met |
 | `test_zz_controls.py` | every button in every template, and whether this run actually requested what each can reach |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
+| `test_reports.py` | that the report is reproducible from one run, invents no issue, drops none, and prints every waiver |
+| `test_waivers.py` | that every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 
 The route list is not maintained by hand: `cbdb_desktop/routes.py` reads
 the registrations out of the shipped `Code/*.go` and the tests drive
@@ -106,20 +99,46 @@ here rather than going unnoticed.
 
 ### How a defect is recorded
 
-A test that has found a real defect has to do three things at once: stay
-out of the way of a green run, say what is wrong on every run, and
-*notice when the defect is fixed*.
+Three separate things, in three separate places, because they answer
+three different questions.
 
-So each one is `xfail(strict=True, raises=KnownShippedDefect)`, quoting
-the registry in `tests/cbdb_desktop/defects.py`, and raises that
-exception only after confirming the exact known signature. The known
-failure is tolerated; a *different* failure of the same test is still a
-failure; and a fix turns the test green-unexpectedly, which pytest
-reports as an error so the marker gets removed.
-`reports/generate_report.py` then writes both language editions from
-that registry plus the outcomes of an actual run — so a report cannot
-claim a defect the tests no longer show, and the two translations cannot
-drift from each other either.
+**Found.** A test that recognises the exact signature of a defect raises
+`KnownShippedDefect` with the measured numbers in its message, and that
+is an `AssertionError` — so it **fails**. There are no `xfail` markers
+in this suite, and `test_waivers.py` reads every test module's syntax
+tree to keep it that way: a marker quotes a registry entry, the entry
+outlives the round, and from then on the suite measures its own registry
+instead of the build.
+
+**Filed.** `tests/cbdb_desktop/defects.py` holds one round's findings
+for as long as it takes that round to write its report, in both
+languages, each entry citing where it lives in the build and which tests
+demonstrate it. `reports/generate_report.py` renders it plus that run's
+JSON; the next round starts empty. `test_reports.py` checks the report
+is byte-identical when rendered twice from one run, names no issue the
+registry does not hold, drops none of them, and hides no waiver.
+
+**Tolerated.** Something discussed and agreed to leave for now goes in
+the optional table `CBDB_WAIVERS` points at — absent by default, and
+keyed by **the test function's own name plus the parametrisation ids it
+ran with**, because no identifier this suite invents survives a
+stateless round:
+
+```toml
+[test_an_export_produces_a_well_formed_file]
+params    = ["entry:kml", "places:kml"]
+reason    = "Agreed 2026-09-10: the KML preamble is cosmetic for us."
+reason_zh = "2026-09-10 協商：KML 檔頭對我們的使用者只是外觀問題。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-10
+expires   = 2026-12-01          # optional; past it, the run goes red
+```
+
+The default mode keeps running the test and tolerates its failure, so
+the day the problem disappears the run says so; a waiver that matches no
+collected test fails the run rather than silently covering nothing; and
+every applied waiver is recorded in `artifacts/waivers_applied.json` and
+printed in both reports. See `tests/cbdb_desktop/waivers.py`.
 
 ```powershell
 python reports\generate_report.py                # .md + .docx + .pdf, both languages
@@ -195,7 +214,8 @@ cbdb-desktop-tests/
 │   │   ├── app.py            # launches and drives the real cbdb.exe
 │   │   ├── routes.py         # reads the routing table out of Code/*.go
 │   │   ├── forms.py          # how to phrase each form's query and export
-│   │   └── defects.py        # the registry of what has been found
+│   │   ├── defects.py       # this round's findings, for its report only
+│   │   └── waivers.py       # the optional CBDB_WAIVERS table
 │   ├── conftest.py           # session fixtures: layout, app_db, app, oracle
 │   └── test_*.py
 ├── AGENTS.md                 # context for future agent sessions
@@ -224,7 +244,7 @@ Four repo-local skills in [`docs/skills/`](./docs/skills):
 |---|---|
 | [`oracle-discipline.md`](./docs/skills/oracle-discipline.md) | writing or reviewing any assertion |
 | [`cbdb-desktop-probe.md`](./docs/skills/cbdb-desktop-probe.md) | driving the real binary, or writing a probe script |
-| [`issue-report-maintainer.md`](./docs/skills/issue-report-maintainer.md) | adding, changing or retiring a defect |
+| [`issue-report-maintainer.md`](./docs/skills/issue-report-maintainer.md) | adding, changing, waiving or retiring a defect |
 | [`programmer-self-review-template.md`](./docs/skills/programmer-self-review-template.md) | reporting any change back |
 
 `oracle-discipline.md` is the one that matters most. Two oracles in this
