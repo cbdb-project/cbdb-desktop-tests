@@ -6,10 +6,9 @@ academic: three of the defects in the 2026-09-07 build are in the pages'
 own JavaScript, where no HTTP test can see them.
 
 * A control whose precondition is met and which stays greyed out.  The
-  server is perfectly happy; the button does not work.  CBDB-D-013.
+  server is perfectly happy; the button does not work.
 * An export that fires several downloads from one click.  The endpoint
   returns both files, identically, every time -- and the user gets one.
-  CBDB-D-012.
 * A page that throws during load, after which nothing on it responds.
   None found in this build, and the cheapest possible check for it.
 
@@ -32,8 +31,8 @@ the application; the HTTP suite stays the primary instrument and this is
 for the layer it cannot reach.
 
 And it is **not the user's browser**.  Downloads here are
-auto-accepted, so the multiple-download block that CBDB-D-012 is really
-about does not happen -- headless Chromium saves both files.  Anything
+auto-accepted, so the multiple-download block those handlers are really
+up against does not happen -- headless Chromium saves both files.  Anything
 that depends on a browser *permission* has to be checked another way
 (for that one, by reading the page's own delivery code).  Recording that
 limit is the point of writing it down.

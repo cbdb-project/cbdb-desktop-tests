@@ -110,12 +110,25 @@ _KML_WITHOUT_A_TAB_SIBLING = frozenset({"groupdata:kml"})
 
 #: The three bytes that tell Excel a .csv is UTF-8.  Without them, Excel
 #: on Windows reads the file in the system ANSI code page and every
-#: Chinese name in it is mojibake -- see CBDB-D-011.
+#: Chinese name in it is mojibake.  The 2026-09-08 build writes the
+#: mark to every .tsv, which is what made that readable; before it, none
+#: of them carried one.
 UTF8_BOM = b"\xef\xbb\xbf"
 
 #: Extensions whose consumer is a spreadsheet, and which therefore need
-#: the mark.  Not the KML (XML declares its own encoding) and not the
-#: SNA formats (Pajek, GDF and VNA readers do not expect one).
+#: the mark.  Not the KML: XML declares its own encoding.
+#:
+#: Not the SNA formats either, but for one reason rather than the two
+#: this comment used to give.  It said "Pajek, GDF and VNA readers do
+#: not expect one", and that is **false for Pajek on this build**: all
+#: four ``.net`` writers emit the mark deliberately
+#: (``assocpairs_form_backend.go``, ``kinship_``, ``networks_``,
+#: ``places_``, each with the comment "Pajek's UTF-8 reader expects a
+#: BOM, unlike UCINet/Gephi").  So the mark is *required* for ``.net``
+#: and *forbidden* for ``.gdf`` and ``.vna``, and a suffix list with one
+#: bucket cannot say that.  Judged per format in
+#: ``test_delimited_files.py`` instead, which is where the whole
+#: encoding-and-shape question now lives.
 #:
 #: ``.tsv`` is the one that matters on the 2026-09-08 build and it has to
 #: be listed: that build renamed every tab-delimited export from
@@ -804,9 +817,10 @@ def test_an_export_produces_a_well_formed_file(app: CbdbApp, spec: ExportSpec,
         if spec.content == KML:
             first_line = text.splitlines()[0].strip() if text.strip() else ""
             if first_line.startswith("<?xml") and not first_line.endswith("?>"):
-                # CBDB-D-007's exact signature, recognised here so the
-                # marker on this parameter can be narrowed to it: any
-                # other malformation still fails as a failure.
+                # The unclosed-declaration signature, recognised exactly
+                # so that any *other* malformation of the same file still
+                # fails as an ordinary failure rather than being read as
+                # this one.
                 raise KnownShippedDefect(
                     f"{label}: the file opens with {first_line!r} -- the XML "
                     "declaration is not closed with '?>', so every reader "
@@ -861,9 +875,9 @@ def test_an_export_describes_the_people_the_grid_did(app: CbdbApp,
 def test_an_export_is_repeatable(app: CbdbApp, spec: ExportSpec, subject):
     """Pressing the same button twice gives the same file.
 
-    Cheap, and it catches what made CBDB-D-004 so hard to notice: an
-    export whose content depends on state nothing in the request
-    describes.  For the scratch-reading endpoints this is the only
+    Cheap, and it catches what made the shared-scratch-table defect of
+    the 2026-09-01 build so hard to notice: an export whose content
+    depends on state nothing in the request describes.  For the scratch-reading endpoints this is the only
     assertion in the suite that they are idempotent.
     """
     payload = subject(spec.form)
@@ -883,9 +897,9 @@ def test_an_export_with_no_result_does_not_invent_one(
     per endpoint would be recording an accident.  What is asserted is the
     property that matters to a user: either the request is refused, or
     the file that comes back has no data rows.  A header row is honest;
-    somebody else's rows are not, and that is precisely the shape
-    CBDB-D-004 took -- an export handing over a result the user's own
-    query had not produced.
+    somebody else's rows are not, and that is precisely the shape the
+    shared-scratch-table defect took -- an export handing over a result
+    the user's own query had not produced.
 
     Emptiness is established by running the form's own query over an
     input with no matches, which is also what truncates the scratch
@@ -1298,7 +1312,7 @@ _REPORTS_A_FILE_COUNT = re.compile(
 def test_no_page_asks_the_browser_for_more_than_one_download(layout):
     """A multi-file export cannot be delivered as several downloads.
 
-    The mechanism behind CBDB-D-012, read out of the shipped templates.
+    Read out of the shipped templates rather than driven in a browser.
     Every browser permits one automatic download per user gesture and
     blocks the rest; a handler that clicks a synthetic ``<a download>``
     once per file therefore saves the first and loses the others, and
@@ -1314,8 +1328,13 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
     every previous round of testing while a user hit it on the second
     click.
 
-    Pinned as an exact map of page to occurrence count, so a page that
-    is fixed shows up here and a page that grows another one does too.
+    Reported as a map of page to occurrence count -- not pinned as one.
+    This docstring used to say "pinned", and the test has never asserted
+    a map: it raises whenever any page does this at all, which is the
+    right shape for a finding but not what the word promised.  What is
+    pinned is the classification: every loop over a file list has to be
+    one the pattern above recognises, so a page fixed shows up as a
+    smaller map and a spelling nobody has seen fails outright.
     """
     per_file: dict[str, int] = {}
     claims: dict[str, int] = {}
@@ -1361,26 +1380,38 @@ def test_every_kml_writer_closes_its_xml_declaration(layout):
     Reading the shipped Go as data (the discipline ``routes.py`` uses):
     a writer that emits an unclosed XML declaration cannot produce a
     valid file for *any* input, so it does not need a query to find and
-    a reader does not need to run the application to believe it.  Listed
-    exactly, so a partial fix fails here instead of quietly passing.
+    a reader does not need to run the application to believe it.
+
+    Keyed by ``file:function``, not ``file:line``.  This test pinned
+    exact line numbers until the 2026-09-08 build inserted four lines
+    above one of them and broke it while nothing about the defect had
+    changed -- the third time a line pin in this suite had to be
+    repaired for no reason.  The enclosing function is what a fix
+    actually moves.
+
+    And it *raises* rather than asserting the defect is present, which
+    is the shape the report needs: on the day these two writers are
+    fixed this test passes, and the entry that names it is reported
+    APPARENTLY FIXED.  Asserting ``broken == {...}`` would have failed
+    with a plain ``AssertionError`` instead, and the report would have
+    called a fixed defect INCONCLUSIVE.
     """
     broken = {}
     for source in layout.go_sources():
-        text = source.read_text(encoding="utf-8", errors="replace")
-        for number, line in enumerate(text.splitlines(), start=1):
-            if "<?xml version" not in line:
-                continue
-            # The declaration as it will be written, with Go's escaping
-            # of either quoting style removed.
-            written = line.replace('\\"', '"')
-            if "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" not in written:
-                broken[f"{source.name}:{number}"] = line.strip()
+        text = _strip_go_comments(
+            source.read_text(encoding="utf-8", errors="replace"))
+        for name, body in _go_functions(text):
+            for line in body.splitlines():
+                if "<?xml version" not in line:
+                    continue
+                # The declaration as it will be written, with Go's
+                # escaping of either quoting style removed.
+                written = line.replace('\\"', '"')
+                if '<?xml version="1.0" encoding="UTF-8"?>' not in written:
+                    broken[f"{source.name}:{name}"] = line.strip()
 
-    assert broken == {
-        "entry_form_backend.go:1006":
-            'fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8">`+"\\n")',
-        "places_form_backend.go:764":
-            'fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8">`+"\\n")',
-    }, (
-        "the set of unclosed XML declarations changed -- update the defect "
-        f"report:\n{broken}")
+    if broken:
+        raise KnownShippedDefect(
+            f"{len(broken)} KML writer(s) emit an XML declaration that is "
+            "never closed with '?>', so no reader accepts the file they "
+            f"produce: {broken}")

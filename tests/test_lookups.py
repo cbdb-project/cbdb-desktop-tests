@@ -215,8 +215,8 @@ def test_the_dropdown_offers_only_address_types_that_can_be_ranked(
     2026-09-07 build stopped offering them, because a non-positive code
     arriving in an update request is now treated as "no selection"
     (``buildCleanRanks``).  Offering a value the backend is contractually
-    obliged to discard is what installed the bogus rank behind
-    CBDB-D-006.
+    obliged to discard is what installed the bogus rank behind the
+    short-ranking defect.
 
     So what has to hold is an inclusion in each direction, not equality:
     every offered type has a ranking row (or its dropdown could not show
@@ -407,7 +407,7 @@ def test_a_short_search_finds_the_person_it_names(app: CbdbApp):
 
     # A longer fragment of the same name can only ever match fewer
     # people.  Guarded by a non-zero check anyway: while the FTS index
-    # was empty (CBDB-D-001, 2026-09-01 build) any 3+ character term
+    # was empty (the search defect of the 2026-09-01 build) any 3+ character term
     # returned nothing, which made this trivially true.
     full = person["name"].strip()
     if len(full) >= 3:
@@ -462,7 +462,7 @@ def test_searching_people_by_name_finds_them(app: CbdbApp, term: str,
     Terms of three or more characters are the interesting ones: SQLite
     routes a short LIKE pattern past the trigram index and scans the
     content table, so short searches went on working while the index was
-    empty (CBDB-D-001 in the 2026-09-01 build).  Anything three
+    empty (the search defect of the 2026-09-01 build).  Anything three
     characters or longer goes through ``ZZZ_NAMES_FTS`` and is the case
     that actually exercises it -- which is why every term below except
     "Wang" is at least three characters, in both scripts.
@@ -479,7 +479,7 @@ def test_searching_people_by_name_finds_them(app: CbdbApp, term: str,
 def test_the_name_search_index_covers_every_name(sqlite_conn):
     """Every row of ZZZ_NAMES is in the trigram index that searches it.
 
-    The root cause of CBDB-D-001 asserted where it lives.
+    The root cause of that search defect, asserted where it lives.
     ``ZZZ_NAMES_FTS`` is an external-content FTS5 table, so browsing it
     directly shows every row regardless -- they are read straight from
     ``ZZZ_NAMES``.  Only the shadow tables say whether the index itself
@@ -513,7 +513,7 @@ def test_the_build_verifies_the_search_index_before_committing(layout):
 
     Read as data out of the shipped builder source, the way
     ``routes.py`` reads the routing table: the thing that produced
-    CBDB-D-001 was not missing code but code that could not tell whether
+    It was not missing code but code that could not tell whether
     it had run, so the guard's *presence* is the property worth pinning.
     A rebuild that stops checking would let the same silent failure ship
     again, and the symptom -- search finding nothing for three-character

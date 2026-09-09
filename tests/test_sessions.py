@@ -11,7 +11,7 @@ is structural rather than accidental: **nothing in a request says who it
 came from**.  There is no session cookie, no tab id, no per-connection
 state; the scratch tables a query fills and an export reads are one set
 per database file.  The 2026-09-07 build gave each *form* its own copy
-of those tables, which fixed cross-form interference (CBDB-D-004) and
+of those tables, which fixed cross-form interference and
 left cross-request interference exactly as it was.
 
 The tests here are deliberately small and structural.  Two of them drive

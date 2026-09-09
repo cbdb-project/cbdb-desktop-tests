@@ -244,7 +244,8 @@ def sqlite_conn(layout: AppLayout, config: Config):
 
     One deliberate exception: ``test_a_fresh_install_starts_with_no_working
     _state`` reads the ``ZZ_*`` tables precisely because their *contents in
-    the shipped file* are what it is about (CBDB-D-005).  That is a
+    the shipped file* are what it is about: a distribution that ships
+    its builder's leftover working state.  That is a
     question about the artefact, not about what a handler computed.
     """
     wal = layout.db.with_name(layout.db.name + "-wal")

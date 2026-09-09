@@ -75,11 +75,15 @@ STRINGS: dict[str, dict] = {
               "for CBDB-Desktop. We hope this report is useful as you "
               "continue your wonderful stewardship of this dataset, and we "
               "sincerely thank you for the immense work that has gone into "
-              "building it.\n\nEvery issue below was found by launching the "
-              "shipped `Bin/cbdb.exe` and driving its own HTTP endpoints "
-              "against the shipped database — nothing here re-implements the "
-              "application's logic, so what is described is what the released "
-              "program does. The issues are ordered by severity (P0 highest). "
+              "building it.\n\nMost of the issues below were found by "
+              "launching the shipped `cbdb.exe` and driving its own HTTP "
+              "endpoints against the shipped database; the rest were found "
+              "by reading the shipped page templates, Go sources and release "
+              "archive, which is the honest way to describe a defect that "
+              "needs no query to demonstrate. Either way, nothing here "
+              "re-implements the application's logic, so what is described "
+              "is what the released program does. The issues are ordered by "
+              "severity (P0 highest). "
               "Each entry includes a short description, the measurement that "
               "establishes it, step-by-step reproduction, and a suggested "
               "fix. None of these are urgent; they are documented so they can "
@@ -88,9 +92,12 @@ STRINGS: dict[str, dict] = {
               "測試套件的過程中，陸續整理出來的問題清單。我們希望這份報告能"
               "在您繼續主持這份寶貴資料集時有所助益；同時，對您多年來在這套"
               "資料與程式上的辛勤付出，我們由衷表示感謝與敬意。\n\n"
-              "以下每一項問題，都是實際啟動釋出的 `Bin/cbdb.exe`、以它自己的 "
-              "HTTP 介面搭配釋出的資料庫實測出來的——我們沒有用 Python 重寫"
-              "任何應用邏輯，因此這裡描述的就是釋出程式的真實行為。問題按"
+              "以下的問題，多數是實際啟動釋出的 `cbdb.exe`、以它自己的 HTTP "
+              "介面搭配釋出的資料庫實測出來的；其餘則是直接閱讀釋出的頁面"
+              "模板、Go 原始碼與發行壓縮檔而確認的——對於根本不需要查詢就能"
+              "證明的問題，這才是誠實的說法。無論是哪一種，我們都沒有用 "
+              "Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實"
+              "行為。問題按"
               "嚴重程度排序（P0 最高），每一條都包含：簡要說明、據以認定的"
               "實測數據、逐步復現方式，以及一份建議的修復方案。這些問題都"
               "不緊急，整理於此只是方便您在合適的時候逐一處理。",
@@ -98,6 +105,28 @@ STRINGS: dict[str, dict] = {
     "run_summary": {"en": "How this run went", "zh": "本次執行結果"},
     "outcome": {"en": "outcome", "zh": "結果"},
     "count": {"en": "count", "zh": "數量"},
+    "failure_split": {
+        "en": "Of the {failed} failures, **{demonstrating}** are the tests "
+              "that demonstrate the issues below -- they are how those "
+              "issues are established, and they will pass again when the "
+              "issues are fixed.  The remaining **{ours}** point to gaps "
+              "in this test suite rather than defects in the distribution: "
+              "a control or an endpoint we have not yet driven. They are "
+              "listed here so the two are not confused, and they are ours "
+              "to close, not yours.",
+        "zh": "在 {failed} 項失敗中，有 **{demonstrating}** 項是用來證明"
+              "下列問題的測試——這些問題正是由它們認定的，問題修好之後它們"
+              "就會恢復通過。其餘 **{ours}** 項並不是釋出版本的缺陷，而是"
+              "本測試套件自身的覆蓋缺口：某個我們尚未驅動的控制項或端點。"
+              "列在這裡是為了避免兩者混淆；那部分該由我們補上，與您無關。",
+    },
+    "failure_split_none": {
+        "en": "Every one of the {failed} failures is a test that "
+              "demonstrates an issue below.",
+        "zh": "{failed} 項失敗全部都是用來證明下列問題的測試。",
+    },
+    "ours_head": {"en": ("Check", "What it says we have not driven"),
+                  "zh": ("對應檢查", "指出我們尚未驅動的部分")},
     "outcomes": {
         "en": {"passed": "passed", "failed": "failed", "error": "error",
                "xfailed": "xfailed (a known defect, still present)",
@@ -394,6 +423,54 @@ def signature_failures(run: dict, defect: Defect) -> list[str]:
     return found
 
 
+def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
+    """Split this run's failures into findings and our own gaps.
+
+    Returns ``([node ids that demonstrate a filed issue],
+    [(node id, one-line reason) for the rest])``.
+
+    The distinction is not cosmetic.  A failure named by a registry entry
+    is *how that entry is established*, and it will pass again when the
+    build is fixed.  A failure nothing names is almost always this
+    suite's own coverage gate telling us we have not driven something --
+    not a defect in the distribution, and not the maintainer's to fix.
+    Printing one number over both is how a reader ends up trying to
+    reconcile "60 failed" with "7 issues".
+
+    The reason column is taken from the failure's own message, first
+    line, because that message is written to be read: the endpoint gate
+    says which endpoints were never requested, and a pin says which
+    count moved.
+    """
+    named: set[str] = set()
+    for defect in DEFECTS.values():
+        named.update(defect.tests)
+
+    demonstrating: list[str] = []
+    ours: list[tuple[str, str]] = []
+    for test in run["tests"]:
+        if test["outcome"] not in ("failed", "error"):
+            continue
+        node = test["nodeid"]
+        stem = node.split("[", 1)[0]
+        if any(stem.endswith(name) for name in named):
+            demonstrating.append(node)
+            continue
+        why = ""
+        for phase in _PHASES:
+            crash = (test.get(phase) or {}).get("crash") or {}
+            message = crash.get("message", "").strip()
+            if message:
+                why = message.splitlines()[0]
+                break
+        # Drop the exception class, keep the sentence.
+        if ": " in why:
+            why = why.split(": ", 1)[1]
+        why = why.rstrip(" :")
+        ours.append((stem.split("::")[-1], why[:200] or "no message"))
+    return demonstrating, sorted(set(ours))
+
+
 def status_of(run: dict, defect: Defect) -> str:
     grouped = outcomes_for(run, defect)
     if not grouped:
@@ -559,6 +636,28 @@ def render_markdown(run: dict, lang: str, build: str,
         if summary.get(key):
             out.append(f"| {labels[key]} | {summary[key]} |")
     out.append("")
+
+    # Which failures are findings and which are ours.  Without this the
+    # reader is handed "60 failed" over a list of 7 issues and left to
+    # reconcile an arithmetic that does not work -- and the honest answer
+    # is that some failures are this suite's own coverage gaps, which are
+    # not the maintainer's problem and should not read as if they were.
+    demonstrating, ours = failures_by_kind(run)
+    failed = summary.get("failed", 0) + summary.get("error", 0)
+    if failed:
+        if ours:
+            out.append(S("failure_split").format(
+                failed=failed, demonstrating=len(demonstrating),
+                ours=len(ours)))
+            out.append("")
+            head = S("ours_head")
+            out.append(f"| {head[0]} | {head[1]} |")
+            out.append("| --- | --- |")
+            for name, why in ours:
+                out.append(f"| `{name}` | {why} |")
+        else:
+            out.append(S("failure_split_none").format(failed=failed))
+        out.append("")
 
     out.append(f"## {S('coverage')}")
     out.append("")
@@ -798,6 +897,21 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
              [(labels[key], summary[key])
               for key in ("passed", "failed", "error", "xfailed", "xpassed",
                           "skipped") if summary.get(key)])
+
+    # The same split the Markdown carries.  Both formats go to the same
+    # reader, so a paragraph in one and not the other is how the two
+    # documents start disagreeing about the run they describe.
+    demonstrating, ours = failures_by_kind(run)
+    failed = summary.get("failed", 0) + summary.get("error", 0)
+    if failed:
+        if ours:
+            document.add_paragraph(S("failure_split").format(
+                failed=failed, demonstrating=len(demonstrating),
+                ours=len(ours)).replace("**", ""))
+            table_of(S("ours_head"), ours)
+        else:
+            document.add_paragraph(
+                S("failure_split_none").format(failed=failed))
 
     document.add_heading(S("coverage"), level=1)
     table_of(S("coverage_head"), coverage_rows(run, lang))

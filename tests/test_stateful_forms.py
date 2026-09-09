@@ -14,7 +14,7 @@ build:
   ``ZZ_SCRATCH_IMPORT_PEOPLE``, so Kinship and Networks were two views
   of one table and always reported the same ``person-count``.  Splitting
   it into ``ZZ_SIP_KINSHIP`` / ``ZZ_SIP_NETWORK`` / ``ZZ_SIP_ASSOC_PAIR``
-  was part of the CBDB-D-004 remediation, and it changes what a user
+  was part of that remediation, and it changes what a user
   sees: people imported on the Networks form are no longer waiting on
   the Kinship form.  The isolation is asserted in both directions below
   -- a later refactor that re-shared one of these tables would
@@ -68,7 +68,7 @@ def clean_lists(app: CbdbApp, egos):
 
     Without this each test inherits whatever the previous one left --
     including, on a fresh install, whatever the release was packaged with
-    (CBDB-D-005, in the 2026-09-01 build).
+    (a confirmed defect of the 2026-09-01 build).
 
     This resets the *lists*, not the dozen scratch tables the queries
     fill.  Those are left as they are deliberately: every query truncates
@@ -102,7 +102,7 @@ def test_a_fresh_install_starts_with_no_working_state(app: CbdbApp, sqlite_conn)
     in the session's copy.  What is being asserted is a property of the
     artefact that was shipped.
 
-    This was CBDB-D-005 in the 2026-09-01 build, where fourteen scratch
+    This was a confirmed defect of the 2026-09-01 build, where fourteen scratch
     tables arrived holding a previous session's work.  Its origin was
     the release process, not the code -- the database sent out was a
     working copy rather than one built through the provisioning pipeline
@@ -212,7 +212,7 @@ def test_the_two_forms_disagree_about_importing_an_empty_list(
 def test_each_forms_working_list_is_its_own(app: CbdbApp, egos, clean_lists):
     """Filling one form's working list must not touch another's.
 
-    The user-visible half of the CBDB-D-004 remediation, and the half a
+    The user-visible half of that remediation, and the half a
     later refactor is most likely to undo: the three tables are named
     per form (``ZZ_SIP_KINSHIP``, ``ZZ_SIP_NETWORK``,
     ``ZZ_SIP_ASSOC_PAIR``) and nothing but the name keeps them apart.

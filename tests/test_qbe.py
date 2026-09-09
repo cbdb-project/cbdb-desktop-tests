@@ -108,7 +108,8 @@ def test_the_whitelist_has_the_documented_shape(qbe_schema):
 
 def test_no_view_resolves_two_columns_to_the_same_name(db_catalogue,
                                                        qbe_schema):
-    """The root cause of CBDB-D-002, asserted where it lives.
+    """The root cause of the phantom-column defect, asserted where it
+    lives.
 
     SQLite gives a view's output columns the names its SELECT produces,
     and when a SELECT produces the same name twice it disambiguates by

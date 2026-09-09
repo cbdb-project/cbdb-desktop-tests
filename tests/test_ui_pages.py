@@ -33,11 +33,11 @@ browser and a fresh checkout will not have it (see
 quietly green.
 
 **And this is not the user's browser.**  Downloads are auto-accepted
-here, so Chrome's multiple-download permission -- what CBDB-D-012 is
-really about -- never engages and both files arrive.  The half of that
-defect a browser can confirm is the misreported count; the half it
-cannot is checked by reading the page's own delivery code, in
-``test_exports.py``.
+here, so Chrome's multiple-download permission -- which is what those
+handlers are really up against -- never engages and both files arrive.
+The half of that defect a browser can confirm is the misreported count;
+the half it cannot is checked by reading the page's own delivery code,
+in ``test_exports.py``.
 """
 from __future__ import annotations
 
@@ -248,6 +248,47 @@ def _drive(app: CbdbApp, pre: Precondition) -> _Result:
 # does the page load at all
 # ---------------------------------------------------------------------------
 
+def test_the_fixed_inputs_these_browser_tests_use_exist_in_the_data(
+        sqlite_conn):
+    """The three hand-picked inputs above are real rows.
+
+    ``SUBJECT``, ``ENTRY_CODE`` and ``ASSOC_CODE`` are fixed rather than
+    discovered, for the reason given where they are defined: a browser
+    test that also has to choose its own input is two experiments in
+    one.  The cost of fixing them is that a data refresh can retire one
+    silently -- and for ``ASSOC_CODE`` in particular, only its
+    *presence* matters to the control it enables, so the precondition
+    would go on passing while its comment ("a code ASSOC_DATA has a row
+    for") had quietly become false.
+
+    Membership in a base table, which is a fact about the shipped data
+    and not a reconstruction of anything a handler computes.
+    """
+    person = sqlite_conn.execute(
+        "SELECT COUNT(*) FROM BIOG_MAIN WHERE c_personid = ?",
+        (SUBJECT,)).fetchone()[0]
+    assert person == 1, f"BIOG_MAIN has no person {SUBJECT}"
+
+    entry = sqlite_conn.execute(
+        "SELECT COUNT(*) FROM ENTRY_DATA WHERE c_entry_code = ?",
+        (ENTRY_CODE,)).fetchone()[0]
+    assert entry, f"ENTRY_DATA has no row for entry code {ENTRY_CODE}"
+
+    assoc_code = sqlite_conn.execute(
+        "SELECT COUNT(*) FROM ASSOC_CODES WHERE c_assoc_code = ?",
+        (ASSOC_CODE,)).fetchone()[0]
+    assert assoc_code == 1, \
+        f"ASSOC_CODES has no association code {ASSOC_CODE}, so the picker "\
+        "this test drives could not offer it"
+    assoc_rows = sqlite_conn.execute(
+        "SELECT COUNT(*) FROM ASSOC_DATA WHERE c_assoc_code = ?",
+        (ASSOC_CODE,)).fetchone()[0]
+    assert assoc_rows, \
+        f"ASSOC_DATA has no row for association code {ASSOC_CODE} -- the "\
+        "code exists but names nothing, which is not the input the comment "\
+        "beside it claims"
+
+
 def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
                                                             layout):
     """No page may raise during load.
@@ -391,7 +432,7 @@ def test_an_export_does_not_claim_more_files_than_it_delivered(
     In this browser they agree -- downloads are auto-accepted, so both
     files arrive both times -- and that is the point worth writing down:
     this test passes on a permissive browser and would fail on the
-    user's.  It is the honest half of CBDB-D-012, and the reason the
+    user's.  It is the honest half of that finding, and the reason the
     other half is checked by reading the page's delivery code instead.
 
     The entry code is discovered rather than fixed: the first version of

@@ -6,7 +6,7 @@ are checkable without running a query.
 
 **Who owns a table.**  Until 2026-09-07 several of these were shared by
 unrelated forms, and one form's query cleared what another form's export
-was about to read (CBDB-D-004).  The fix was to give each form its own
+was about to read.  The fix was to give each form its own
 copy.  Nothing but the *name* keeps them apart now, so the ownership map
 is pinned here, read out of the shipped Go source as data: a later
 refactor that pointed two forms at one table again would fail this file
@@ -18,7 +18,7 @@ EXISTS`` at startup -- and against an existing table that statement is a
 no-op, column list and all.  The tables ship in the database, so those
 declarations never run to completion, and a declaration can therefore
 disagree with the real table indefinitely without anything noticing.
-The developers found the same thing during the CBDB-D-004 remediation:
+The developers found the same thing during that remediation:
 three forms carried three mutually inconsistent declarations of one
 shared table, "and whichever declaration happened to run first silently
 determined the real column set".
@@ -29,8 +29,8 @@ any of them had declared.  What no fix can do is make a declaration
 it.  Two directions, and only one of them is a defect:
 
 * a column the code **reads** that the table does not have is a query
-  that fails at runtime -- CBDB-D-008 is exactly this, three dead export
-  buttons asking ``ZZ_SN_NETWORK`` for ``c_node_dist``;
+  that fails at runtime -- this build has exactly this, three dead
+  export buttons asking ``ZZ_SN_NETWORK`` for ``c_node_dist``;
 * a column the code **declares** that the table does not have is
   harmless until something reads it, and is reported here as a warning
   rather than a failure, because the code may be describing a table for
@@ -46,6 +46,7 @@ import re
 
 import pytest
 
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,12 @@ def _form_of(filename: str) -> str:
     return (filename.removesuffix("_form_backend.go")
             .removesuffix("_form_query.go")
             .removesuffix(".go"))
+
+
+#: The start of a top-level Go declaration, so a finding can be reported
+#: by the function it sits in rather than by a line number that the next
+#: build moves.
+_GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)", re.MULTILINE)
 
 
 def _strip_comments(source: str) -> str:
@@ -162,8 +169,8 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
                            "places", "status", "texts"},
     # Filled and consumed inside one request by a common helper that
     # clears before each use, so shared by name and never across
-    # requests -- the developers' own conclusion during the CBDB-D-004
-    # remediation, reached the same way and recorded here so a reader
+    # requests -- the developers' own conclusion during the per-form
+    # split, reached the same way and recorded here so a reader
     # does not have to re-derive it.
     "ZZ_SCRATCH_ADDR": {"associations", "entry", "networks", "places",
                         "status", "texts"},
@@ -173,8 +180,8 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
     # Networks form's export reads the same temporary.  Left shared: a
     # narrow, low-probability race in a single-user desktop application,
     # every write site clearing and consuming within one request.  Note
-    # that CBDB-D-010 is the reason "single-user" is doing work in that
-    # sentence.
+    # that one result per application -- not per tab -- is the reason
+    # "single-user" is doing work in that sentence.
     "ZZ_KIN_LIST": {"browser", "kinship"},
     "ZZ_KIN_LIST_TMP": {"browser", "kinship", "networks"},
     "ZZ_SCRATCH_KIN": {"browser", "kinship"},
@@ -202,7 +209,7 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
     "ZZ_SCRATCH_P_TEXT": {"networks"},
     "ZZ_SOCIAL_NETWORK_AGGREGATE": {"networks"},
 
-    # -- the per-form copies the CBDB-D-004 remediation created ------------
+    # -- the per-form copies that remediation created ----------------------
     # Ten tables, each named by exactly one form.  That one-to-one
     # property is the whole content of the fix, and this is where it is
     # checked; the report's claim that "each new table name now appears
@@ -221,16 +228,16 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
 
 #: Scratch tables that ship in the database and that no Go file names.
 #: Recorded rather than ignored: a table nothing uses still ships, still
-#: holds whatever it last held, and is exactly what CBDB-D-005 looked
-#: like.  Three of these are the shared tables the 2026-09-07 per-form
+#: holds whatever it last held, and is exactly what a distribution
+#: shipping its builder's leftover working state looked like.  Three of these are the shared tables the 2026-09-07 per-form
 #: split replaced; the other five are left over from the VBA original,
 #: whose Pajek and Gephi writers staged rows in the database while the
 #: Go ones build the file in memory.
 EXPECTED_ORPHANS: dict[str, str] = {
     "ZZ_SOCIAL_NETWORK": "replaced by ZZ_SN_ASSOC / ZZ_SN_ASSOC_PAIR / "
-                         "ZZ_SN_NETWORK (CBDB-D-004)",
-    "ZZ_SCRATCH_PEOPLE": "replaced by ZZ_SP_* (CBDB-D-004)",
-    "ZZ_SCRATCH_IMPORT_PEOPLE": "replaced by ZZ_SIP_* (CBDB-D-004)",
+                         "ZZ_SN_NETWORK by the per-form split",
+    "ZZ_SCRATCH_PEOPLE": "replaced by ZZ_SP_* by the per-form split",
+    "ZZ_SCRATCH_IMPORT_PEOPLE": "replaced by ZZ_SIP_* by the same split",
     "ZZ_SCRATCH_PAJEK": "the Go Pajek writer builds the file in memory",
     "ZZ_SCRATCH_PAJEK_EDGE": "as above",
     "ZZ_SCRATCH_GEPHI_NODE": "the Go Gephi writer builds the file in memory",
@@ -242,7 +249,7 @@ EXPECTED_ORPHANS: dict[str, str] = {
 def test_each_scratch_table_is_touched_by_the_forms_it_should_be(table_users):
     """The ownership map, pinned.
 
-    A table appearing under a second form is how CBDB-D-004 happened,
+    A table appearing under a second form is how the sharing happened,
     and there is nothing in the code that would prevent it recurring --
     the tables are addressed by name, in string literals, in ten
     separate files.  So the map is asserted whole: both a new sharing
@@ -266,7 +273,7 @@ def test_each_scratch_table_is_touched_by_the_forms_it_should_be(table_users):
     }
     assert not differences, (
         "the set of forms touching a scratch table changed.  If two forms "
-        "now share one, that is CBDB-D-004 again; if a form stopped using "
+        "now share one, the interference is back; if a form stopped using "
         "one, the table is now dead weight that still ships with data in "
         f"it:\n{differences}")
 
@@ -308,8 +315,8 @@ def test_every_declared_scratch_table_exists_in_the_shipped_database(
     that was never added to the schema works -- until the next release,
     on the next machine, where it is created with whatever column list
     that form happens to declare, and the *other* form that reads it
-    finds columns missing.  Which is the CBDB-D-004 follow-up the
-    developers described, one step earlier.
+    finds columns missing.  Which is the follow-up the developers
+    described, one step earlier.
     """
     missing = sorted(name for name in go_declarations if name not in db_columns)
     assert not missing, (
@@ -464,22 +471,35 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
                                                              db_columns):
     """Every column a simple SELECT reads must exist in that table.
 
-    This is CBDB-D-008 found in the source rather than by pressing a
-    button: three of the Networks form's export handlers select
+    The three dead network exports, found in the source rather than by
+    pressing a button: three of the Networks form's export handlers select
     ``c_node_dist`` from ``ZZ_SN_NETWORK``, which has ``c_edge_dist``
     instead, so SQLite refuses the query and the handler answers HTTP
     500 for every input there is.  A defect that cannot depend on data
     should not need a query to find, and finding it here means a build
     can be rejected before anyone runs it.
 
-    Only the SELECTs simple enough to read exactly are considered, and
-    the known failures are pinned as an exact set: a fix reports here,
-    and a new one fails.
+    Only the SELECTs simple enough to read exactly are considered.
+
+    Reported by the enclosing **function**, not by line number.  This
+    test pinned exact ``file:line`` keys until the 2026-09-08 build
+    inserted four lines above them and broke all three while nothing
+    about the defect had changed.  The function a query sits in is what
+    a fix actually moves.
+
+    And it *raises* rather than asserting the defect is present: on the
+    day these handlers stop reading a column their table lacks, this
+    test passes and the entry naming it is reported APPARENTLY FIXED.
+    An exact-set assertion would have failed with a plain
+    ``AssertionError``, and the report would have called a fixed defect
+    INCONCLUSIVE.
     """
     problems: dict[str, list[str]] = {}
     for path in layout.go_sources():
         text = _strip_comments(path.read_text(encoding="utf-8",
                                               errors="replace"))
+        boundaries = [(m.start(), m.group(1))
+                      for m in _GO_FUNC.finditer(text)]
         for match in _SIMPLE_SELECT.finditer(text):
             table = match.group("table").upper()
             real = db_columns.get(table)
@@ -489,16 +509,20 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
             if selected is None:
                 continue
             absent = sorted(selected - real)
-            if absent:
-                line = text.count("\n", 0, match.start()) + 1
-                problems[f"{path.name}:{line}"] = [f"{table}.{c}"
-                                                   for c in absent]
+            if not absent:
+                continue
+            enclosing = "<file scope>"
+            for start, name in boundaries:
+                if start <= match.start():
+                    enclosing = name
+                else:
+                    break
+            problems.setdefault(f"{path.name}:{enclosing}", []).extend(
+                f"{table}.{column}" for column in absent)
 
-    assert problems == {
-        "networks_form_backend.go:2093": ["ZZ_SN_NETWORK.c_node_dist"],
-        "networks_form_backend.go:2216": ["ZZ_SN_NETWORK.c_node_dist"],
-        "networks_form_backend.go:2341": ["ZZ_SN_NETWORK.c_node_dist"],
-    }, (
-        "the set of queries reading a column their scratch table does not "
-        "have changed.  Each one is a handler that answers HTTP 500 for "
-        f"every input:\n{problems}")
+    if problems:
+        raise KnownShippedDefect(
+            f"{len(problems)} handler(s) read a column their scratch table "
+            "does not have, so SQLite refuses the query and they answer "
+            f"HTTP 500 for every input: "
+            f"{ {key: sorted(set(v)) for key, v in sorted(problems.items())} }")
