@@ -18,7 +18,8 @@ sometimes one, and the difference is worth stating:
   query read from -- same table, same order.  That catches format and
   scan losses, not much else.  (It was ``ZZ_SOCIAL_NETWORK``, shared
   with three other forms, until the 2026-09-07 build gave each form its
-  own copy: that sharing was CBDB-D-004.)
+  own copy, and that sharing is how one form's query emptied another
+  form's export.)
 * **office, status, texts, places** post the grid back to a formatter
   that serialises exactly what it was given.  Row counts cannot differ.
   What that pair *does* pin is that the export struct's JSON tags still
@@ -37,7 +38,8 @@ of property a later refactor re-shares by accident, and nothing but the
 table's *name* now keeps them apart.
 
 What none of this covers is two requests from two browser tabs, which
-share everything: CBDB-D-010, in ``test_sessions.py``.
+share everything -- one result per application, not per tab, which is
+an outcome the waiver table tolerates.  See ``test_sessions.py``.
 
 Every test issues its own query before exporting, so the file is safe
 under ``-k`` selection and in any file order.
@@ -421,8 +423,8 @@ def test_the_same_query_twice_gives_the_same_answer(app: CbdbApp, form: FormSpec
 
 @pytest.mark.parametrize("interfering", [
     # The three forms that used to clear the table the Associations
-    # export reads.  All three, not one: CBDB-D-004 was originally filed
-    # against Association Pairs and Networks and Kinship did it too, and
+    # export reads.  All three, not one: the defect was originally filed
+    # against Association Pairs, and Networks and Kinship did it too, and
     # a fix that gave only one of them its own table would look correct
     # against a single-form test.
     ("assocpairs", "/api/assocpairs/query",
@@ -441,7 +443,7 @@ def test_another_form_does_not_empty_the_associations_export(
         app: CbdbApp, cheap_codes, interfering):
     """Another form's query must not touch the Associations export.
 
-    This was CBDB-D-004 in the 2026-09-01 build: the export took no
+    This was a confirmed defect of the 2026-09-01 build: the export took no
     request body and no lock, re-reading ``ZZ_SOCIAL_NETWORK``, and
     Association Pairs, Networks and Kinship each cleared that same table
     as part of their own query.  Visiting one of them between pressing
@@ -455,8 +457,9 @@ def test_another_form_does_not_empty_the_associations_export(
     has its own table" is exactly the kind of property a later
     refactor re-shares by accident.
 
-    What it cannot check is two *requests* to the same form: that is
-    CBDB-D-010, and it has its own test in test_sessions.py.
+    What it cannot check is two *requests* to the same form: that is the
+    one-result-per-application outcome, and it has its own test in
+    test_sessions.py.
     """
     _form, path, body = interfering
     associations = FORMS_BY_NAME["associations"]

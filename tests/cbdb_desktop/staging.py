@@ -171,8 +171,10 @@ class AppLayout:
         ``*_test.go`` is excluded: ``go build`` leaves those out, so they
         are not part of the shipped binary and must not be read as if
         they described it.  The 2026-09-07 build ships one
-        (``qbe_schema_test.go``, the developers' own guardrail for
-        CBDB-D-002); ``go_test_sources`` returns those separately.
+        (``qbe_schema_test.go``, the developers' own guardrail against the
+        Query Builder offering a column the database does not have --
+        correct, and it skips itself unless run from the project root, so
+        it never ran); ``go_test_sources`` returns those separately.
         """
         return sorted(p for p in self.code_dir.glob("*.go")
                       if not p.name.endswith("_test.go"))

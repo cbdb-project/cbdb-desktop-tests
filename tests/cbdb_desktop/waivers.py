@@ -27,8 +27,9 @@ the program's own name for the test**:
 Why the function name and not an identifier of our own: **there is no
 identifier of our own that survives a stateless round.**  A defect id is
 assigned while writing one report and is gone by the next, so a table
-keyed by ``W-001`` or ``CBDB-D-007`` would point at nothing the second
-time it was read.  A test function's name is part of the program, it is
+keyed by ``W-001``, or by one of the defect numbers a round assigns,
+would point at nothing the second time it was read -- worse, it would
+point at whatever the *next* round happened to give that number to.  A test function's name is part of the program, it is
 the same on every run, and if it is renamed or deleted the table stops
 matching and says so -- which is exactly the failure mode a waiver list
 must have.  ``params`` narrows a waiver to particular parametrisations,

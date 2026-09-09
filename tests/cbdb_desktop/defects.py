@@ -229,10 +229,10 @@ _DEFECTS: tuple[Defect, ...] = (
         key="CBDB-D-002",
         priority="P0", severity="high",
         origin="software",
-        title="The Places form runs the Biography branch when the user has "
-              "switched every category off",
-        title_zh="使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支"
-                 "查詢",
+        title="The Places page lets a user switch every category off, and "
+              "then answers with the Biography rows they excluded",
+        title_zh="地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的"
+                 "「傳記」資料",
         area="Places form, category switches",
         area_zh="地點表單的類別勾選項",
         summary="The Places query handler substitutes `IncludeBiog = true` "

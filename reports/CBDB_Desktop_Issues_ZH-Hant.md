@@ -4,22 +4,28 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260908.7z_
 
-_本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行結果（耗時 270 秒）。_
+_本報告產生於 2026-09-09 09:54 UTC，依據一次 874 項測試的執行結果（耗時 276 秒）。_
 
 尊敬的維護者：
 
 以下是我們在為 CBDB-Desktop 編寫自動化迴歸測試套件的過程中，陸續整理出來的問題清單。我們希望這份報告能在您繼續主持這份寶貴資料集時有所助益；同時，對您多年來在這套資料與程式上的辛勤付出，我們由衷表示感謝與敬意。
 
-以下每一項問題，都是實際啟動釋出的 `Bin/cbdb.exe`、以它自己的 HTTP 介面搭配釋出的資料庫實測出來的——我們沒有用 Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實行為。問題按嚴重程度排序（P0 最高），每一條都包含：簡要說明、據以認定的實測數據、逐步復現方式，以及一份建議的修復方案。這些問題都不緊急，整理於此只是方便您在合適的時候逐一處理。
+以下的問題，多數是實際啟動釋出的 `cbdb.exe`、以它自己的 HTTP 介面搭配釋出的資料庫實測出來的；其餘則是直接閱讀釋出的頁面模板、Go 原始碼與發行壓縮檔而確認的——對於根本不需要查詢就能證明的問題，這才是誠實的說法。無論是哪一種，我們都沒有用 Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實行為。問題按嚴重程度排序（P0 最高），每一條都包含：簡要說明、據以認定的實測數據、逐步復現方式，以及一份建議的修復方案。這些問題都不緊急，整理於此只是方便您在合適的時候逐一處理。
 
 ## 本次執行結果
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 754 |
-| 失敗 | 60 |
+| 通過 | 753 |
+| 失敗 | 62 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
 | 略過 | 56 |
+
+在 62 項失敗中，有 **61** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項並不是釋出版本的缺陷，而是本測試套件自身的覆蓋缺口：某個我們尚未驅動的控制項或端點。列在這裡是為了避免兩者混淆；那部分該由我們補上，與您無關。
+
+| 對應檢查 | 指出我們尚未驅動的部分 |
+| --- | --- |
+| `test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run` | 14 endpoint(s) a user can reach from the interface were never requested by this run |
 
 ## 測試套件的涵蓋範圍
 
@@ -35,14 +41,14 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 | 索引地址排序 | 12 | 唯一會改寫 CBDB 正式資料（而非暫存表）的端點 |
 | 每一個篩選條件，輸入取自資料本身 | 254 | 依釋出資料庫中實際有資料的組合各跑一次查詢，並將每個開關的兩種狀態都測過 |
 | 所有匯出按鈕 | 275 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
-| 在真實瀏覽器中的頁面 | 7 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
+| 在真實瀏覽器中的頁面 | 8 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
 | 同時開兩個分頁 | 3 | 一次查詢是否會取代另一個分頁即將匯出的內容 |
 | 暫存工作表 | 6 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
 | 本次執行自身的覆蓋率 | 5 | 釋出頁面能觸及的每一個端點，本次執行是否真的都請求過 |
 | 已協商擱置的項目 | 28 | 每一條擱置項目是否仍對應到本次執行中存在的檢查，以及套件中沒有其他地方私自容忍失敗 |
 | 本報告自身的依據 | 22 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
 | 本報告本身 | 23 | 本報告可由上述執行結果完整重現，不會憑空產生問題、不會遺漏問題，也不會隱藏任何擱置項目 |
-| 本次執行的全部測試 | 873 |  |
+| 本次執行的全部測試 | 874 |  |
 
 ## 已協商暫時擱置的項目
 
@@ -59,7 +65,7 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 | 編號 | 等級 | 本次執行狀態 | 問題 |
 | --- | --- | --- | --- |
 | CBDB-D-001 | P0 | 已確認 | 兩個 KML 匯出功能寫出的 XML 宣告沒有結尾，任何軟體都無法讀取這個檔案 |
-| CBDB-D-002 | P0 | 已確認 | 使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支查詢 |
+| CBDB-D-002 | P0 | 已確認 | 地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料 |
 | CBDB-D-003 | P0 | 已確認 | 二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存 |
 | CBDB-D-004 | P2 | 已確認 | 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位 |
 | CBDB-D-005 | P2 | 已確認 | 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數 |
@@ -69,7 +75,7 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 ## 目錄
 
 - [CBDB-D-001 — 兩個 KML 匯出功能寫出的 XML 宣告沒有結尾，任何軟體都無法讀取這個檔案](#cbdb-d-001--兩個-kml-匯出功能寫出的-xml-宣告沒有結尾，任何軟體都無法讀取這個檔案)
-- [CBDB-D-002 — 使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支查詢](#cbdb-d-002--使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支查詢)
+- [CBDB-D-002 — 地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料](#cbdb-d-002--地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料)
 - [CBDB-D-003 — 二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存](#cbdb-d-003--二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存)
 - [CBDB-D-004 — 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位](#cbdb-d-004--網絡表單四個網絡匯出中有三個對任何輸入都回傳-http-500：它們查詢了自己的暫存表所沒有的欄位)
 - [CBDB-D-005 — 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數](#cbdb-d-005--只要查詢結果帶有地址，關聯表單的-neo4j-匯出就回傳-http-500：程式把一個文字欄位讀進整數變數)
@@ -118,10 +124,10 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 
 #### 對應的測試
 
-- 6 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+2)
-- 49 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+45)
+- 7 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+3)
+- 48 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+44)
 
-## CBDB-D-002 — 使用者把所有類別都取消勾選時，地點表單仍然執行「傳記」那一支查詢
+## CBDB-D-002 — 地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料
 
 **涉及範圍：** 地點表單的類別勾選項
 
@@ -258,8 +264,8 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 
 #### 對應的測試
 
-- 17 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+13)
-- 177 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+173)
+- 18 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
+- 176 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+172)
 - 23 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+19)
 
 ## CBDB-D-005 — 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數
@@ -416,7 +422,7 @@ _本報告產生於 2026-09-09 09:29 UTC，依據一次 873 項測試的執行�
 .\run_tests.ps1
 ```
 
-這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 873 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
+這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 874 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
 
 每一項問題底下都列出了對應的測試名稱。若只想執行其中一項：
 

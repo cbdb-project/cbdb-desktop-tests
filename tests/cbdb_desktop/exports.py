@@ -363,7 +363,9 @@ EXPORTS: tuple[ExportSpec, ...] = (
         body=_nothing, reads_scratch=True,
         files=("Associations_UTF8.tsv", "AssociationsPeople_UTF8.tsv"),
         notes="re-reads ZZ_SN_ASSOC / ZZ_SP_ASSOC (per-form since "
-              "2026-09-07; the shared tables were CBDB-D-004)",
+              "2026-09-07; before that they shared one table with three "
+              "other forms, which is how one form's query emptied "
+              "another form's export)",
     ),
     ExportSpec(
         form="associations", path="/api/associations/export-gis", family="gis",
@@ -382,7 +384,8 @@ EXPORTS: tuple[ExportSpec, ...] = (
         files=_NEO4J_PEOPLE_PLACES + ("PeopleAssociations_UTF8.csv",
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "AssociationCodes_UTF8.csv"),
-        notes="answers HTTP 500 on this build -- see CBDB-D-009",
+        notes="answers HTTP 500 on this build: it scans ADDR_CODES."
+              "c_admin_type, a text column, into an int",
         machine_import=True,
     ),
 
@@ -460,20 +463,23 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="networks", path="/api/networks/export-pajek", family="pajek",
         envelope=SINGLE_FILE, content=TABLE, body=_nothing,
         reads_scratch=True, files=("network_UTF8.net",),
-        notes="answers HTTP 500 on this build -- see CBDB-D-008",
+        notes="answers HTTP 500 on this build: selects c_node_dist, "
+              "which ZZ_SN_NETWORK does not declare",
     ),
     ExportSpec(
         form="networks", path="/api/networks/export-gephi", family="gephi",
         envelope=SINGLE_FILE, content=TABLE, body=_nothing,
         reads_scratch=True, files=("network_UTF8.gdf",),
         notes="handler is handleExportGUESS; the button says Gephi.  "
-              "Answers HTTP 500 on this build -- see CBDB-D-008",
+              "Answers HTTP 500 on this build: selects c_node_dist, "
+              "which ZZ_SN_NETWORK does not declare",
     ),
     ExportSpec(
         form="networks", path="/api/networks/export-ucinet", family="ucinet",
         envelope=SINGLE_FILE, content=TABLE, body=_nothing,
         reads_scratch=True, files=("network_UTF8.vna",),
-        notes="answers HTTP 500 on this build -- see CBDB-D-008",
+        notes="answers HTTP 500 on this build: selects c_node_dist, "
+              "which ZZ_SN_NETWORK does not declare",
     ),
 
     # -- association pairs -------------------------------------------------
