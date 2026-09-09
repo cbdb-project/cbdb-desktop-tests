@@ -1220,10 +1220,16 @@ def test_every_form_that_writes_a_spreadsheet_writes_the_mark(layout):
         checked += total
         unmarked += [f"{source.name}:{name}" for name in found]
 
-    assert checked >= 15, (
-        f"only {checked} functions name a .tsv file -- the export writers "
-        "have been renamed or restructured, and this check is measuring "
-        "almost nothing")
+    # Exact, not a floor: § *Pin exactly, not with a floor*.  ">= 15"
+    # would let six of the twenty-one writers disappear from the
+    # detector before this noticed, and a detector that has stopped
+    # seeing a writer is indistinguishable from a build that no longer
+    # has one.  A legitimate new export fails here and gets read.
+    assert checked == 21, (
+        f"{checked} functions name a .tsv file, not 21.  If the build "
+        "gained or dropped an export, update this number in the same "
+        "commit as the reason; if it did not, the detector has stopped "
+        "seeing writers it used to see")
     assert not unmarked, (
         "these writers produce a tab-delimited spreadsheet without a "
         "UTF-8 byte-order mark, so Excel will open it in the system code "

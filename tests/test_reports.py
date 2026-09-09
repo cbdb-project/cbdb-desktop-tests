@@ -249,6 +249,49 @@ def test_a_fixed_defect_is_reported_as_fixed_rather_than_confirmed(one_defect):
 # the coverage table, derived from the run
 # ---------------------------------------------------------------------------
 
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_committed_report_matches_the_registry_it_was_rendered_from(lang):
+    """The .md in the tree is what the registry renders today.
+
+    The committed Markdown is the deliverable, and the only thing that
+    keeps it honest is that nobody edits it by hand.  That is not quite
+    enough: editing the *registry* after generating leaves a report that
+    is neither hand-written nor current, and nothing said so.  It
+    happened on this round -- D-006 was refiled against a different file
+    and the committed report went on printing the superseded text and
+    the old citations for two more commits.
+
+    Rendering is deterministic given a run (see
+    ``test_the_same_run_renders_the_same_bytes_twice``), so the check is
+    just byte equality against a fresh render from the run this report
+    was made from.
+
+    Skipped when there is no local run to render from: the JSON is a
+    run artefact and is not committed.
+    """
+    if not gr.DEFAULT_JSON.is_file():
+        pytest.skip(f"no local run at {gr.DEFAULT_JSON.name} to render from; "
+                    "this check needs one.  Run .\\run_tests.ps1")
+
+    committed = REPO_ROOT / "reports" / f"{gr.STEM[lang]}.md"
+    if not committed.is_file():
+        pytest.skip(f"{committed.name} is not in the tree: a round that has "
+                    "not written its report yet")
+
+    run = gr.load_run(gr.DEFAULT_JSON)
+    # Same three inputs main() renders from: the run, the registry, and
+    # the run's own waiver record.  Leaving the waivers out would make
+    # this check pass on a report that had dropped the waiver section.
+    fresh = gr.render_markdown(run, lang, gr._build_name(),
+                               gr.load_waivers(gr.DEFAULT_WAIVERS))
+
+    assert committed.read_text(encoding="utf-8") == fresh, (
+        f"{committed.name} is not what the registry renders from this run.  "
+        "Either the registry changed after the report was generated, or the "
+        "report was edited by hand.  Regenerate it: "
+        "python reports\\generate_report.py")
+
+
 def test_the_coverage_table_describes_every_test_file_in_the_suite():
     """Every test file this repo has is described, in both languages.
 
