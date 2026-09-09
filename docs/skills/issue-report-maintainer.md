@@ -53,14 +53,14 @@ this suite its credibility. The bar:
 1. **Reproduce through the running binary.** Not in SQL alone. The
    shipped `cbdb.exe` embeds its own SQLite; a system `sqlite3` check
    disagreed with the app about `LIKE` on an FTS table and would have
-   hidden CBDB-D-001 entirely.
+   hidden the unbuilt-name-index finding entirely.
 2. **Try to refute it.** Intended? Documented in `CBDBSetUpCode`? A
    quirk of your test? Two candidates here turned out to be correct
    behaviour — the address picker's repeated rows, and IndexAddr's
    duplicate check stopping at a disabled slot (three separate call
    sites agree on where a ranking ends).
 3. **Find the decisive experiment.** Something that would change the
-   outcome if your explanation is right. For CBDB-D-001 that was running
+   outcome if your explanation is right. For that one it was running
    the FTS rebuild on a copy and re-querying through the same binary.
 4. **Get numbers.** "Search is broken" is a complaint. "`Wang` returns 0
    of 50,493, `wa` returns 56,504 correctly, the cutoff is exactly three
@@ -71,13 +71,14 @@ this suite its credibility. The bar:
    about the mechanism. Two of this build's defects changed materially
    when reproduced:
 
-   - CBDB-D-012 was filed as "the browser blocks the second download".
+   - The multi-file download finding was filed as "the browser blocks
+     the second download".
      Driving the real page in headless Chromium showed both files
      arriving on both presses -- the blocking half is a browser
      *permission* and does not reproduce under automation. The entry now
      says which half was established how, which is a better bug report
      than the confident version.
-   - CBDB-D-014 looked like an ignored switch. The source showed a
+   - The Places category substitution looked like an ignored switch. The source showed a
      deliberate fallback, so the defect moved from "the switch does
      nothing" to "the page lets you send a request the backend has to
      guess at" -- a different fix, in a different file.
@@ -100,11 +101,13 @@ this suite its credibility. The bar:
    symptom did *not* suggest.
 
    The trap is a data problem that looks like a code problem because the
-   application handles it badly, and its mirror image. CBDB-D-009 dies
+   application handles it badly, and its mirror image. The
+   Associations Neo4j export dies
    scanning `ADDR_CODES.c_admin_type` into an integer; that column has
    held text in every build and the schema declares `varchar(255)`, so
    no refresh will ever make the scan succeed. Origin `software`, one
-   `Scan` to fix. CBDB-D-003 looked like a bug in the name derivation
+   `Scan` to fix. The orphaned indexed name looked like a bug in the
+   name derivation
    and was a snapshot taken after a `BIOG_MAIN` row was deleted; the
    derivation cannot invent an orphan, because every row it writes is
    read out of `BIOG_MAIN`. Origin `data`.
@@ -138,7 +141,8 @@ The priority ladder (`PRIORITIES` in the same file):
 - **P3** packaging — the released files contain something they should not
 - **P4** data integrity — a reference in the shipped data does not resolve
 
-Severity argument worth keeping straight: CBDB-D-005 (shipped scratch
+Severity argument worth keeping straight: the shipped working state
+(scratch
 state) is *medium* rather than high because every form truncates its
 scratch tables before writing, so the state dies at the user's first
 query. That reasoning is written into its `impact` — do the same for any
@@ -226,7 +230,7 @@ report is pointed.
 
 The inverse has teeth too: **never drop a finding because a previous
 build called it fixed, or because a previous report did not mention it.**
-Judge each build on its own run and its own source. CBDB-D-008 — three
+Judge each build on its own run and its own source. The three
 Networks export buttons that answer HTTP 500 on every input — predates
 every build this suite has seen, survived a remediation session aimed at
 the very tables it touches, and would have been reasoned away by anyone
