@@ -612,3 +612,80 @@ NOT_EXPORTS: dict[str, str] = {
         "input: fills the two person slots -- NOT driven by anything yet, "
         "and counted as a gap by the endpoint gate",
 }
+
+
+# ---------------------------------------------------------------------------
+# what each file extension promises about its own bytes
+# ---------------------------------------------------------------------------
+#
+# A file name is a promise to whatever opens it, and these are the two
+# halves of that promise this build can be held to: which byte separates
+# one field from the next, and whether the bytes begin with a UTF-8
+# byte-order mark.  Both are properties of the *file*, judged by reading
+# it -- no handler's formatting logic is reproduced anywhere.
+#
+# Written as a table because the answers are not uniform and nobody
+# chose that: `.tsv` and `.csv` disagree about the delimiter, Pajek
+# *needs* the mark while Gephi and UCINet are broken by it, and the
+# Neo4j bundles are `.csv` files that deliberately omit it.  A comment
+# claiming "the SNA formats do not expect a mark" was wrong about Pajek
+# for exactly as long as it took someone to check.
+
+#: The mark is required: something a person opens in a spreadsheet, or a
+#: reader that documents needing it.
+BOM_REQUIRED = "required"
+
+#: The mark must not be there: the reader treats it as data.
+BOM_FORBIDDEN = "forbidden"
+
+#: Neither: the format declares its own encoding, or is not text.
+BOM_IRRELEVANT = "irrelevant"
+
+
+@dataclass(frozen=True)
+class FormatRule:
+    """What one file extension promises about the bytes inside it."""
+
+    #: The single character between fields, or None when the format is
+    #: not a delimited table (Pajek, GDF, VNA, KML).
+    delimiter: str | None
+    bom: str
+    why: str
+
+
+#: Keyed by lower-case suffix.  Every file any export produces must have
+#: a suffix in here -- ``test_every_produced_suffix_has_a_declared_rule``
+#: is the gate, so a build that invents ``.dat`` fails rather than going
+#: unjudged.
+FORMAT_RULES: dict[str, FormatRule] = {
+    ".tsv": FormatRule(
+        "\t", BOM_REQUIRED,
+        "this build's name for every tab-delimited export, and the "
+        "files a historian opens in Excel"),
+    ".csv": FormatRule(
+        ",", BOM_REQUIRED,
+        "comma-separated by its own name.  The Neo4j bundles are the "
+        "exception and carry machine_import, which excludes them from "
+        "the mark: LOAD CSV reads one as part of the first column name"),
+    ".tab": FormatRule(
+        "\t", BOM_REQUIRED,
+        "tab by name.  No export uses it on the 2026-09-08 build -- the "
+        "rename to .tsv took them all -- and the rule stays so that a "
+        "build which brings one back is judged rather than skipped"),
+    ".txt": FormatRule(
+        "\t", BOM_REQUIRED,
+        "the GIS exports that were named .txt before the rename were "
+        "tab-delimited, so that is what .txt has to mean here"),
+    ".net": FormatRule(
+        None, BOM_REQUIRED,
+        "Pajek: not a delimited table, and its UTF-8 reader expects the "
+        "mark -- all four writers say so where they emit it"),
+    ".gdf": FormatRule(
+        None, BOM_FORBIDDEN,
+        "Gephi/GUESS reads the mark as part of the first field name"),
+    ".vna": FormatRule(
+        None, BOM_FORBIDDEN, "UCINet, same reason as GDF"),
+    ".kml": FormatRule(
+        None, BOM_IRRELEVANT,
+        "XML declares its own encoding in its first line"),
+}

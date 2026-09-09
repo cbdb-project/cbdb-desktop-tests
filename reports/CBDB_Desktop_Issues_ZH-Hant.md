@@ -4,7 +4,7 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260908.7z_
 
-_本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行結果（耗時 295 秒）。_
+_本報告產生於 2026-09-09 11:01 UTC，依據一次 1097 項測試的執行結果（耗時 344 秒）。_
 
 尊敬的維護者：
 
@@ -16,12 +16,12 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 756 |
-| 失敗 | 62 |
+| 通過 | 892 |
+| 失敗 | 78 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
-| 略過 | 56 |
+| 略過 | 124 |
 
-在 62 項失敗中，有 **61** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
+在 78 項失敗中，有 **77** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
 
 其中 **1** 項指向的是本測試套件自身的覆蓋缺口，而不是釋出版本的缺陷：介面上有、但我們尚未驅動過的東西。那部分該由我們補上，與您無關。
 
@@ -42,7 +42,7 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 | 具狀態的表單 | 16 | 親屬關係、社會網路、關係配對、群組資料——工作清單 |
 | 索引地址排序 | 12 | 唯一會改寫 CBDB 正式資料（而非暫存表）的端點 |
 | 每一個篩選條件，輸入取自資料本身 | 254 | 依釋出資料庫中實際有資料的組合各跑一次查詢，並將每個開關的兩種狀態都測過 |
-| 所有匯出按鈕 | 275 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
+| 所有匯出按鈕 | 495 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
 | 在真實瀏覽器中的頁面 | 7 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
 | 同時開兩個分頁 | 3 | 一次查詢是否會取代另一個分頁即將匯出的內容 |
 | 暫存工作表 | 6 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
@@ -50,7 +50,7 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 | 已協商擱置的項目 | 28 | 每一條擱置項目是否仍對應到本次執行中存在的檢查，以及套件中沒有其他地方私自容忍失敗 |
 | 本報告自身的依據 | 22 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
 | 本報告本身 | 23 | 本報告可由上述執行結果完整重現，不會憑空產生問題、不會遺漏問題，也不會隱藏任何擱置項目 |
-| 本次執行的全部測試 | 877 |  |
+| 本次執行的全部測試 | 1097 |  |
 
 ## 已協商暫時擱置的項目
 
@@ -266,9 +266,9 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 
 #### 對應的測試
 
-- 18 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
-- 176 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+172)
-- 23 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+19)
+- 34 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+30)
+- 308 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+304)
+- 91 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+87)
 
 ## CBDB-D-005 — 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數
 
@@ -313,9 +313,9 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 
 #### 對應的測試
 
-- 18 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+14)
-- 147 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+143)
-- 41 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+37)
+- 34 × 失敗: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+30)
+- 279 × 通過: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+275)
+- 109 × 略過: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+105)
 
 ## CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤
 
@@ -424,7 +424,7 @@ _本報告產生於 2026-09-09 10:35 UTC，依據一次 877 項測試的執行�
 .\run_tests.ps1
 ```
 
-這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 877 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
+這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1097 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
 
 每一項問題底下都列出了對應的測試名稱。若只想執行其中一項：
 
