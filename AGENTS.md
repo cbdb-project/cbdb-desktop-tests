@@ -795,7 +795,9 @@ an entry.
 Some findings are negotiated rather than fixed -- "yes, that is wrong;
 for our readers it does not matter this year". That is legitimate, and
 it is the one thing that has to persist across rounds, so it lives in a
-table **outside** the suite, at `CBDB_WAIVERS`, absent by default:
+table **outside** the suite, at `CBDB_WAIVERS` — pointed by
+`.env.example` at this repo's own committed `waivers.toml`, so a fresh
+checkout judges the build the way the maintainer does:
 
 ```toml
 [test_an_export_produces_a_well_formed_file]
@@ -823,7 +825,7 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 | `mode = "tolerate"` (default) | the test still runs; a failure becomes a **strict** xfail, so the waived thing going away is reported and the waiver gets retired. A waiver is not a way to stop measuring |
 | `mode = "skip"` | the test does not run. Costs coverage: a skipped test issues no requests, so `test_zz_controls.py` may fail *because* of the waiver -- correctly. Needs a `note` saying why `tolerate` would not do |
 | `raises = "KnownShippedDefect"` | narrows the tolerance to the recognised signature, so an unrelated crash of the same test still fails. The only value allowed |
-| unset `CBDB_WAIVERS` | no waivers, which is every fresh checkout |
+| unset `CBDB_WAIVERS` | no waivers at all. Comment the line out of `.env` to see what a build really does, with nothing tolerated |
 | set but missing or malformed | the run stops. A table that silently fails to load would quietly re-expose everything in it, with the run looking normal |
 | a waiver matching nothing | `test_waivers.py` fails, naming the collected ids it could not match. A mistyped waiver un-waives what it meant to cover, and the failure then reads as a fresh regression |
 | every applied waiver | recorded in `artifacts/waivers_applied.json` and printed in **both** reports with its reason, who agreed and when. Nothing is tolerated invisibly |
