@@ -83,8 +83,19 @@ def common_root(names: list[str]) -> str | None:
     return root
 
 
-def _replace_with_retry(source: Path, dest: Path, *, attempts: int = 6) -> None:
-    """``os.replace`` with backoff, and an error that says what it was doing."""
+def _replace_with_retry(source: Path, dest: Path, *, attempts: int = 15) -> None:
+    """``os.replace`` with backoff, and an error that says what it was doing.
+
+    The budget is deliberately generous -- backoff is capped at 8 s per
+    attempt, so 15 of them wait about a minute in total.  What is being
+    waited on is another process letting go of a directory holding two
+    freshly written ~30 MB executables and a 1.2 GB database: an
+    antivirus sweep, or a file-sync client that has just noticed them.
+    The earlier budget of six attempts over 7.5 s was not enough on this
+    machine on 2026-09-09, and the cost of giving up is the whole 1.29 GB
+    extraction, discarded by the caller's cleanup.  Waiting a minute for
+    a lock that usually clears in seconds is much the cheaper mistake.
+    """
     for attempt in range(attempts):
         try:
             os.replace(source, dest)
@@ -93,8 +104,10 @@ def _replace_with_retry(source: Path, dest: Path, *, attempts: int = 6) -> None:
             if attempt == attempts - 1:
                 raise ArchiveError(
                     f"could not move the unpacked tree into place "
-                    f"({source} -> {dest}): {exc}") from exc
-            time.sleep(0.5 * (attempt + 1))
+                    f"({source} -> {dest}) after {attempts} attempts over "
+                    f"about a minute -- something still has it open: "
+                    f"{exc}") from exc
+            time.sleep(min(0.5 * (attempt + 1), 8.0))
 
 
 class Archive:
