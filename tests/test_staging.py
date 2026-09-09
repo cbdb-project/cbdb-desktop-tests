@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.subjects import FIXED_INPUTS
 
 from cbdb_desktop.config import (
     REPO_ROOT,
@@ -1201,3 +1202,43 @@ def test_app_gets_a_writable_copy_that_cannot_touch_the_master(
 
     assert (layout.db.stat().st_size, layout.db.stat().st_mtime_ns) == before
     assert not layout.db.with_name(layout.db.name + "-wal").exists()
+
+
+# ---------------------------------------------------------------------------
+# the inputs this suite fixes rather than discovers
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "fixed", [pytest.param(f, id=f"{f.name}-{f.table}") for f in FIXED_INPUTS])
+def test_a_fixed_input_still_exists_in_the_shipped_data(fixed, sqlite_conn):
+    """Every hand-picked input is a row the shipped data still has.
+
+    Almost every input in this suite is discovered from the data; three
+    are fixed, because a browser test that also has to choose its own
+    input is two experiments in one (see ``cbdb_desktop/subjects.py``).
+    The price of fixing them is that a data refresh can retire one
+    silently -- and for ``ASSOC_CODE`` only its *presence* matters to the
+    control it enables, so the precondition using it would go on passing
+    while the claim beside it had quietly become false.
+
+    Lives here, and not beside the browser tests that use them, because
+    it needs no browser: there it would be skipped by the module-wide
+    Chromium guard, and a retired input would go unnoticed on exactly
+    the machines that skip.
+
+    Membership in a base table -- a fact about the shipped artefact, not
+    a reconstruction of anything a handler computes.
+    """
+    rows = sqlite_conn.execute(
+        f'SELECT COUNT(*) FROM "{fixed.table}" WHERE "{fixed.column}" = ?',
+        (fixed.value,)).fetchone()[0]
+
+    if fixed.unique:
+        assert rows == 1, (
+            f"{fixed.name} = {fixed.value} matches {rows} rows in "
+            f"{fixed.table}.{fixed.column}, not exactly one.  It is "
+            f"{fixed.why}")
+    else:
+        assert rows, (
+            f"{fixed.name} = {fixed.value} matches no row in "
+            f"{fixed.table}.{fixed.column}.  It is {fixed.why}")

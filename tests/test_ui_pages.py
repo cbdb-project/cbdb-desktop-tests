@@ -48,26 +48,19 @@ import pytest
 from cbdb_desktop import browser, controls
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.subjects import ASSOC_CODE, ENTRY_CODE, SUBJECT
 
 pytestmark = [pytest.mark.app, pytest.mark.browser]
 
 _USABLE, _WHY_NOT = browser.available()
 pytestmark.append(pytest.mark.skipif(not _USABLE, reason=_WHY_NOT))
 
-#: A person with a small, non-empty network.  Fixed rather than
-#: discovered: a browser test that also has to choose its own input is
-#: two experiments in one, and this is the same subject
-#: test_stateful_forms.py uses for the same reason.
-SUBJECT = 1762
-
-#: One entry code that returns a result, for the export accounting.
-ENTRY_CODE = 36
-
-#: One association code that ASSOC_DATA has a row for, so that ticking
-#: it is the same act a user performs.  Only its presence matters to the
-#: control this enables, but a code the shipped data does not have would
-#: read as a made-up input.
-ASSOC_CODE = 349
+#: The three inputs these tests fix instead of discovering, and why --
+#: see ``cbdb_desktop/subjects.py``, which also carries the check that
+#: the shipped data still has them.  That check lives outside this file
+#: on purpose: it needs no browser, and here it would be skipped by the
+#: module-wide Chromium guard above, so a retired input would go
+#: unnoticed on exactly the machines that skip.
 
 
 @dataclass(frozen=True)
@@ -247,47 +240,6 @@ def _drive(app: CbdbApp, pre: Precondition) -> _Result:
 # ---------------------------------------------------------------------------
 # does the page load at all
 # ---------------------------------------------------------------------------
-
-def test_the_fixed_inputs_these_browser_tests_use_exist_in_the_data(
-        sqlite_conn):
-    """The three hand-picked inputs above are real rows.
-
-    ``SUBJECT``, ``ENTRY_CODE`` and ``ASSOC_CODE`` are fixed rather than
-    discovered, for the reason given where they are defined: a browser
-    test that also has to choose its own input is two experiments in
-    one.  The cost of fixing them is that a data refresh can retire one
-    silently -- and for ``ASSOC_CODE`` in particular, only its
-    *presence* matters to the control it enables, so the precondition
-    would go on passing while its comment ("a code ASSOC_DATA has a row
-    for") had quietly become false.
-
-    Membership in a base table, which is a fact about the shipped data
-    and not a reconstruction of anything a handler computes.
-    """
-    person = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM BIOG_MAIN WHERE c_personid = ?",
-        (SUBJECT,)).fetchone()[0]
-    assert person == 1, f"BIOG_MAIN has no person {SUBJECT}"
-
-    entry = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM ENTRY_DATA WHERE c_entry_code = ?",
-        (ENTRY_CODE,)).fetchone()[0]
-    assert entry, f"ENTRY_DATA has no row for entry code {ENTRY_CODE}"
-
-    assoc_code = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM ASSOC_CODES WHERE c_assoc_code = ?",
-        (ASSOC_CODE,)).fetchone()[0]
-    assert assoc_code == 1, \
-        f"ASSOC_CODES has no association code {ASSOC_CODE}, so the picker "\
-        "this test drives could not offer it"
-    assoc_rows = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM ASSOC_DATA WHERE c_assoc_code = ?",
-        (ASSOC_CODE,)).fetchone()[0]
-    assert assoc_rows, \
-        f"ASSOC_DATA has no row for association code {ASSOC_CODE} -- the "\
-        "code exists but names nothing, which is not the input the comment "\
-        "beside it claims"
-
 
 def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
                                                             layout):
