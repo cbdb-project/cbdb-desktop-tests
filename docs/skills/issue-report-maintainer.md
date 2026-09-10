@@ -137,9 +137,17 @@ The priority ladder (`PRIORITIES` in the same file):
 
 - **P0** silent wrong answer — wrong or empty results, no error shown
 - **P1** destructive write — stored data rewritten, previous state gone
-- **P2** visible runtime error — the action fails with a server error
-- **P3** packaging — the released files contain something they should not
+- **P2** visible failure — the action fails with an error the user sees
+- **P3** packaging — the released files contain something they should not, or lack something they should
 - **P4** data integrity — a reference in the shipped data does not resolve
+- **P5** unreachable feature — implemented, and no page can ask for it
+
+P0-P2 run worst-first; P3 onward are kinds, not degrees. The ladder is not
+fixed in length. Add a band when a round finds a kind of defect the
+existing ones would have to be stretched to describe -- stretching is
+worse, because a reader shown a "P2 server error" that returns 200 stops
+believing the glossary. `PRIORITIES` in `defects.py` is the authority;
+this list is a copy and has been wrong before.
 
 Severity argument worth keeping straight: the shipped working state
 (scratch

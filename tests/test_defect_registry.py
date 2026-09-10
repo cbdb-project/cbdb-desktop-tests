@@ -29,8 +29,16 @@ from cbdb_desktop.staging import AppLayout
 #: "Code/main.go:42 (why)" or "Code/main.go:handleThing (why)" -> parts.
 #: A symbol is the better citation where one exists: it survives the line
 #: drift that every new build produces.
+#:
+#: The path may contain spaces.  It could not until 2026-09-10, and the
+#: build had already shipped a file that needs it -- `The directory
+#: structure for CBDB-Desktop.txt`, which is the distribution's own
+#: statement of where its files belong and so exactly the kind of thing a
+#: packaging defect has to cite.  Refusing the name would have meant
+#: citing that file less precisely than the evidence allows, which is the
+#: opposite of what this gate is for.
 _REFERENCE = re.compile(
-    r"^(?P<path>[^:\s]+)"
+    r"^(?P<path>[^:]+?)"
     r"(?::(?P<line>\d+)|:(?P<symbol>[A-Za-z_]\w*))?"
     r"(?:\s+\((?P<note>.*)\))?$")
 

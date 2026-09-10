@@ -44,6 +44,7 @@ another's result.
 from __future__ import annotations
 
 import base64
+import codecs
 import csv
 import io
 import json
@@ -75,6 +76,7 @@ from cbdb_desktop.exports import (
 from cbdb_desktop.forms import (FORMS_BY_NAME, STORE_RESET,
                                 WORKING_LIST_RESETS)
 from cbdb_desktop.routes import all_routes
+from cbdb_desktop.subjects import SUBJECT
 
 pytestmark = pytest.mark.app
 
@@ -2175,3 +2177,125 @@ def test_every_alias_resolves_into_the_numeric_inventory():
         f"these aliases point outside the numeric inventory: {stray}.  An "
         "alias exists to bring a renamed heading *into* the type check, so "
         "one that lands elsewhere is judging nothing")
+
+
+# ---------------------------------------------------------------------------
+# the encoding a caller asks for, against the bytes it gets
+# ---------------------------------------------------------------------------
+
+#: The one exporter that names its output after the encoding it was
+#: asked for.  ``places_form_backend.go`` reads ``encoding`` on all four
+#: of its export bodies, and this is the handler where the choice reaches
+#: the *filename*: ``"network_" + encStr + ".net"``, so a file called
+#: ``network_ascii.net`` is the application's own statement about what is
+#: inside it.  Driving it is what settles the lead recorded beside
+#: ``FORMAT_RULES``, which a suffix rule could not: ``.net`` requires the
+#: mark, and both files have the suffix.
+_ASCII_PAJEK = "/api/places/export-pajek"
+
+
+def _place_record(person_id: int, assoc_id: int, name_chn: str,
+                  name_py: str) -> dict:
+    """One ``PlaceRecord``, filled where the Pajek writer reads it.
+
+    The writer takes its vertices from ``personId`` and ``assocId`` --
+    not ``addrId``, which an earlier version of this helper supplied
+    instead, producing a file with vertices and **no edges** and so never
+    reaching the edge-label branch at all.  Both are given here, and both
+    label pairs with them: ``nameChn``/``name`` for a vertex and
+    ``relChn``/``relDesc`` for an edge, because the encoding under test
+    chooses between exactly those pairs.
+    """
+    return {
+        "personId": person_id, "name": name_py, "nameChn": name_chn,
+        "assocId": assoc_id, "assocName": name_py + " (assoc)",
+        "assocNameChn": name_chn + "\u4e59",
+        "addrId": 100513, "addrName": "Fuzhou", "addrChn": name_chn,
+        "sex": "M", "relType": "", "relCode": 1,
+        "relDesc": "friend of", "relChn": "\u53cb\u4eba",
+    }
+
+
+def test_an_export_named_ascii_contains_ascii(app: CbdbApp):
+    """``network_ascii.net`` is written with a UTF-8 byte order mark.
+
+    ``handleExportPajek`` reads ``encoding`` into a single flag:
+
+        ascii := strings.ToLower(req.Encoding) == "ascii"
+        encStr := "UTF8"; if ascii { encStr = "ascii" }
+
+    and that flag does real work.  It names the file, and it also picks
+    every label in the body -- ``label := nameChn; if ascii || label ==
+    "" { label = namePY }`` for a vertex, and the same shape for an
+    edge's ``relChn``/``relDesc``.  So the writer honours the request
+    where the content is concerned.  What it does not honour is the very
+    first thing it writes: the last line before the reply is
+
+        base64...(append(append([]byte{}, utf8BOM...), sb.String()...))
+
+    unconditionally.  So the file the application calls ``ascii`` opens
+    with ``EF BB BF``, which is not ASCII, and Pajek reading it as ASCII
+    gets three junk characters in front of ``*Vertices``.
+
+    This is the lead recorded next to ``FORMAT_RULES`` and left open
+    there for a good reason: that table is keyed on the *suffix*, and
+    both files are ``.net``, so a suffix rule calls the mark correct in
+    both.  The name the handler chose is the extra fact that makes them
+    different, and it takes driving the endpoint to see it -- which is
+    what this does.  ``unicode`` is driven alongside as the control, so
+    a build that stops emitting the mark entirely fails here rather than
+    passing for the wrong reason.
+
+    What this does **not** claim is that an ascii body is guaranteed to
+    be ASCII for every input: the labels it falls back to are pinyin out
+    of the shipped data.  The measurement below reports what those bytes
+    were on this input, and says so, rather than asserting a property of
+    the writer it has not established.
+    """
+    # Two records, each carrying a Chinese label and a pinyin one, and
+    # each naming a second person so the file has edges: that way both
+    # label branches the encoding flag chooses between are exercised, and
+    # the measurement below is about the writer rather than about a gap
+    # in the input.
+    body = {"data": [_place_record(SUBJECT, SUBJECT + 1,
+                                   "\u738b\u5b89\u77f3", "Wang Anshi"),
+                     _place_record(SUBJECT + 2, SUBJECT + 3,
+                                   "\u53f8\u9a6c\u5149", "Sima Guang")]}
+
+    got = {}
+    for encoding in ("unicode", "ascii"):
+        response = app.post(_ASCII_PAJEK, json=dict(body, encoding=encoding))
+        assert response.status_code == 200, (
+            f"places Pajek export refused encoding={encoding}: "
+            f"HTTP {response.status_code} {response.text[:200]}")
+        payload = response.json()
+        _, _, data = payload["url"].partition("base64,")
+        got[encoding] = (payload["name"], base64.b64decode(data))
+
+    unicode_name, unicode_bytes = got["unicode"]
+    ascii_name, ascii_bytes = got["ascii"]
+
+    assert ascii_name != unicode_name, (
+        f"encoding no longer changes the file name ({ascii_name!r} both "
+        "times); if the handler has stopped distinguishing them, this test "
+        "is judging something that no longer exists")
+    assert unicode_bytes.startswith(codecs.BOM_UTF8), (
+        f"{unicode_name} has lost the mark Pajek's UTF-8 reader expects; "
+        "that is a separate defect from the one below and this test is not "
+        "the place it gets reported")
+
+    if ascii_bytes.startswith(codecs.BOM_UTF8):
+        past_mark = ascii_bytes[len(codecs.BOM_UTF8):]
+        outside = sorted({b for b in past_mark if b > 0x7F})
+        in_unicode = sorted({b for b in unicode_bytes[len(codecs.BOM_UTF8):]
+                             if b > 0x7F})
+        raise KnownShippedDefect(
+            f"{ascii_name} opens with a UTF-8 byte order mark, and so "
+            f"does {unicode_name}, built from the same records.  The "
+            "encoding flag is honoured in the body and ignored in the "
+            f"mark: past the mark this file holds {len(outside)} byte "
+            f"value(s) above 0x7F against {len(in_unicode)} in the unicode "
+            "one, so the labels did switch to pinyin -- but "
+            "handleExportPajek prepends utf8BOM unconditionally, so the "
+            "three bytes a reader parsing this file as ASCII meets first, "
+            "before *Vertices, are UTF-8")
