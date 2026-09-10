@@ -23,7 +23,8 @@ import re
 
 import pytest
 
-from cbdb_desktop.defects import DEFECTS, ORIGINS, PRIORITIES, Defect
+from cbdb_desktop.defects import (DEFECTS, ORIGINS, PRIORITIES, Defect,
+                                  _DEFECTS)
 from cbdb_desktop.staging import AppLayout
 
 #: "Code/main.go:42 (why)" or "Code/main.go:handleThing (why)" -> parts.
@@ -210,4 +211,17 @@ def test_the_registry_is_internally_consistent():
     # The report's table of contents and its per-issue anchors are built
     # from these keys, so two entries sharing one would silently merge in
     # the deliverable.
-    assert len(set(DEFECTS)) == len(DEFECTS)
+    #
+    # Compared against the *tuple* the registry is built from, not
+    # against the dict.  ``DEFECTS`` is ``{d.key: d for d in _DEFECTS}``,
+    # so ``set(DEFECTS)`` is its key set and ``len(set(DEFECTS)) ==
+    # len(DEFECTS)`` is true whatever happens -- including in the one
+    # case it was written to catch, where the comprehension has already
+    # dropped the duplicate silently.  The lengths that can disagree are
+    # the tuple's and the dict's.
+    assert len(DEFECTS) == len(_DEFECTS), (
+        f"{len(_DEFECTS)} entries were written and {len(DEFECTS)} "
+        f"survived keying, so {len(_DEFECTS) - len(DEFECTS)} share a "
+        "key with another and have been silently merged.  The report's "
+        "contents and anchors come from these keys, so the losing "
+        "entry would vanish from the deliverable without a word.")

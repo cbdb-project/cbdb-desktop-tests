@@ -121,9 +121,19 @@ RECALL_ENDPOINTS = {
 def clean_channel(app: CbdbApp):
     """Empty every working list and the stored list, before and after."""
     def reset():
-        for path, body in WORKING_LIST_RESETS:
-            app.post(path, json=body)
-        app.post(STORE_RESET[0], json=STORE_RESET[1])
+        # Each reset is checked.  AGENTS.md records this hazard as
+        # having bitten once already: a reset that answers 404 or 500
+        # leaves the module inheriting the previous test's working
+        # list, every verdict after it becomes suspect, and nothing
+        # says so.
+        for path, body in WORKING_LIST_RESETS + (STORE_RESET,):
+            answer = app.post(path, json=body)
+            assert answer.status_code == 200, (
+                f"clearing the working list failed: POST {path} "
+                f"answered HTTP {answer.status_code}.  Every test in "
+                "this module starts from a cleared list, so a reset "
+                "that does not happen makes the rest of the file "
+                "meaningless rather than merely wrong.")
 
     reset()
     yield
@@ -454,13 +464,24 @@ def test_rerun_seeds_the_working_list_with_the_people_the_query_found(
         f"{seeded}; the next query would expand from a different set of "
         "people than the one the user was shown")
 
-    # And the people themselves, not merely how many: re-querying from
-    # the seeded list must reach at least everybody the first query
-    # found, since each of them is now a starting point.
+    # Re-querying from the seeded list must reach at least everybody
+    # the first query found, since each of them is now a starting
+    # point.  Stated as a floor on a *count*, which is all
+    # ``_run_a_query`` returns -- so the comment this used to carry,
+    # "and the people themselves, not merely how many", promised
+    # something it did not do: a rerun seeded with a different but
+    # equally large set satisfies it exactly.
+    #
+    # Left as a count, and now described as one.  Comparing the people
+    # would mean reading the working list back through the recall
+    # endpoint, which is CBDB-D-013's territory and would make this
+    # test fail for that reason rather than its own.
     again = _run_a_query(app, "networks")
     assert again >= found, (
         f"expanding from {found} people reached {again}, fewer than "
-        "started; rerun seeded the working list with somebody else")
+        "started; rerun seeded the working list with somebody else. "
+        "This compares how many, not who: a rerun that reached a "
+        "different set of the same size or larger would pass.")
 
 
 def test_the_channel_is_the_one_the_build_registers(layout):

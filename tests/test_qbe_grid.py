@@ -655,7 +655,7 @@ def test_a_column_can_sort_the_result_without_appearing_in_it(
         _column(_GROUPING, show=False, sort="DESC",
                 criteria_text=["Is Not Null"]),
     ])
-    assert payload["columns"] == ["t.c_index_year"], (
+    assert payload["columns"] == [f"t.{_NUMERIC}"], (
         f"a hidden column appeared in the output: {payload['columns']}")
     assert payload["rows"], "sorting by a hidden column returned no rows"
     assert "ORDER BY" in payload["sql"].upper(), (
@@ -1237,11 +1237,12 @@ def test_the_grid_vocabulary_the_build_declares_is_one_it_accepts(
     # real table.  This one exists so that the meaning-checks cannot
     # quietly stop covering the vocabulary: every declared token has
     # now been through the endpoint in this run, because this test
-    # sent it -- not because a list somewhere says it did.  Four
-    # earlier versions asked instead whether some other test drove
-    # each token, by searching source text and then by reading a
-    # shared constant, and every one of them could be left crediting
-    # a token no request carried.
+    # sent it -- not because a list somewhere says it did.  Every
+    # earlier version asked instead whether some *other* test drove
+    # each token, first by searching source text and then by reading
+    # a value the test was supposed to send, and each could be left
+    # crediting a token no request carried.  AGENTS.md records the
+    # two kinds under § Coverage is the program job.
 
 
 @pytest.mark.parametrize("criterion", _LIKE_CRITERIA)
