@@ -49,7 +49,14 @@ from cbdb_desktop.routes import all_routes
 EXPECTED_BUTTONS = {
     "association_pairs": 21,
     "associations": 18,
-    "browser": 13,
+    # 13 on the 20260908 build.  The 20260909 build reworked this page:
+    # its eleven tab buttons gained `id` attributes, so they are keyed
+    # by name here instead of by their inline handler, and three new
+    # ones appeared -- btnEnglish, btnSimplified and btnTraditional, a
+    # language switcher.  All three are wired: each reloads the person
+    # and the open tab through the /api/browser/person/{id}* endpoints.
+    # Read and moved deliberately, which is what this pin is for.
+    "browser": 16,
     "entry": 19,
     "group_data": 16,
     "index_addr": 3,

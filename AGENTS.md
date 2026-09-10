@@ -41,11 +41,11 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1389 tests collected, and the defect registry
-holds this round's findings.**  It was cleared on 2026-09-08, together
-with the previous round's reports and every run artefact, so that this
-distribution was assessed with no carried-over knowledge of what an
-earlier build did -- and it has since been filled by *this* round, which
+**Current state: 1423 tests collected against
+`CBDB-Desktop_20260909.7z`, and the defect registry holds this round's
+findings.**  It was cleared on 2026-09-10, together with the previous
+round's reports and every run artefact, so that this distribution was
+assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
 one.  Do not read it as an inventory of what CBDB-Desktop does wrong --
 § *Every run is a fresh assessment*, taken to its limit at the

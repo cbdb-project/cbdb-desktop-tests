@@ -2,9 +2,9 @@
 
 _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正。_
 
-_受測版本：CBDB-Desktop_20260908.7z_
+_受測版本：CBDB-Desktop_20260909.7z_
 
-_本報告產生於 2026-09-10 14:25 UTC，依據一次 1423 項測試的執行結果（耗時 402 秒）。_
+_本報告產生於 2026-09-10 15:00 UTC，依據一次 1423 項測試的執行結果（耗時 426 秒）。_
 
 尊敬的維護者：
 
@@ -94,7 +94,7 @@ _本報告產生於 2026-09-10 14:25 UTC，依據一次 1423 項測試的執行�
 | CBDB-D-006 | P2 | 已確認 | 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤 |
 | CBDB-D-009 | P2 | 已確認 | 關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「Unknown error」 |
 | CBDB-D-024 | P2 | 已確認 | 除非同時使用朝代或地址篩選，網絡表單的性別篩選一律回應 HTTP 500 |
-| CBDB-D-007 | P3 | 已確認 | 發行檔中一併附上了十份帶日期的模板工作副本 |
+| CBDB-D-007 | P3 | 已確認 | 發行檔中一併附上了九份帶日期的模板工作副本 |
 | CBDB-D-014 | P3 | 已確認 | 首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中 |
 | CBDB-D-011 | P5 | 已確認 | 有六項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、關聯配對的 KML 輸出程式、兩個自動完成端點、地點表單的 ASCII 編碼，以及地點表單的 BAC 篩選 |
 
@@ -124,7 +124,7 @@ _本報告產生於 2026-09-10 14:25 UTC，依據一次 1423 項測試的執行�
 - [CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤](#cbdb-d-006--查詢建構器提供了-30-個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤)
 - [CBDB-D-009 — 關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「Unknown error」](#cbdb-d-009--關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「unknown-error」)
 - [CBDB-D-024 — 除非同時使用朝代或地址篩選，網絡表單的性別篩選一律回應 HTTP 500](#cbdb-d-024--除非同時使用朝代或地址篩選，網絡表單的性別篩選一律回應-http-500)
-- [CBDB-D-007 — 發行檔中一併附上了十份帶日期的模板工作副本](#cbdb-d-007--發行檔中一併附上了十份帶日期的模板工作副本)
+- [CBDB-D-007 — 發行檔中一併附上了九份帶日期的模板工作副本](#cbdb-d-007--發行檔中一併附上了九份帶日期的模板工作副本)
 - [CBDB-D-014 — 首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中](#cbdb-d-014--首頁的-users-guide-連結是-404：該-pdf-並不在發行檔中)
 - [CBDB-D-011 — 有六項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、關聯配對的 KML 輸出程式、兩個自動完成端點、地點表單的 ASCII 編碼，以及地點表單的 BAC 篩選](#cbdb-d-011--有六項已隨版釋出的功能沒有任何入口：分群資料的-kml-匯出、關聯配對的-kml-輸出程式、兩個自動完成端點、地點表單的-ascii-編碼，以及地點表單的-bac-篩選)
 - [嚴重等級說明](#嚴重等級說明)
@@ -258,7 +258,7 @@ _本報告產生於 2026-09-10 14:25 UTC，依據一次 1423 項測試的執行�
 - `Templates/group_data/index.html:914`
 - `Templates/entry/index.html:1093`
 - `Templates/associations/index.html:680`
-- `Templates/networks/index.html:1551`
+- `Templates/networks/index.html:1555`
 - `Templates/places/index.html:691`
 - `Templates/office/index.html:850`
 - `Templates/status/index.html:795`
@@ -304,8 +304,8 @@ _本報告產生於 2026-09-10 14:25 UTC，依據一次 1423 項測試的執行�
 #### 對應的程式位置
 
 - `Code/networks_form_query.go:buildDynastyConditions`
-- `Templates/networks/index.html:704`
-- `Templates/networks/index.html:1054`
+- `Templates/networks/index.html:708`
+- `Templates/networks/index.html:1058`
 
 #### 對應的測試
 
@@ -350,7 +350,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 - `Code/assocpairs_form_backend.go:handleExportGIS`
 - `Code/networks_form_backend.go:NetworkQuery`
 - `Templates/association_pairs/index.html:173`
-- `Templates/networks/index.html:1071`
+- `Templates/networks/index.html:1075`
 
 #### 對應的測試
 
@@ -481,7 +481,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 #### 對應的程式位置
 
-- `Code/networks_form_backend.go:384`
+- `Code/networks_form_backend.go:386`
 - `Code/networks_form_backend.go:handleExportNeo4j`
 - `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
 - `Code/networks_form_query.go`
@@ -900,8 +900,8 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 #### 對應的程式位置
 
-- `Code/networks_form_backend.go:997`
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:999`
+- `Code/networks_form_backend.go:1048`
 
 #### 對應的測試
 
@@ -942,7 +942,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 #### 對應的程式位置
 
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:1048`
 
 #### 對應的測試
 
@@ -993,7 +993,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 - `Code/networks_form_query.go:273`
 - `Code/networks_form_query.go:235`
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:1048`
 
 #### 對應的測試
 
@@ -1034,10 +1034,10 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 #### 對應的程式位置
 
-- `Code/networks_form_backend.go:2093`
-- `Code/networks_form_backend.go:2216`
-- `Code/networks_form_backend.go:2341`
-- `Code/networks_form_backend.go:419`
+- `Code/networks_form_backend.go:2095`
+- `Code/networks_form_backend.go:2218`
+- `Code/networks_form_backend.go:2343`
+- `Code/networks_form_backend.go:421`
 
 #### 對應的測試
 
@@ -1085,7 +1085,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 
 - `Code/associations_form_backend.go:1377`
 - `Code/associations_form_backend.go:1388`
-- `Code/networks_form_backend.go:2987`
+- `Code/networks_form_backend.go:2989`
 - `Data/cbdb.db.schema.sql:42`
 
 #### 對應的測試
@@ -1235,7 +1235,7 @@ BIOG_MAIN 確實有 `c_female` 這個欄位：欄位是真的，別名才是假�
 - 2 × 失敗: `test_the_sex_filter_removes_the_sex_it_was_told_to[F-useFemale]`, `test_the_sex_filter_removes_the_sex_it_was_told_to[M-useMale]`
 - 1 × 通過: `test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on`
 
-## CBDB-D-007 — 發行檔中一併附上了十份帶日期的模板工作副本
+## CBDB-D-007 — 發行檔中一併附上了九份帶日期的模板工作副本
 
 **涉及範圍：** 封裝內容：Templates/
 
@@ -1247,11 +1247,11 @@ BIOG_MAIN 確實有 `c_female` 這個欄位：欄位是真的，別名才是假�
 
 #### 問題描述
 
-壓縮檔 85 個成員中有 10 個，是與正式檔案並存的帶日期模板備份——例如 `entry/entry.index.20260906.html` 與 `entry/index.html` 並列、`qbe/qbe.20260827.html` 與 `qbe/qbe.html` 並列等。沒有任何路由會提供這些檔案，且只有 `Static/` 是以檔案伺服方式對外，因此它們並不是可被存取的頁面；這是把工作目錄照原樣打包的結果。
+壓縮檔 84 個成員中有 9 個，是與正式檔案並存的帶日期模板備份——例如 `entry/entry.index.20260906.html` 與 `entry/index.html` 並列、`qbe/qbe.20260827.html` 與 `qbe/qbe.html` 並列等。沒有任何路由會提供這些檔案，且只有 `Static/` 是以檔案伺服方式對外，因此它們並不是可被存取的頁面；這是把工作目錄照原樣打包的結果。
 
 #### 實測依據
 
-以下清單讀自壓縮檔自身的目錄，而非解開後的目錄樹：`Templates/associations/associations.index.20260906.html`、`associations.index.20260908.html`、`entry/entry.index.20260906.html`、`networks/networks.index.20260813.html`、`office/office.index.20260815.html`、`pickers/address_picker.20260729.html`、`places/places.index.20260906.html`、`qbe/qbe.20260827.html`、`status/status.index.20260816.html`、`texts/texts.index.20260815.html`。把其中一份與其正式版本相比，可確認確實較舊：20260906 版的入仕頁面沒有 `chkUseXY` 這個控制項，而釋出的頁面有。
+以下清單讀自壓縮檔自身的目錄，而非解開後的目錄樹：`Templates/associations/associations.index.20260906.html`、`associations.index.20260908.html`、`entry/entry.index.20260906.html`、`office/office.index.20260815.html`、`pickers/address_picker.20260729.html`、`places/places.index.20260906.html`、`qbe/qbe.20260827.html`、`status/status.index.20260816.html`、`texts/texts.index.20260815.html`。上一版還多附了第十份 `networks/networks.index.20260813.html`，這一版已經移除——那也是這次唯一被刪掉的檔案。其餘九份仍在，可見打包步驟依然是把工作目錄照原樣收進去。把其中一份與其正式版本相比，可確認確實較舊：20260906 版的入仕頁面沒有 `chkUseXY` 這個控制項，而釋出的頁面有。
 
 #### 影響
 
