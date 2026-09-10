@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-10 12:56 UTC from a run of 1412 tests (426s)._
+_Generated 2026-09-10 13:41 UTC from a run of 1423 tests (397s)._
 
 Dear maintainer,
 
@@ -18,7 +18,7 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1121 |
+| passed | 1132 |
 | failed | 106 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 182 |
@@ -35,6 +35,8 @@ Every one of the 106 failures is a test that demonstrates an issue below.
 | Passing a result from one form to another | 18 | The stored-person list: what one form stores, another recalls |
 | Each page against its own handler | 13 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
 | The code and address lists | 41 | The dropdowns each form offers before a query is run |
+| The Group Data form | 7 | Its five section switches driven one at a time, and what it answers when every one of them is off |
+| The Entry and Status pickers | 4 | Their type trees: that every type offered has codes somewhere beneath it, and that every parent named is a type that exists |
 | The Networks form's filters | 11 | Its kin and non-kin switches, the sex filter, and each of the twenty-seven association categories that select anything, driven on its own |
 | The Query Builder's grid, cell by cell | 34 | Its eleven operators, four aggregates, sort row, join kinds and what it does with a cell it cannot parse |
 | The Query Builder | 51 | Its whitelist, the SQL it shows the user, and its guards |
@@ -50,7 +52,7 @@ Every one of the 106 failures is a test that demonstrates an issue below.
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 82 | That every issue below still cites real code, in both languages |
 | This report itself | 27 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1412 |  |
+| every test in this run | 1423 |  |
 
 ## Agreed to leave for now
 
@@ -1384,7 +1386,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1412 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1423 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 
