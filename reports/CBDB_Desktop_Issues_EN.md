@@ -2,9 +2,9 @@
 
 _A respectful summary of issues uncovered during automated regression testing._
 
-_Build under test: CBDB-Desktop_20260908.7z_
+_Build under test: CBDB-Desktop_20260909.7z_
 
-_Generated 2026-09-10 14:25 UTC from a run of 1423 tests (402s)._
+_Generated 2026-09-10 15:00 UTC from a run of 1423 tests (426s)._
 
 Dear maintainer,
 
@@ -92,7 +92,7 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
 | CBDB-D-009 | P2 | CONFIRMED | Four Association Pairs export buttons report "Unknown error" on exports that succeeded |
 | CBDB-D-024 | P2 | CONFIRMED | The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address |
-| CBDB-D-007 | P3 | CONFIRMED | The distribution ships ten dated working copies of its own templates |
+| CBDB-D-007 | P3 | CONFIRMED | The distribution ships nine dated working copies of its own templates |
 | CBDB-D-014 | P3 | CONFIRMED | The front page's Users Guide link is a 404: the PDF is not in the distribution |
 | CBDB-D-011 | P5 | CONFIRMED | Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter |
 
@@ -122,7 +122,7 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
 - [CBDB-D-009 — Four Association Pairs export buttons report "Unknown error" on exports that succeeded](#cbdb-d-009--four-association-pairs-export-buttons-report-unknown-error-on-exports-that-succeeded)
 - [CBDB-D-024 — The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address](#cbdb-d-024--the-networks-sex-filter-answers-http-500-unless-the-user-is-also-filtering-by-dynasty-or-address)
-- [CBDB-D-007 — The distribution ships ten dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-ten-dated-working-copies-of-its-own-templates)
+- [CBDB-D-007 — The distribution ships nine dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-nine-dated-working-copies-of-its-own-templates)
 - [CBDB-D-014 — The front page's Users Guide link is a 404: the PDF is not in the distribution](#cbdb-d-014--the-front-pages-users-guide-link-is-a-404-the-pdf-is-not-in-the-distribution)
 - [CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter](#cbdb-d-011--six-shipped-capabilities-have-no-way-in-group-datas-kml-exports-association-pairs-kml-writer-two-autocomplete-endpoints-the-places-ascii-encoding-and-the-places-bac-filter)
 - [Severity legend](#severity-legend)
@@ -256,7 +256,7 @@ Deliver a multi-file export as one download -- a zip archive is the usual answer
 - `Templates/group_data/index.html:914`
 - `Templates/entry/index.html:1093`
 - `Templates/associations/index.html:680`
-- `Templates/networks/index.html:1551`
+- `Templates/networks/index.html:1555`
 - `Templates/places/index.html:691`
 - `Templates/office/index.html:850`
 - `Templates/status/index.html:795`
@@ -302,8 +302,8 @@ Send `fromDynastyBegin`, `fromDynastyEnd`, `toDynastyBegin` and `toDynastyEnd` i
 #### Where it lives in the build
 
 - `Code/networks_form_query.go:buildDynastyConditions`
-- `Templates/networks/index.html:704`
-- `Templates/networks/index.html:1054`
+- `Templates/networks/index.html:708`
+- `Templates/networks/index.html:1058`
 
 #### Demonstrated by
 
@@ -348,7 +348,7 @@ For KML: send `format` from this page as its siblings do, or have the handler re
 - `Code/assocpairs_form_backend.go:handleExportGIS`
 - `Code/networks_form_backend.go:NetworkQuery`
 - `Templates/association_pairs/index.html:173`
-- `Templates/networks/index.html:1071`
+- `Templates/networks/index.html:1075`
 
 #### Demonstrated by
 
@@ -479,7 +479,7 @@ Add `UNIQUE (c_person_id)` to `ZZ_SIP_NETWORK` in `CBDB_AdditionalTablesViewsInd
 
 #### Where it lives in the build
 
-- `Code/networks_form_backend.go:384`
+- `Code/networks_form_backend.go:386`
 - `Code/networks_form_backend.go:handleExportNeo4j`
 - `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
 - `Code/networks_form_query.go`
@@ -898,8 +898,8 @@ Add the two branches, selecting `'06'` the way the other groups select their pre
 
 #### Where it lives in the build
 
-- `Code/networks_form_backend.go:997`
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:999`
+- `Code/networks_form_backend.go:1048`
 
 #### Demonstrated by
 
@@ -940,7 +940,7 @@ Distinguish "every category" from "no category".  The first legitimately needs n
 
 #### Where it lives in the build
 
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:1048`
 
 #### Demonstrated by
 
@@ -989,7 +989,7 @@ Give the last loop the same filtered FROM its earlier loops have -- `fromAssocAs
 
 - `Code/networks_form_query.go:273`
 - `Code/networks_form_query.go:235`
-- `Code/networks_form_backend.go:1046`
+- `Code/networks_form_backend.go:1048`
 
 #### Demonstrated by
 
@@ -1030,10 +1030,10 @@ Decide which distance the three exports mean and use that column -- `c_edge_dist
 
 #### Where it lives in the build
 
-- `Code/networks_form_backend.go:2093`
-- `Code/networks_form_backend.go:2216`
-- `Code/networks_form_backend.go:2341`
-- `Code/networks_form_backend.go:419`
+- `Code/networks_form_backend.go:2095`
+- `Code/networks_form_backend.go:2218`
+- `Code/networks_form_backend.go:2343`
+- `Code/networks_form_backend.go:421`
 
 #### Demonstrated by
 
@@ -1081,7 +1081,7 @@ The same mistake is in the build a second time, and it is not in another Neo4j e
 
 - `Code/associations_form_backend.go:1377`
 - `Code/associations_form_backend.go:1388`
-- `Code/networks_form_backend.go:2987`
+- `Code/networks_form_backend.go:2989`
 - `Data/cbdb.db.schema.sql:42`
 
 #### Demonstrated by
@@ -1231,7 +1231,7 @@ Give the plain `fromKin` the same `BIOG_MAIN AS BIOG_MAIN_1` join its dynasty an
 - 2 × failed: `test_the_sex_filter_removes_the_sex_it_was_told_to[F-useFemale]`, `test_the_sex_filter_removes_the_sex_it_was_told_to[M-useMale]`
 - 1 × passed: `test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on`
 
-## CBDB-D-007 — The distribution ships ten dated working copies of its own templates
+## CBDB-D-007 — The distribution ships nine dated working copies of its own templates
 
 **Affected area:** Packaging: Templates/
 
@@ -1243,11 +1243,11 @@ Give the plain `fromKin` the same `BIOG_MAIN AS BIOG_MAIN_1` join its dynasty an
 
 #### Description
 
-Ten of the archive's 85 members are dated backups of templates that ship alongside the live file -- `entry/entry.index.20260906.html` next to `entry/index.html`, `qbe/qbe.20260827.html` next to `qbe/qbe.html`, and so on.  No route serves them and only `Static/` is file-served, so they are not reachable pages; they are a working directory that was packaged as it stood.
+Nine of the archive's 84 members are dated backups of templates that ship alongside the live file -- `entry/entry.index.20260906.html` next to `entry/index.html`, `qbe/qbe.20260827.html` next to `qbe/qbe.html`, and so on.  No route serves them and only `Static/` is file-served, so they are not reachable pages; they are a working directory that was packaged as it stood.
 
 #### Evidence
 
-Read from the archive's own directory, not from the unpacked tree: `Templates/associations/associations.index.20260906.html`, `associations.index.20260908.html`, `entry/entry.index.20260906.html`, `networks/networks.index.20260813.html`, `office/office.index.20260815.html`, `pickers/address_picker.20260729.html`, `places/places.index.20260906.html`, `qbe/qbe.20260827.html`, `status/status.index.20260816.html` and `texts/texts.index.20260815.html`.  Diffing one against its live sibling shows it is genuinely older: the 20260906 copy of the Entry page has no `chkUseXY` control, which the shipped page has.
+Read from the archive's own directory, not from the unpacked tree: `Templates/associations/associations.index.20260906.html`, `associations.index.20260908.html`, `entry/entry.index.20260906.html`, `office/office.index.20260815.html`, `pickers/address_picker.20260729.html`, `places/places.index.20260906.html`, `qbe/qbe.20260827.html`, `status/status.index.20260816.html` and `texts/texts.index.20260815.html`.  The build before this one shipped a tenth, `networks/networks.index.20260813.html`, and it is gone -- the only file this release removed.  Nine remain, so the packaging step still takes the working directory as it stands.  Diffing one against its live sibling shows it is genuinely older: the 20260906 copy of the Entry page has no `chkUseXY` control, which the shipped page has.
 
 #### Impact
 
@@ -1255,8 +1255,8 @@ Small but not nil.  It makes the released tree ambiguous about which template is
 
 #### Steps to reproduce
 
-1. List the archive's contents: 7z l CBDB-Desktop_20260908.7z
-2. Note the ten Templates/ members whose names carry a date.
+1. List the archive's contents: 7z l CBDB-Desktop_20260909.7z
+2. Note the nine Templates/ members whose names carry a date.
 3. Diff any one of them against index.html in the same directory.
 
 #### Suggested fix

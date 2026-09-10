@@ -403,7 +403,7 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Templates/group_data/index.html:914",
                 "Templates/entry/index.html:1093",
                 "Templates/associations/index.html:680",
-                "Templates/networks/index.html:1551",
+                "Templates/networks/index.html:1555",
                 "Templates/places/index.html:691",
                 "Templates/office/index.html:850",
                 "Templates/status/index.html:795",
@@ -475,10 +475,10 @@ _DEFECTS: tuple[Defect, ...] = (
             "以 Gephi/GUESS 與 UCINet 重複，得到相同錯誤。",
             "按下 Neo4j：這一個可以正常產生檔案。",
         ),
-        source=("Code/networks_form_backend.go:2093",
-                "Code/networks_form_backend.go:2216",
-                "Code/networks_form_backend.go:2341",
-                "Code/networks_form_backend.go:419"),
+        source=("Code/networks_form_backend.go:2095",
+                "Code/networks_form_backend.go:2218",
+                "Code/networks_form_backend.go:2343",
+                "Code/networks_form_backend.go:421"),
         tests=("test_an_export_produces_a_well_formed_file",
                "test_an_export_describes_the_people_the_"
                "grid_did",
@@ -603,7 +603,7 @@ _DEFECTS: tuple[Defect, ...] = (
         ),
         source=("Code/associations_form_backend.go:1377",
                 "Code/associations_form_backend.go:1388",
-                "Code/networks_form_backend.go:2987",
+                "Code/networks_form_backend.go:2989",
                 "Data/cbdb.db.schema.sql:42"),
         tests=("test_the_place_search_helper_finds_the_places_the_"
                "table_holds",
@@ -762,12 +762,12 @@ _DEFECTS: tuple[Defect, ...] = (
     Defect(
         key="CBDB-D-007",
         priority="P3", severity="low", origin="release",
-        title="The distribution ships ten dated working copies of its own "
-              "templates",
-        title_zh="發行檔中一併附上了十份帶日期的模板工作副本",
+        title="The distribution ships nine dated working copies of its "
+              "own templates",
+        title_zh="發行檔中一併附上了九份帶日期的模板工作副本",
         area="Packaging: Templates/",
         area_zh="封裝內容：Templates/",
-        summary="Ten of the archive's 85 members are dated backups of "
+        summary="Nine of the archive's 84 members are dated backups of "
                 "templates that ship alongside the live file -- "
                 "`entry/entry.index.20260906.html` next to "
                 "`entry/index.html`, `qbe/qbe.20260827.html` next to "
@@ -775,7 +775,7 @@ _DEFECTS: tuple[Defect, ...] = (
                 "`Static/` is file-served, so they are not reachable pages; "
                 "they are a working directory that was packaged as it "
                 "stood.",
-        summary_zh="壓縮檔 85 個成員中有 10 個，是與正式檔案並存的帶日期模板"
+        summary_zh="壓縮檔 84 個成員中有 9 個，是與正式檔案並存的帶日期模板"
                    "備份——例如 `entry/entry.index.20260906.html` 與 "
                    "`entry/index.html` 並列、`qbe/qbe.20260827.html` 與 "
                    "`qbe/qbe.html` 並列等。沒有任何路由會提供這些檔案，且"
@@ -784,24 +784,30 @@ _DEFECTS: tuple[Defect, ...] = (
         evidence="Read from the archive's own directory, not from the "
                  "unpacked tree: `Templates/associations/associations.index."
                  "20260906.html`, `associations.index.20260908.html`, "
-                 "`entry/entry.index.20260906.html`, `networks/networks."
-                 "index.20260813.html`, `office/office.index.20260815.html`, "
+                 "`entry/entry.index.20260906.html`, "
+                 "`office/office.index.20260815.html`, "
                  "`pickers/address_picker.20260729.html`, `places/places."
                  "index.20260906.html`, `qbe/qbe.20260827.html`, "
                  "`status/status.index.20260816.html` and `texts/texts."
-                 "index.20260815.html`.  Diffing one against its live "
+                 "index.20260815.html`.  The build before this one "
+                 "shipped a tenth, `networks/networks.index.20260813."
+                 "html`, and it is gone -- the only file this release "
+                 "removed.  Nine remain, so the packaging step still "
+                 "takes the working directory as it stands.  "
+                 "Diffing one against its live "
                  "sibling shows it is genuinely older: the 20260906 copy of "
                  "the Entry page has no `chkUseXY` control, which the "
                  "shipped page has.",
         evidence_zh="以下清單讀自壓縮檔自身的目錄，而非解開後的目錄樹："
                     "`Templates/associations/associations.index.20260906."
                     "html`、`associations.index.20260908.html`、"
-                    "`entry/entry.index.20260906.html`、`networks/networks."
-                    "index.20260813.html`、`office/office.index.20260815."
-                    "html`、`pickers/address_picker.20260729.html`、"
+                    "`entry/entry.index.20260906.html`、"
+                    "`office/office.index.20260815.html`、"
+                    "`pickers/address_picker.20260729.html`、"
                     "`places/places.index.20260906.html`、"
                     "`qbe/qbe.20260827.html`、`status/status.index.20260816."
-                    "html`、`texts/texts.index.20260815.html`。把其中一份與"
+                    "html`、`texts/texts.index.20260815.html`。上一版還多"
+                    "附了第十份 `networks/networks.index.20260813.html`，這一版已經移除——那也是這次唯一被刪掉的檔案。其餘九份仍在，可見打包步驟依然是把工作目錄照原樣收進去。把其中一份與"
                     "其正式版本相比，可確認確實較舊：20260906 版的入仕頁面"
                     "沒有 `chkUseXY` 這個控制項，而釋出的頁面有。",
         impact="Small but not nil.  It makes the released tree ambiguous "
@@ -824,8 +830,8 @@ _DEFECTS: tuple[Defect, ...] = (
                "或在封裝時排除 `*.<日期>.html`。這些備份本身有其用處，只是"
                "它們該放在版本控制中，而不是發行檔裡。",
         steps=(
-            "List the archive's contents: 7z l CBDB-Desktop_20260908.7z",
-            "Note the ten Templates/ members whose names carry a date.",
+            "List the archive's contents: 7z l CBDB-Desktop_20260909.7z",
+            "Note the nine Templates/ members whose names carry a date.",
             "Diff any one of them against index.html in the same directory.",
         ),
         steps_zh=(
@@ -956,8 +962,8 @@ _DEFECTS: tuple[Defect, ...] = (
             "改按「All Dynasties」再執行查詢：HTTP 500。",
         ),
         source=("Code/networks_form_query.go:buildDynastyConditions",
-                "Templates/networks/index.html:704",
-                "Templates/networks/index.html:1054"),
+                "Templates/networks/index.html:708",
+                "Templates/networks/index.html:1058"),
         tests=("test_the_networks_page_sends_the_dynasty_span_its_handler_"
                "needs",),
     ),
@@ -1168,7 +1174,7 @@ _DEFECTS: tuple[Defect, ...] = (
         source=("Code/assocpairs_form_backend.go:handleExportGIS",
                 "Code/networks_form_backend.go:NetworkQuery",
                 "Templates/association_pairs/index.html:173",
-                "Templates/networks/index.html:1071"),
+                "Templates/networks/index.html:1075"),
         tests=("test_the_assocpairs_kml_checkbox_changes_what_comes_back",
                "test_a_field_the_json_declares_is_a_field_the_program_uses"),
     ),
@@ -1821,7 +1827,7 @@ _DEFECTS: tuple[Defect, ...] = (
             "執行 Save to GIS，數一數檔案中這個人的列數：兩列。"
             "再執行 Save to Neo4j，在那裡數一數：一列。",
         ),
-        source=("Code/networks_form_backend.go:384",
+        source=("Code/networks_form_backend.go:386",
                 "Code/networks_form_backend.go:handleExportNeo4j",
                 "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql",
                 "Code/networks_form_query.go"),
@@ -2948,8 +2954,8 @@ _DEFECTS: tuple[Defect, ...] = (
             "不會出現任何軍事關係；出現的是未經篩選的最後一圈所回傳"
             "的內容（見 CBDB-D-027）。",
         ),
-        source=("Code/networks_form_backend.go:997",
-                "Code/networks_form_backend.go:1046"),
+        source=("Code/networks_form_backend.go:999",
+                "Code/networks_form_backend.go:1048"),
         tests=("test_every_category_the_form_offers_selects_something",),
     ),
     Defect(
@@ -3030,7 +3036,7 @@ _DEFECTS: tuple[Defect, ...] = (
             "在網絡表單上取消勾選 Kinship 以及所有關聯類別，然後執行。",
             "會回傳數以千計的關聯關係。",
         ),
-        source=("Code/networks_form_backend.go:1046",),
+        source=("Code/networks_form_backend.go:1048",),
         tests=("test_turning_every_category_off_leaves_no_association_ties",),
     ),
     Defect(
@@ -3223,7 +3229,7 @@ _DEFECTS: tuple[Defect, ...] = (
         ),
         source=("Code/networks_form_query.go:273",
                 "Code/networks_form_query.go:235",
-                "Code/networks_form_backend.go:1046"),
+                "Code/networks_form_backend.go:1048"),
         tests=("test_no_two_categories_return_the_same_association",),
     ),
 )
