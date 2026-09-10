@@ -1873,6 +1873,413 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Templates/association_pairs/index.html:513"),
         tests=("test_a_list_loader_reports_how_many_people_it_loaded",),
     ),
+    Defect(
+        key="CBDB-D-017",
+        priority="P0", severity="high", origin="software",
+        title="A year window admits every record whose year was never "
+              "recorded, because the database writes that as 0",
+        title_zh="年份區間會納入所有年份從未被記錄的資料，"
+                 "因為資料庫是以 0 表示「未記錄」",
+        area="Entry and Office: the entry-year and office-year filters",
+        area_zh="入仕與官職：入仕年份與任官年份篩選",
+        summary="`ENTRY_DATA.c_year` is 0 where the year is unknown, in "
+                "164,443 of its 264,775 rows, and "
+                "`POSTED_TO_OFFICE_DATA` uses 0 the same way.  Both "
+                "filters compare against the column directly -- entry "
+                "with `ED.c_year >= ?` / `<= ?`, office with "
+                "`POD.c_firstyear >= ?` and `POD.c_lastyear <= ?` -- so "
+                "`0 <= 1100` is true and every undated record satisfies "
+                "any upper bound.",
+        summary_zh="`ENTRY_DATA.c_year` 在年份未知時為 0，264,775 列中"
+                   "有 164,443 列如此；`POSTED_TO_OFFICE_DATA` 也以同樣"
+                   "方式使用 0。兩邊的篩選都是直接與該欄位比較——入仕是 "
+                   "`ED.c_year >= ?` / `<= ?`，官職則是 "
+                   "`POD.c_firstyear >= ?` 與 `POD.c_lastyear <= ?`——"
+                   "於是 `0 <= 1100` 成立，所有沒有年份的紀錄都會滿足"
+                   "任何上界。",
+        evidence="Driven against the shipped binary, on the century "
+                 "each code most densely populates -- read from the "
+                 "column being filtered rather than chosen by hand.\n\n"
+                 "**Entry**, entryyear.  A closed window over "
+                 "1100-1199 is clean: 254 rows, none outside it.  The "
+                 "same query with the From box empty -- *up to 1199* "
+                 "-- returns 303 rows of which **42 are outside**, and "
+                 "every one of those has an entry year of 0.  On a "
+                 "sparser code the effect is total: code 37 filtered "
+                 "to 1100 returns four rows and all four have "
+                 "entryYear 0, so not one dated entry comes back.\n\n"
+                 "**Office**, officeyear.  A closed 1300-1399 window "
+                 "is likewise clean (135 rows, none outside), and *up "
+                 "to 1399* returns 383 rows of which **215 are "
+                 "outside**.  Office fails the closed case too "
+                 "wherever the data allows it, because its lower bound "
+                 "tests `c_firstyear` and its upper tests "
+                 "`c_lastyear`: code 790 over 1000-1100 returns three "
+                 "postings whose (first, last) years are (1135, 0), "
+                 "(1136, 0) and (1166, 0) -- every row returned for a "
+                 "window ending in 1100 began after it, because a "
+                 "posting whose end was never recorded passes the "
+                 "upper bound however late it started.\n\n"
+                 "So a To-only window is wrong on both forms whatever "
+                 "the data holds, and a closed window is wrong on "
+                 "Office wherever an end year is missing.",
+        evidence_zh="以釋出的執行檔實測，所用的世紀區間取自各代碼"
+                    "在被篩選欄位上分布最密的一段，而非人工挑選。\n\n"
+                    "**入仕**，entryyear。1100-1199 這個兩端俱全的"
+                    "區間是乾淨的：254 列，沒有一列落在區間外。"
+                    "同一個查詢若把「起」的欄位留白——也就是"
+                    "「至 1199 年」——回傳 303 列，其中 **42 列在區間"
+                    "之外**，而且這些列的入仕年份全都是 0。在較稀疏的"
+                    "代碼上更是全軍覆沒：代碼 37 篩選至 1100 年，"
+                    "回傳四列，四列的 entryYear 都是 0，沒有任何一筆"
+                    "有年份的紀錄回來。\n\n"
+                    "**官職**，officeyear。1300-1399 的封閉區間同樣"
+                    "乾淨（135 列，無一在外），而「至 1399 年」回傳 "
+                    "383 列，其中 **215 列在區間之外**。只要資料條件"
+                    "允許，官職連封閉區間也會出錯，因為它的下界比對的"
+                    "是 `c_firstyear`、上界比對的是 `c_lastyear`："
+                    "代碼 790 查詢 1000-1100，回傳三筆任官，其（起、"
+                    "迄）年份分別是 (1135, 0)、(1136, 0) 與 (1166, "
+                    "0)——在一個以 1100 年為終點的區間裡，回傳的每一"
+                    "列都是在那之後才開始的，因為只要結束年未被記錄，"
+                    "無論多晚開始都能通過上界。\n\n"
+                    "因此，只設「迄」的區間在兩個表單上都是錯的，"
+                    "無論資料如何；而封閉區間則在官職表單上，只要"
+                    "結束年缺漏就會出錯。",
+        impact="A historian asking for Northern Song office postings gets "
+               "a majority of rows from the wrong period, and loses the "
+               "postings whose only recorded year is the one they asked "
+               "about.  On Entry, a To-only window returns precisely the "
+               "records that cannot answer the question.  Neither says "
+               "anything is wrong, and both look like a finding about the "
+               "data rather than about the filter.",
+        impact_zh="研究者若查詢北宋時期的任官紀錄，得到的多數列都來自"
+                  "錯誤的時代，而那些唯一被記錄下來的年份正落在他所詢問"
+                  "區間內的任官，反而會漏掉。在入仕表單上，只設定「迄」"
+                  "的查詢，回傳的恰好是完全無法回答該問題的那些紀錄。"
+                  "兩者都不會顯示任何異常，看起來都像是關於資料本身的"
+                  "發現，而不是篩選出了問題。",
+        fix="Exclude the sentinel from the comparison: add `AND "
+            "ED.c_year <> 0` (and the equivalent on each office bound) "
+            "wherever a year condition is built, or treat 0 as NULL when "
+            "the column is read.  Which of the two is right is a "
+            "question about intent -- should an undated record appear in "
+            "a dated window at all? -- and it is worth answering once and "
+            "applying to both forms, since they have made the same "
+            "choice by accident rather than on purpose.",
+        fix_zh="請把這個哨兵值排除在比較之外：在每一處建立年份條件的地方"
+               "加上 `AND ED.c_year <> 0`（官職端的兩個界線亦同），"
+               "或在讀取該欄位時把 0 視為 NULL。這兩種作法孰是孰非，"
+               "牽涉到意圖的問題——沒有年份的紀錄究竟該不該出現在一個"
+               "有年份的區間裡？——這個問題值得一次想清楚，然後同時套用"
+               "到兩個表單，因為它們目前的一致並非出於刻意，而是巧合。",
+        steps=(
+            "Open Look At Entry, choose entry code 37 and set the year "
+            "type to Entry Year.",
+            "Leave the From box empty and put 1100 in the To box.  Run "
+            "the query.",
+            "Every row's Entry Year column reads 0.",
+            "For Office: choose office code 790, year type Office Year, "
+            "1000 to 1100.  Every posting returned began after 1100.",
+        ),
+        steps_zh=(
+            "開啟入仕查詢頁面，選擇入仕代碼 37，並將年份類型設為入仕年份。",
+            "「起」的欄位留白，「迄」填入 1100，執行查詢。",
+            "每一列的入仕年份欄位都是 0。",
+            "官職表單：選擇官職代碼 790，年份類型設為任官年份，"
+            "查詢 1000 至 1100。回傳的每一筆任官都是 1100 年之後開始的。",
+        ),
+        source=("Code/entry_form_backend.go:511",
+                "Code/office_form_backend.go:690"),
+        tests=("test_a_year_window_does_not_admit_rows_whose_year_is_"
+               "unknown",),
+    ),
+    Defect(
+        key="CBDB-D-018",
+        priority="P0", severity="medium", origin="software",
+        title="Two dynasties the picker offers cannot be filtered on: one "
+              "end returns everything, the other returns nothing",
+        title_zh="朝代選擇視窗提供的兩個朝代根本無法用來篩選："
+                 "當作起點會回傳全部，當作終點則什麼都沒有",
+        area="All six query forms: the dynasty range",
+        area_zh="六個查詢表單：朝代範圍",
+        summary="Every form resolves a dynasty range through "
+                "`DYNASTIES.c_start` and `c_end`.  Three rows have both "
+                "at 0 -- code 0 (*unknown*), 58 (*Korea*) and 67 "
+                "(*Xinluo (Korea)*) -- and the guard the handlers apply "
+                "is `> 0` on the dynasty *code*, not on its years.  So 58 "
+                "and 67 pass the guard and then produce a comparison "
+                "against zero: `c_end > 0` is true of every dynasty that "
+                "has a span, and `c_start < 0` is true of none.  The "
+                "picker lists all eighty-five without filtering, so both "
+                "are one click away.",
+        summary_zh="每個表單都是透過 `DYNASTIES.c_start` 與 `c_end` 來"
+                   "解析朝代範圍。其中有三列的這兩個值都是 0——代碼 0"
+                   "（未詳）、58（高麗）與 67（新羅））——而各處理常式"
+                   "所做的檢查是針對朝代**代碼**的 `> 0`，而不是針對它的"
+                   "年份。於是 58 與 67 通過了檢查，接著產生一個與零的"
+                   "比較：`c_end > 0` 對所有有年份區間的朝代都成立，"
+                   "而 `c_start < 0` 則對任何朝代都不成立。選擇視窗會"
+                   "毫無篩選地列出全部八十五個朝代，因此這兩個都只差"
+                   "一次點擊。",
+        evidence="Driven on the Status form, status code 3.  Unfiltered: "
+                 "34 rows.  With Korea (58) as the *From* dynasty: 33 "
+                 "rows -- the filter removes one row, which is a person "
+                 "the join drops rather than anything the filter chose.  "
+                 "With Korea as the *To* dynasty: 0 rows.  A dynasty with "
+                 "a real span, used as a control in the same test, "
+                 "returns a sensible subset.\n\nThe same shape is in "
+                 "every form, in two spellings: office, places and texts "
+                 "prefetch the years in Go with `SELECT COALESCE(c_start, "
+                 "0) ...`, which turns a missing boundary into 0; entry "
+                 "and status inline the lookup as a subquery, where a "
+                 "code absent from `DYNASTIES` yields NULL and drops the "
+                 "row instead.  No page can reach a code that is absent, "
+                 "so the reachable half of this is the two Korean "
+                 "dynasties.",
+        evidence_zh="在社會地位表單上以身分代碼 3 實測。未篩選：34 列。"
+                    "以高麗（58）作為**起始**朝代：33 列——篩選只少掉"
+                    "一列，而那是連接時被捨去的人，並不是篩選挑出來的。"
+                    "以高麗作為**迄止**朝代：0 列。同一個測試中以一個"
+                    "確實有年份區間的朝代作為對照，回傳的是合理的子集。"
+                    "\n\n每個表單都有同樣的結構，只是寫法有兩種："
+                    "官職、地點與著述是在 Go 端以 `SELECT "
+                    "COALESCE(c_start, 0) ...` 預先取值，這會把缺漏的"
+                    "界線變成 0；入仕與社會地位則是以子查詢內嵌查找，"
+                    "此時若代碼不存在於 `DYNASTIES` 就會得到 NULL 而把"
+                    "該列剔除。由於沒有任何頁面能送出不存在的代碼，"
+                    "實際會被碰到的就是這兩個朝鮮半島的朝代。",
+        impact="A user who selects Korea as one end of a dynasty range is "
+               "shown either the unfiltered result or an empty grid, with "
+               "nothing to distinguish either from a real answer.  The "
+               "empty case is the worse of the two: it reads as \"CBDB "
+               "has no Korean records of this kind\", which is a "
+               "conclusion about the data drawn from a filter that never "
+               "ran.",
+        impact_zh="使用者若把高麗選為朝代範圍的任一端，看到的不是未經"
+                  "篩選的完整結果，就是一片空白，而且沒有任何線索能把"
+                  "這兩者與真正的答案區分開來。其中空白的那種更糟："
+                  "它讀起來像是「CBDB 沒有這一類的朝鮮半島紀錄」，"
+                  "而這是從一個根本沒有執行的篩選，推導出關於資料的結論。",
+        fix="Decide what a dynasty with no year span means to a filter "
+            "written in years, and make the code and the picker agree.  "
+            "Either the picker should not offer a dynasty whose "
+            "`c_start`/`c_end` are unset, or the handlers should test the "
+            "*years* rather than the code before building the condition "
+            "and say so when they cannot.  Filling in the years for the "
+            "two Korean dynasties in the source data would also do it, "
+            "and is the only one of the three that makes them usable "
+            "rather than merely unavailable.",
+        fix_zh="請先決定：對一個以年份寫成的篩選而言，一個沒有年份區間的"
+               "朝代究竟代表什麼，並讓程式與選擇視窗的行為一致。"
+               "可行的作法是：選擇視窗不要提供 `c_start`/`c_end` 未設定"
+               "的朝代；或是各處理常式在組出條件之前改為檢查**年份**"
+               "而非代碼，並在無法處理時明確告知。另外，在來源資料中"
+               "為這兩個朝鮮半島的朝代補上年份也可以解決，而且是三者中"
+               "唯一能讓它們真正可用、而不只是不再出現的作法。",
+        steps=(
+            "Open any query form and choose a code that returns rows.",
+            "Set the year type to Dynasty and pick Korea as the From "
+            "dynasty.  The result is the unfiltered one.",
+            "Pick Korea as the To dynasty instead.  The result is empty.",
+            "SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES WHERE "
+            "c_dy IN (0, 58, 67);",
+        ),
+        steps_zh=(
+            "開啟任一查詢表單，選一個會回傳資料的代碼。",
+            "把年份類型設為朝代，並選擇高麗作為起始朝代。得到的是"
+            "未經篩選的結果。",
+            "改以高麗作為迄止朝代。得到的是空白結果。",
+            "執行：SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES "
+            "WHERE c_dy IN (0, 58, 67);",
+        ),
+        source=("Code/status_form_backend.go:511",
+                "Code/places_form_backend.go:250",
+                "Templates/pickers/dynasty_picker.html:66"),
+        tests=("test_a_dynasty_the_picker_offers_is_one_the_filter_can_"
+               "use",),
+    ),
+    Defect(
+        key="CBDB-D-019",
+        priority="P0", severity="medium", origin="software",
+        title="The Places form and the other five disagree about a "
+              "dynasty that begins in the year the range ends",
+        title_zh="地點表單與其餘五個表單，對於「起始年正好是範圍結束年」"
+                 "的朝代是否納入，看法並不一致",
+        area="Places: the upper bound of a dynasty range",
+        area_zh="地點：朝代範圍的上界",
+        summary="Five forms write the upper half of a dynasty range as "
+                "`D.c_start < ?` and Places writes `D.c_start <= ?`.  On "
+                "a boundary year the two disagree: the strict form "
+                "excludes a dynasty that begins exactly where the range "
+                "ends, and Places includes it.  Thirty-five of the "
+                "eighty-five dynasties begin in the year another ends, so "
+                "this is not a corner nobody reaches.",
+        summary_zh="五個表單把朝代範圍的上界寫成 `D.c_start < ?`，"
+                   "而地點表單寫的是 `D.c_start <= ?`。在邊界年份上"
+                   "兩者就會分歧：嚴格的那種會排除「起始年正好等於範圍"
+                   "結束年」的朝代，地點表單則會納入。八十五個朝代中有"
+                   "三十五個的起始年正好是另一個朝代的結束年，因此這並"
+                   "不是無人會碰到的角落。",
+        evidence="Driven on the two forms whose rows carry a dynasty "
+                 "code, so that *which* dynasties came back can be "
+                 "compared rather than merely how many.  A range ending "
+                 "at Ming (19), which ends in the year Qing (20) begins: "
+                 "the Entry form's answer contains no Qing rows, and the "
+                 "Places form's does.  Both were given a code covering "
+                 "people of both dynasties, and both returned rows, so "
+                 "neither answer is empty for an unrelated reason.\n\n"
+                 "Which of the two is right is not asserted here.  That "
+                 "is a question about what a historian means by \"to the "
+                 "Ming\", and the developers should answer it; what can "
+                 "be said from outside is that one dynasty range, asked "
+                 "on two forms, admits different dynasties.",
+        evidence_zh="在兩個資料列帶有朝代代碼的表單上實測，如此才能比較"
+                    "**哪些**朝代回來了，而不只是回來幾列。以明（19）"
+                    "作為範圍終點，而清（20）的起始年正好是明的結束年："
+                    "入仕表單的結果中沒有任何清代的資料列，地點表單則"
+                    "有。兩者所用的代碼都涵蓋這兩個朝代的人物，也都確實"
+                    "回傳了資料，因此不存在某一方因無關原因而為空的情況。"
+                    "\n\n本項並不主張兩者之中誰才正確。那牽涉到研究者"
+                    "說「到明代為止」時究竟指什麼，應由開發者決定；"
+                    "從外部能夠確定的是：同一個請求交給兩個表單，"
+                    "會得到兩組不同的人。",
+        impact="A researcher who runs the same dynasty range on two forms "
+               "and compares the results -- which is the ordinary way to "
+               "cross-check a finding -- sees a discrepancy that belongs "
+               "to the software and reads as one in the data.  Whichever "
+               "boundary convention is intended, one of the six forms is "
+               "applying the other.",
+        impact_zh="研究者若在兩個表單上執行同一個朝代範圍並比對結果"
+                  "——而這正是交叉驗證一項發現最普通的做法——會看到一處"
+                  "本屬於軟體的差異，卻讀起來像是資料上的差異。無論"
+                  "原本想採用的是哪一種邊界慣例，六個表單中都有一個"
+                  "用的是另一種。",
+        fix="Pick one convention and use it in all six.  The strict `<` "
+            "is what five of them already do, so making Places match is "
+            "the smaller change; but the choice is a historical one -- "
+            "whether a dynasty that begins in the closing year of the "
+            "range belongs to it -- and it should be made deliberately "
+            "rather than by counting call sites.",
+        fix_zh="請選定一種慣例，並在六個表單中一致採用。嚴格的 `<` 是"
+               "其中五個已經在用的寫法，因此把地點表單改成一致是較小的"
+               "改動；但這個選擇本身是史學上的判斷——一個在範圍結束當年"
+               "才開始的朝代，究竟算不算在範圍之內——應該是有意識地做出"
+               "決定，而不是靠數哪一種寫法比較多來決定。",
+        steps=(
+            "On Look At Entry, choose a code covering Ming and Qing "
+            "people, set the year type to Dynasty, and run a range "
+            "ending at Ming.  No Qing rows come back.",
+            "Run the same range on Look At Places.  Qing rows come back.",
+            "SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES WHERE "
+            "c_dy IN (19, 20);",
+        ),
+        steps_zh=(
+            "在入仕查詢頁面選一個涵蓋明、清人物的代碼，把年份類型設為"
+            "朝代，執行一個以明代為終點的範圍查詢。沒有任何清代的資料列。",
+            "在地點查詢頁面執行同樣的範圍查詢。清代的資料列出現了。",
+            "執行：SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES "
+            "WHERE c_dy IN (19, 20);",
+        ),
+        source=("Code/places_form_backend.go:298",
+                "Code/office_form_backend.go:720",
+                "Code/entry_form_backend.go:538"),
+        tests=("test_the_forms_agree_where_one_dynasty_ends_and_the_next_"
+               "begins",),
+    ),
+    Defect(
+        key="CBDB-D-020",
+        priority="P0", severity="medium", origin="software",
+        title="Use XY treats the unmapped corner at 0,0 as a place, so it "
+              "merges hundreds of unrelated addresses",
+        title_zh="Use XY 把 0,0 這個「未定位」的角落當成一個真實地點，"
+                 "因而把數百個彼此無關的地址合併在一起",
+        area="All six query forms: the Use XY address widening",
+        area_zh="六個查詢表單：Use XY 地址擴展",
+        summary="*Use XY* gathers every address within 0.03 degrees of "
+                "the ones the user chose -- about three kilometres, and "
+                "the right idea for catching one place recorded under two "
+                "codes.  `ADDR_CODES` stores 316 addresses at exactly "
+                "`x_coord = 0, y_coord = 0`, which is how this data records "
+                "a place whose coordinates were never established.  Nothing else is "
+                "anywhere near that point, so the box collapses all 316 "
+                "into a single location.",
+        summary_zh="*Use XY* 會蒐集所有位於使用者所選地址 0.03 度以內的"
+                   "地址——約三公里，這個構想本身是對的，用來把同一個"
+                   "地方在兩個代碼下的紀錄合併起來。但 `ADDR_CODES` 中"
+                   "有 316 個地址的座標正好是 `x_coord = 0, y_coord = "
+                   "0`：那是一些從未確定座標的明代衛所。而那個點附近"
+                   "再無其他任何東西，於是這個範圍框就把這 316 個地址"
+                   "全部併成了同一個地點。",
+        evidence="Driven on the Places form with a single unmapped "
+                 "address chosen from `ADDR_CODES`.  With Use XY off the "
+                 "query returns nothing -- that address has no rows of "
+                 "its own.  With Use XY on it returns rows drawn from "
+                 "dozens of different addresses, none of which is near "
+                 "the one asked for in any sense except that neither has "
+                 "a coordinate.\n\nThe widening itself is correct as "
+                 "written: 0.03 degrees is 2 to 3.5 kilometres anywhere "
+                 "in China, the null-coordinate rows are carried forward "
+                 "by a separate LEFT JOIN rather than dropped, and an "
+                 "address with coordinates always matches itself.  What "
+                 "the code does not do is distinguish \"at 0,0\" from "
+                 "\"not located\", and the shipped data uses the first "
+                 "to mean the second.",
+        evidence_zh="在地點表單上，以從 `ADDR_CODES` 挑出的單一未定位"
+                    "地址實測。關閉 Use XY 時查詢沒有回傳任何資料——"
+                    "該地址本身沒有任何資料列。開啟 Use XY 後，回傳的"
+                    "資料列來自數十個不同的地址，而這些地址與所查詢的"
+                    "那一個，除了同樣沒有座標之外，在任何意義上都談不上"
+                    "鄰近。\n\n這個擴展機制本身寫得是對的：0.03 度在"
+                    "中國境內各地約當 2 至 3.5 公里，沒有座標的資料列"
+                    "會由另一個 LEFT JOIN 一併帶入而不會被丟棄，"
+                    "而有座標的地址一定會匹配到它自己。程式沒有做到的"
+                    "是區分「位於 0,0」與「未定位」，而釋出的資料正是"
+                    "以前者表示後者。",
+        impact="A user ticks a box that means *catch the same place under "
+               "a different code* and gets a query about every unmapped "
+               "garrison in the database.  The addresses it added are not "
+               "shown anywhere, so the result cannot be recognised as "
+               "wrong from the screen; and because the switch legitimately "
+               "widens, nothing about the row count looks out of place.",
+        impact_zh="使用者勾選的是一個意思為「把同一個地方在其他代碼下的"
+                  "紀錄一併找出來」的選項，得到的卻是一個涵蓋資料庫中"
+                  "所有未定位衛所的查詢。它額外加入了哪些地址並不會顯示"
+                  "在任何地方，因此單看畫面無法察覺結果有誤；又因為這個"
+                  "選項本來就會擴大範圍，資料列變多這件事看起來也毫無"
+                  "異常。",
+        fix="Exclude the sentinel from the widening: require `x_coord <> "
+            "0 OR y_coord <> 0` on both sides of the join, or treat 0,0 "
+            "as unlocated the way the null coordinates are already "
+            "treated -- carried forward as themselves and not matched "
+            "against anything.  The second is the closer parallel to what "
+            "the code already does for NULL, and would need no new "
+            "concept.",
+        fix_zh="請把這個哨兵值排除在擴展之外：在連接的兩側都要求 "
+               "`x_coord <> 0 OR y_coord <> 0`；或是比照程式目前對待 "
+               "NULL 座標的方式，把 0,0 視為未定位——原樣帶入，不與任何"
+               "其他地址匹配。後者與程式現有的 NULL 處理最為相近，"
+               "也不需要引入任何新的概念。",
+        steps=(
+            "SELECT c_addr_id, c_name FROM ADDR_CODES WHERE x_coord = 0 "
+            "AND y_coord = 0 LIMIT 5;",
+            "On Look At Places, filter on one of those addresses with Use "
+            "XY off: the query returns nothing.",
+            "Tick Use XY and run it again: rows come back, from dozens of "
+            "unrelated garrisons.",
+        ),
+        steps_zh=(
+            "執行：SELECT c_addr_id, c_name FROM ADDR_CODES WHERE "
+            "x_coord = 0 AND y_coord = 0 LIMIT 5;",
+            "在地點查詢頁面上以其中一個地址進行篩選，並關閉 Use XY："
+            "查詢不會回傳任何資料。",
+            "勾選 Use XY 後重新執行：資料列出現了，來自數十個彼此無關"
+            "的衛所。",
+        ),
+        source=("Code/office_form_backend.go:480",
+                "Code/office_form_backend.go:496"),
+        tests=("test_use_xy_does_not_treat_the_unmapped_corner_as_a_place",),
+    ),
 )
 
 #: What the report iterates.  Keyed by ``Defect.key`` (CBDB-D-0NN),
