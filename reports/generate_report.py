@@ -302,6 +302,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_lookups.py",
      "The code and address lists",
      "The dropdowns each form offers before a query is run"),
+    ("test_networks_filters.py",
+     "The Networks form's filters",
+     "Its kin and non-kin switches, the sex filter, and each of the "
+     "twenty-seven association categories that select anything, "
+     "driven on its own"),
     ("test_qbe_grid.py",
      "The Query Builder's grid, cell by cell",
      "Its eleven operators, four aggregates, sort row, join kinds and "
@@ -367,6 +372,10 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "後端從不讀取的控制項、頁面讀不懂的回應、"
                                "沒有任何入口的功能"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
+    "test_networks_filters.py": ("網絡表單的各項篩選",
+                                 "親屬與非親屬開關、性別篩選，"
+                                 "以及二十七個「確實有選取作用」的關聯"
+                                 "類別，逐一單獨驅動"),
     "test_qbe_grid.py": ("查詢建構器的格線，逐格檢查",
                          "十一種運算子、四種彙總函數、排序列、連接方式，"
                          "以及遇到無法剖析的儲存格時的行為"),

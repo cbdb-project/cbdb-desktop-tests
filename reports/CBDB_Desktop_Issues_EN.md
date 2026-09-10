@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-10 11:23 UTC from a run of 1389 tests (417s)._
+_Generated 2026-09-10 12:56 UTC from a run of 1412 tests (426s)._
 
 Dear maintainer,
 
@@ -18,12 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1103 |
-| failed | 101 |
+| passed | 1121 |
+| failed | 106 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 182 |
 
-Every one of the 101 failures is a test that demonstrates an issue below.
+Every one of the 106 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
@@ -35,6 +35,7 @@ Every one of the 101 failures is a test that demonstrates an issue below.
 | Passing a result from one form to another | 18 | The stored-person list: what one form stores, another recalls |
 | Each page against its own handler | 13 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
 | The code and address lists | 41 | The dropdowns each form offers before a query is run |
+| The Networks form's filters | 11 | Its kin and non-kin switches, the sex filter, and each of the twenty-seven association categories that select anything, driven on its own |
 | The Query Builder's grid, cell by cell | 34 | Its eleven operators, four aggregates, sort row, join kinds and what it does with a cell it cannot parse |
 | The Query Builder | 51 | Its whitelist, the SQL it shows the user, and its guards |
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
@@ -47,9 +48,9 @@ Every one of the 101 failures is a test that demonstrates an issue below.
 | The working tables | 7 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
-| This report's own sources | 70 | That every issue below still cites real code, in both languages |
+| This report's own sources | 82 | That every issue below still cites real code, in both languages |
 | This report itself | 27 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1389 |  |
+| every test in this run | 1412 |  |
 
 ## Agreed to leave for now
 
@@ -81,10 +82,14 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-021 | P0 | CONFIRMED | A Query Builder criterion on a group function never matches what it says: half the operators return nothing and the other half return everything |
 | CBDB-D-022 | P0 | CONFIRMED | A Query Builder In(...) list splits a quoted value at the comma inside it, and silently drops what it broke |
 | CBDB-D-023 | P0 | CONFIRMED | Criterion text that names an operator but is not spelled like one becomes a search for that text |
+| CBDB-D-025 | P0 | CONFIRMED | The two Military association categories select nothing: the form offers them and no branch inserts them |
+| CBDB-D-026 | P0 | CONFIRMED | Unticking every association category returns every association, because the filter is skipped when nothing is selected |
+| CBDB-D-027 | P0 | CONFIRMED | An association category returns ties of the categories the user did not pick: the last loop of the walk joins no filter |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
 | CBDB-D-009 | P2 | CONFIRMED | Four Association Pairs export buttons report "Unknown error" on exports that succeeded |
+| CBDB-D-024 | P2 | CONFIRMED | The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address |
 | CBDB-D-007 | P3 | CONFIRMED | The distribution ships ten dated working copies of its own templates |
 | CBDB-D-014 | P3 | CONFIRMED | The front page's Users Guide link is a 404: the PDF is not in the distribution |
 | CBDB-D-011 | P5 | CONFIRMED | Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter |
@@ -107,10 +112,14 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-021 — A Query Builder criterion on a group function never matches what it says: half the operators return nothing and the other half return everything](#cbdb-d-021--a-query-builder-criterion-on-a-group-function-never-matches-what-it-says-half-the-operators-return-nothing-and-the-other-half-return-everything)
 - [CBDB-D-022 — A Query Builder In(...) list splits a quoted value at the comma inside it, and silently drops what it broke](#cbdb-d-022--a-query-builder-in-list-splits-a-quoted-value-at-the-comma-inside-it-and-silently-drops-what-it-broke)
 - [CBDB-D-023 — Criterion text that names an operator but is not spelled like one becomes a search for that text](#cbdb-d-023--criterion-text-that-names-an-operator-but-is-not-spelled-like-one-becomes-a-search-for-that-text)
+- [CBDB-D-025 — The two Military association categories select nothing: the form offers them and no branch inserts them](#cbdb-d-025--the-two-military-association-categories-select-nothing-the-form-offers-them-and-no-branch-inserts-them)
+- [CBDB-D-026 — Unticking every association category returns every association, because the filter is skipped when nothing is selected](#cbdb-d-026--unticking-every-association-category-returns-every-association-because-the-filter-is-skipped-when-nothing-is-selected)
+- [CBDB-D-027 — An association category returns ties of the categories the user did not pick: the last loop of the walk joins no filter](#cbdb-d-027--an-association-category-returns-ties-of-the-categories-the-user-did-not-pick-the-last-loop-of-the-walk-joins-no-filter)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
 - [CBDB-D-009 — Four Association Pairs export buttons report "Unknown error" on exports that succeeded](#cbdb-d-009--four-association-pairs-export-buttons-report-unknown-error-on-exports-that-succeeded)
+- [CBDB-D-024 — The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address](#cbdb-d-024--the-networks-sex-filter-answers-http-500-unless-the-user-is-also-filtering-by-dynasty-or-address)
 - [CBDB-D-007 — The distribution ships ten dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-ten-dated-working-copies-of-its-own-templates)
 - [CBDB-D-014 — The front page's Users Guide link is a 404: the PDF is not in the distribution](#cbdb-d-014--the-front-pages-users-guide-link-is-a-404-the-pdf-is-not-in-the-distribution)
 - [CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter](#cbdb-d-011--six-shipped-capabilities-have-no-way-in-group-datas-kml-exports-association-pairs-kml-writer-two-autocomplete-endpoints-the-places-ascii-encoding-and-the-places-bac-filter)
@@ -852,6 +861,138 @@ Require the separator in the prefix check as well as in the parse, so the two ag
 
 - 1 × failed: `test_a_criterion_the_grid_cannot_parse_is_not_silently_reinterpreted`
 
+## CBDB-D-025 — The two Military association categories select nothing: the form offers them and no branch inserts them
+
+**Affected area:** Networks: the association categories
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`makeAssocFilter` turns each ticked category into a set of association codes, inserted into `ZZ_SCRATCH_ASSOC_FILTER`, which the query INNER JOINs.  Twenty-seven of the twenty-nine categories have a branch there.  `chkMilitaryOppose` and `chkMilitarySupport` have none: the function counts them into `militaryCount`, compares nothing against `militaryMax`, and never inserts a code.  The prefix its own comment calls Military, `'06'`, appears in no branch of the function.
+
+#### Evidence
+
+Every `if q.Chk... { exec(...) }` branch in `makeAssocFilter` was collected from the source and matched against the `chk*` categories `NetworkQuery` declares.  Twenty-nine categories, twenty-seven branches, and the two without one are the military pair.  The prefixes any branch can insert are '02', '03', '04', '05', '07', '08', '09' and '10'.
+
+The counters are not merely unused, they are maintained: `militaryCount++` runs in both branches and `militaryMax = 2` is declared beside the scholar, politics and literary maxima, each of which *is* read to decide whether to insert a whole prefix.  The military one is read by nothing, so the shape of the omission is a group whose insert was never written rather than a flag someone forgot to add.
+
+#### Impact
+
+A user who ticks *Military opposition* or *Military support* gets no military ties, and is told nothing.  Filed as a silent wrong answer rather than as an unreachable feature: the unreachable band is for something the application implements and no page can ask for, and this is its inverse -- the page ships both checkboxes and the application implements nothing behind them.  Worse than inert: the count still moves the threshold that decides whether any category filter is applied at all (CBDB-D-026), so ticking a military box changes the answer without selecting anything -- it can push the total to the value at which the whole filter is skipped.
+
+#### Steps to reproduce
+
+1. On the Networks form untick every association category, then tick only Military opposition, and run.
+2. No military tie appears; what does appear is whatever the unfiltered last loop returns (CBDB-D-027).
+
+#### Suggested fix
+
+Add the two branches, selecting `'06'` the way the other groups select their prefixes, or remove the two checkboxes from the page.  If the original Access application also omitted them, say so on the page rather than offering a control that cannot work.
+
+#### Where it lives in the build
+
+- `Code/networks_form_backend.go:997`
+- `Code/networks_form_backend.go:1046`
+
+#### Demonstrated by
+
+- 1 × failed: `test_every_category_the_form_offers_selects_something`
+
+## CBDB-D-026 — Unticking every association category returns every association, because the filter is skipped when nothing is selected
+
+**Affected area:** Networks: the association categories
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`makeAssocFilter` inserts nothing at all unless `totalCount < 29 && totalCount > 0`.  The categories sum to twenty-nine, so *all ticked* and *none ticked* both fall out of that branch and leave `ZZ_SCRATCH_ASSOC_FILTER` empty.  Empty is not read as "nothing selected"; the query simply stops restricting.  So unticking every category widens the answer instead of emptying it.
+
+#### Evidence
+
+Measured on person 1762 with kinship unticked as well, so that every edge that appears has to belong to some association category the user turned off: the query returns 2,300 edges, all of link type 'N', carrying association codes 4, 7, 8, 9, 10, 11, 12, 13 and more.
+
+The arithmetic is in the source: five single-unit categories, seven scholar, six politics, two military and nine literary is twenty-nine, and `totalCount` counts each ticked box including the two military ones that select nothing (CBDB-D-025).  This is the same shape as CBDB-D-002 on the Places page, on a second form -- which is why it was looked for.
+
+#### Impact
+
+A researcher who unticks the categories to narrow a network gets the widest possible answer instead, and nothing on the page says so.  The failure is silent and in the dangerous direction: too many ties looks like a well-connected subject, not like a filter that did not run.  The all-ticked case reaches the same branch and is harmless, which is presumably why the threshold was written this way.
+
+#### Steps to reproduce
+
+1. On the Networks form untick Kinship and every association category, then run.
+2. Thousands of association ties come back.
+
+#### Suggested fix
+
+Distinguish "every category" from "no category".  The first legitimately needs no filter; the second should return nothing, or the page should refuse to run and say why.
+
+#### Where it lives in the build
+
+- `Code/networks_form_backend.go:1046`
+
+#### Demonstrated by
+
+- 1 × failed: `test_turning_every_category_off_leaves_no_association_ties`
+
+## CBDB-D-027 — An association category returns ties of the categories the user did not pick: the last loop of the walk joins no filter
+
+**Affected area:** Networks: the association categories
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+Tick one category and the network comes back with ties of others.  With only *Teacher* selected, person 1762's own edges include `Recommended` (a politics code), `Preface of book by` and `Epitaph written by` (writing codes) and `Member of the school of` (a different scholarly code).  The FROM strings come in pairs -- `fromAssoc` without the filter join and `fromAssocAssoc` with it -- and the recruiting loops use the filtered ones.  None of the seven *last-loop* variants joins `ZZ_SCRATCH_ASSOC_FILTER` at all: six are defined as `= fromAssocLast`, `fromAssocAssocLast` among them, and the seventh is its own string with no such join either.  So the closure pass that draws ties between people already on the list is unfiltered.
+
+#### Evidence
+
+Each category was driven alone, with kinship off, and the answers compared with each other.  Every association code in `ASSOC_CODE_TYPE_REL` carries exactly one type -- measured, zero codes with more than one -- so the categories partition the codes and no code belongs to two of them.  Twenty-one of the twenty-seven categories returned anything at all on this subject, and **146 pairs of them returned the same association code**: *Friendship* and *Political opposition* share codes 5, 9, 32, 43, 145 and 146, *Friendship* and *Teacher* share 43, 146, 429, 430, 431 and 432, and so on.  At least one answer in each pair contains a tie its own category does not select.
+
+That comparison is between two of the application's own answers and needs no mapping from category to code.  An earlier version of this test took the clause `makeAssocFilter` inserts for a checkbox and resolved it against `ASSOC_CODE_TYPE_REL` to decide what that checkbox may return -- which is how the handler computes the same set, so a build that mapped a category to the wrong type code would have had the mistake copied into the expectation and passed.  The comparison used here catches that case as an overlap.
+
+The reciprocal explanation is ruled out and is worth ruling out, because an association carries a paired code for the other direction and a tie reported from the far side would look foreign without being so.  For *Teacher* the pair set is identical to the admitted set -- 19/20, 22/23, 36/37, 49/50, 558/559 -- and the intruding codes are in neither.
+
+What the measurement does **not** settle is whether this is a filtering fault or a labelling one, and the distinction decides the fix.  The recruiting loops are filtered; only the closure pass is not, and its own comment describes it as looking for connections between people already on the list.  Read one way the categories choose which ties bring a person into the network and the closure then draws that community's whole tie set, which is an ordinary social-network design and would make this a page that does not say what its control means.  Read the other way the control is labelled *Association Types* and the answer contains types the user excluded.
+
+Two things this entry deliberately does not claim.  Ego-incident foreign edges do not show that the first loop is unfiltered: the subject is on the list at distance 0, so the closure pass produces edges touching it as a matter of course.  And person-pairs that vanish when a category is added are not proof that ties were lost rather than reoriented -- `sqlPruneAssocInverse2` deletes a row once its inverse pair code enters the same batch with the larger `c_personid`, so a wider selection can flip which orientation survives.
+
+#### Impact
+
+This is the form's main control and the answer does not match the label above it -- the page calls the group *Association Types (Non-Kinship)*.  A historian asking for scholarly ties is shown political and literary ones mixed in, with nothing marking which is which, and the network they read, count, export and publish is not the one they think they asked for.  Whether the remedy is to filter the closure pass or to say on the page what the categories actually select, the user is currently given no way to tell -- and the wrong answer is indistinguishable from the right one, which is what puts it in this band rather than among the visible failures.
+
+#### Steps to reproduce
+
+1. On the Networks form untick Kinship and every association category, then tick only Teacher, and run.
+2. Read the tie types in the result: epitaphs, prefaces and recommendations appear beside the teaching ties.
+
+#### Suggested fix
+
+Give the last loop the same filtered FROM its earlier loops have -- `fromAssocAssocLast` should join `ZZ_SCRATCH_ASSOC_FILTER` rather than alias the unfiltered string.  Note that the aliases are annotated as verified against the original Access source, so this may be a faithful port of the original's behaviour; if the original was deliberate, the page should say that the categories select whom to find rather than which ties to show.
+
+#### Where it lives in the build
+
+- `Code/networks_form_query.go:273`
+- `Code/networks_form_query.go:235`
+- `Code/networks_form_backend.go:1046`
+
+#### Demonstrated by
+
+- 1 × failed: `test_no_two_categories_return_the_same_association`
+
 ## CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have
 
 **Affected area:** Networks form: Pajek, Gephi/GUESS and UCINet exports
@@ -1042,6 +1183,52 @@ Make the two odd handlers answer in the shape the page reads -- `{"status":"ok",
 - 2 × failed: `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-gis]`, `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-sna]`
 - 1 × passed: `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-neo4j]`
 
+## CBDB-D-024 — The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address
+
+**Affected area:** Networks: the sex filter
+
+**Severity:** P2 — Visible failure — the user's action fails with an error they see.  Usually a server error; sometimes a page that reports failure on a request that in fact succeeded.  The band is about what the user is shown, not about which half of the application went wrong.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+Ticking only *Male* or only *Female* makes the query fail outright: `Database error: no such column: BIOG_MAIN_1.c_female`.  The sex condition is written against the alias `BIOG_MAIN_1` and appended to both the kinship and the non-kinship WHERE strings that the first and middle loops use.  Of the FROMs those loops pair with, `fromKinDynasty`, `fromKinAddr` and `fromKinAddrDynasty` define the alias and the plain `fromKin` -- the one chosen when neither a dynasty nor an address filter is set -- does not.  So the filter works only for a user who happens to be filtering by something else as well.  (The last-loop FROMs do not define the alias either, and are harmless only because the sex condition is never appended to them.)
+
+#### Evidence
+
+Driven through the shipped binary on person 1762 with the smallest network the form will build (depth one on both walks).  With both sexes ticked the query answers 200.  With `useMale` unticked, or `useFemale` unticked, it answers 500 and the message names the missing column.  The same request with a dynasty filter added answers 200, which is what identifies the alias rather than the condition as the fault -- that second arm is driven by its own test so the diagnosis rests on a measurement and not on a reading of the source.
+
+Only the dynasty half is measured.  `fromKinAddr` and `fromKinAddrDynasty` define the alias too, so an address filter should have the same effect, but no test drives that and the claim is made from the source alone -- a regression peculiar to the address FROMs would not be caught by either test named here.
+
+BIOG_MAIN does have `c_female`; the column is real and the alias is not.
+
+#### Impact
+
+Sex is one of the few filters this form offers, and for most users it simply does not work: the page reports a database error.  The subset of users it does work for is arbitrary -- those who set a dynasty or address filter in the same query -- which makes it look intermittent rather than broken, and an intermittent failure is the kind a user blames on their own input.
+
+#### Steps to reproduce
+
+1. Open the Networks form, choose a person, and run with both sexes ticked: the network appears.
+2. Untick Female and run again: HTTP 500, no such column BIOG_MAIN_1.c_female.
+3. Tick a dynasty filter as well and run again: it works.
+
+#### Suggested fix
+
+Give the plain `fromKin` the same `BIOG_MAIN AS BIOG_MAIN_1` join its dynasty and address siblings have, or build the sex condition against an alias every kinship FROM defines.
+
+#### Where it lives in the build
+
+- `Code/networks_form_query.go:885`
+- `Code/networks_form_query.go:471`
+
+#### Demonstrated by
+
+- 2 × failed: `test_the_sex_filter_removes_the_sex_it_was_told_to[F-useFemale]`, `test_the_sex_filter_removes_the_sex_it_was_told_to[M-useMale]`
+- 1 × passed: `test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on`
+
 ## CBDB-D-007 — The distribution ships ten dated working copies of its own templates
 
 **Affected area:** Packaging: Templates/
@@ -1197,7 +1384,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1389 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1412 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 
