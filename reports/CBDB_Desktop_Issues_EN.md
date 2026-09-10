@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-10 05:18 UTC from a run of 1135 tests (357s)._
+_Generated 2026-09-10 06:16 UTC from a run of 1166 tests (370s)._
 
 Dear maintainer,
 
@@ -18,18 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 915 |
-| failed | 93 |
+| passed | 944 |
+| failed | 95 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 124 |
 
-Of the 93 failures, **88** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **5** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
-
-**1** of them: gaps in this test suite rather than defects in the distribution -- something the interface offers that we have not yet driven.  Ours to close, not yours.
-
-| Check | What it says we have not driven |
-| --- | --- |
-| `test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run` | 14 endpoint(s) a user can reach from the interface were never requested by this run |
+Of the 95 failures, **91** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **4** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
 
 **4 failure(s) in this run are not yet classified.**  They are not among the issues below and they are not one of our known coverage gaps, which means this run found something nobody has looked at yet.  Each may turn out to be a defect worth filing or a problem with the check itself; please read them rather than trusting this list to be complete.
 
@@ -37,8 +31,8 @@ Of the 93 failures, **88** are the tests that demonstrate the issues below -- th
 | --- | --- |
 | `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it` | the Places page hard-codes filterBac: false and offers no control that can change it, so the BAC filter PlaceQueryParams declares and places_form_backend.go honours cannot be switched on by any user o |
 | `test_the_place_search_helper_finds_the_places_the_table_holds` | /api/networks/place-search?q=Zhou returned 200 and an empty list; 3692 rows of ADDR_CODES carry that word in their name. c_admin_type is varchar(255) holding text and the handler scans it into an int |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', 'CBD |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', 'CBD |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', |
 
 ## What the suite covers
 
@@ -47,8 +41,9 @@ Of the 93 failures, **88** are the tests that demonstrate the issues below -- th
 | The distribution itself | 59 | That the tree under test really is the shipped archive, file by file |
 | The application process | 13 | That the shipped binary starts, serves, and releases its database |
 | Every registered route | 17 | All 141 routes read out of the shipped Go source, driven for real |
+| Passing a result from one form to another | 18 | The stored-person list: what one form stores, another recalls |
 | Each page against its own handler | 13 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
-| The code and address lists | 35 | The dropdowns each form offers before a query is run |
+| The code and address lists | 41 | The dropdowns each form offers before a query is run |
 | The Query Builder | 51 | Its whitelist, the SQL it shows the user, and its guards |
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
 | The forms that remember | 17 | Kinship, networks, association pairs, group data — working lists |
@@ -57,12 +52,12 @@ Of the 93 failures, **88** are the tests that demonstrate the issues below -- th
 | Every export button | 498 | All 45 file-producing endpoints pressed, and the files they return read back |
 | The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
-| The working tables | 6 | Which form owns which scratch table, read out of the shipped Go |
+| The working tables | 7 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
-| This report's own sources | 43 | That every issue below still cites real code, in both languages |
+| This report's own sources | 49 | That every issue below still cites real code, in both languages |
 | This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1135 |  |
+| every test in this run | 1166 |  |
 
 ## Agreed to leave for now
 
@@ -85,6 +80,8 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-010 | P0 | CONFIRMED | Three controls the user can set change nothing: the Association Pairs KML checkbox, and Networks' Max Loops and Include ID |
 | CBDB-D-012 | P0 | CONFIRMED | "Select All Filtered" returns the first hundred addresses and reports them as the whole filter |
 | CBDB-D-013 | P0 | CONFIRMED | Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list |
+| CBDB-D-015 | P0 | CONFIRMED | A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports |
+| CBDB-D-016 | P0 | CONFIRMED | Association Pairs reports how many ids were in the file, not how many people it loaded |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
@@ -102,6 +99,8 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-010 — Three controls the user can set change nothing: the Association Pairs KML checkbox, and Networks' Max Loops and Include ID](#cbdb-d-010--three-controls-the-user-can-set-change-nothing-the-association-pairs-kml-checkbox-and-networks-max-loops-and-include-id)
 - [CBDB-D-012 — "Select All Filtered" returns the first hundred addresses and reports them as the whole filter](#cbdb-d-012--select-all-filtered-returns-the-first-hundred-addresses-and-reports-them-as-the-whole-filter)
 - [CBDB-D-013 — Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list](#cbdb-d-013--recall-on-the-association-pairs-page-fills-the-pair-with-two-people-nothing-chose-and-says-nothing-about-the-rest-of-the-stored-list)
+- [CBDB-D-015 — A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports](#cbdb-d-015--a-person-imported-twice-is-counted-twice-queried-twice-and-written-twice-into-six-of-the-seven-networks-exports)
+- [CBDB-D-016 — Association Pairs reports how many ids were in the file, not how many people it loaded](#cbdb-d-016--association-pairs-reports-how-many-ids-were-in-the-file-not-how-many-people-it-loaded)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
@@ -423,6 +422,98 @@ Decide what Recall means when the stored list holds more than two, and say it in
 #### Demonstrated by
 
 - 1 × failed: `test_a_query_that_keeps_only_some_rows_says_which_ones`
+
+## CBDB-D-015 — A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports
+
+**Affected area:** Networks: the imported working list
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`networks_form_backend.go` declares its working list as `CREATE TABLE IF NOT EXISTS ZZ_SIP_NETWORK (... UNIQUE (c_person_id))` and inserts into it with `INSERT OR IGNORE` in all four places that fill it.  The table ships in the database without that constraint, and `CREATE TABLE IF NOT EXISTS` against a table that already exists is a no-op -- so the guard never runs, and the `OR IGNORE` has nothing to ignore.  A repeated id is ordinary input: the page builds its list from a file one line at a time and does not deduplicate.
+
+#### Evidence
+
+Driven through the shipped binary.  Importing person 0 once: `/api/networks/person-count` says 1, and the smallest query returns 19 rows for 19 distinct people.  Importing the same person *twice*: person-count says **2 for one person**, and the same query returns **20 rows for 19 distinct people**, person 0 appearing twice.  The duplicate is not confined to the working list: `networks_form_query.go` seeds `ZZ_SP_NETWORK` from it with no `DISTINCT`, and the result rows and six of the seven export writers read `ZZ_SP_NETWORK` with no `DISTINCT` either -- Export Results, GIS, KML, Gephi/GUESS, UCINet and Pajek.  The seventh, Neo4j, is unaffected, and how it escapes is the fix in miniature: it collects its people into `ZZ_SCRATCH_P_TEXT` with `INSERT OR IGNORE ... SELECT DISTINCT`, and that table *does* ship with the unique constraint its declaration asks for.
+
+The constraint is missing in the shipped table and not in the Go: `PRAGMA index_list` finds no unique index on `ZZ_SIP_NETWORK`, `ZZ_SIP_KINSHIP` or `ZZ_SIP_ASSOC_PAIR`, while `ZZ_SCRATCH_ADDR` -- declared the same way, in the same file -- does have one.  So this is an omission in the database builder rather than a decision.  Kinship and Association Pairs escape the visible half by luck: their working lists duplicate too, and their person-counts are wrong in the same way, but their queries deduplicate downstream.
+
+#### Impact
+
+A network is a count of people and a set of relationships, and both are wrong.  The person appears twice in the result grid, twice in Export Results, twice in the GIS table, twice in the KML, and twice in the Gephi, UCINet and Pajek files -- where a duplicated vertex is not merely cosmetic, since the network measures those tools compute are defined over the vertex set.  Only the Neo4j bundle comes out right.  The points-per-coordinate figure the GIS and KML exports carry counts rows, so it inflates too.  Nothing on screen marks any of it, and the input that causes it -- a list file with a repeated id -- is one a historian would have no reason to think twice about.
+
+#### Steps to reproduce
+
+1. Open Networks and import a list file with the same person id on two lines (or POST /api/networks/import-people with {"personIds": [1, 1]}).
+2. Read the count under the list: it says 2 for one person.
+3. Run the query and look for that person in the results grid: two rows.
+4. Save to GIS and count the person's rows in the file: two.  Save to Neo4j and count them there: one.
+
+#### Suggested fix
+
+Add `UNIQUE (c_person_id)` to `ZZ_SIP_NETWORK` in `CBDB_AdditionalTablesViewsIndices.sql`, which is what actually creates it; the Go already declares the constraint and every insert into that table is already `INSERT OR IGNORE`, so nothing else has to change.
+
+**Only that table.**  `ZZ_SIP_KINSHIP` and `ZZ_SIP_ASSOC_PAIR` duplicate in the same way and their person-counts are wrong in the same way, but neither declares the constraint and neither inserts with `OR IGNORE` -- so adding `UNIQUE` to them would turn a silent duplicate into a failed insert, which is a worse outcome and a decision for whoever owns those forms.  If their counts are to be fixed, `SELECT DISTINCT` at the point of insert is the safe way.  Worth a look in the other direction too: every `CREATE TABLE IF NOT EXISTS` in the Go describes a table that already ships, so any constraint declared there and missing from the builder is inert in exactly this way.
+
+#### Where it lives in the build
+
+- `Code/networks_form_backend.go:384`
+- `Code/networks_form_backend.go:handleExportNeo4j`
+- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
+- `Code/networks_form_query.go`
+
+#### Demonstrated by
+
+- 2 × failed: `test_importing_the_same_person_twice_imports_one_person`, `test_a_uniqueness_a_form_declares_is_one_the_table_enforces`
+
+## CBDB-D-016 — Association Pairs reports how many ids were in the file, not how many people it loaded
+
+**Affected area:** Association Pairs: import-list
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`handleImportList` inserts by joining `BIOG_MAIN`, so an id the database does not have inserts nothing -- and then answers `"count": len(req.PersonIDs)`, the request handed back.  The page prints that number: *"Imported N person IDs"*, *"N people loaded"*.
+
+#### Evidence
+
+Three ids sent, of which two exist in `BIOG_MAIN` and one is past the largest id the table holds.  Association Pairs answers `{"count": 3}` and the following query returns exactly what sending only the two real ids returns.
+
+The oracle is the three sibling endpoints that load the same kind of list, because they disagree with it and with nothing else: Kinship answers `{"count": 2, "errorCount": 1}`, Networks reads `COUNT(*)` back out of its own table and answers `{"count": 2}`, and Group Data answers `{"count": 2}` with the rows it found.  Three of the four report what happened; the fourth reports what it was asked to do.
+
+#### Impact
+
+A historian importing an id list from an older CBDB release, or from a colleague's spreadsheet, is told the whole list loaded and then queries a subset.  Nothing later contradicts it: the result simply has fewer people in it than the source list had, which looks like a finding about the data rather than about the import.
+
+#### Steps to reproduce
+
+1. On Look At Association Pairs, import a list containing two real person ids and one that does not exist.
+2. The page says three people were loaded.
+3. Run the query: the answer is the one for two people.
+4. Send the same three ids to /api/kinship/import-people for comparison: it answers count 2, errorCount 1.
+
+#### Suggested fix
+
+Report what was inserted, not what was asked for.  The three sibling handlers show two ways: count `RowsAffected` as Kinship does and return an `errorCount` beside it, or read `COUNT(*)` back as Networks does.  Kinship's shape is the more useful of the two, because a user who is told one id failed can go and look for it.
+
+#### Where it lives in the build
+
+- `Code/assocpairs_form_backend.go:handleImportList`
+- `Templates/association_pairs/index.html:513`
+
+#### Demonstrated by
+
+- 1 × failed: `test_a_list_loader_reports_how_many_people_it_loaded`
 
 ## CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have
 
@@ -767,7 +858,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1135 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1166 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

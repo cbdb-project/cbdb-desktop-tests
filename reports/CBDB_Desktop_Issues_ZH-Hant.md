@@ -4,7 +4,7 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260908.7z_
 
-_本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行結果（耗時 357 秒）。_
+_本報告產生於 2026-09-10 06:16 UTC，依據一次 1166 項測試的執行結果（耗時 370 秒）。_
 
 尊敬的維護者：
 
@@ -20,18 +20,12 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 915 |
-| 失敗 | 93 |
+| 通過 | 944 |
+| 失敗 | 95 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
 | 略過 | 124 |
 
-在 93 項失敗中，有 **88** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **5** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
-
-其中 **1** 項指向的是本測試套件自身的覆蓋缺口，而不是釋出版本的缺陷：介面上有、但我們尚未驅動過的東西。那部分該由我們補上，與您無關。
-
-| 對應檢查 | 指出我們尚未驅動的部分 |
-| --- | --- |
-| `test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run` | 介面上可以到達、但本次執行從未實際請求過的端點；完整清單見 artifacts/endpoint_coverage.json（14 endpoint(s) a user can reach from the interface were never requested by this run） |
+在 95 項失敗中，有 **91** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **4** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
 
 **本次執行有 4 項失敗尚未歸類。**它們既不屬於下列問題，也不屬於我們已知的覆蓋缺口——換句話說，這次執行發現了還沒有人看過的東西。它們可能是值得立案的缺陷，也可能是檢查本身的問題；請務必逐一閱讀，不要把下面的清單當成已經完整。
 
@@ -39,8 +33,8 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 | --- | --- |
 | `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it` | the Places page hard-codes filterBac: false and offers no control that can change it, so the BAC filter PlaceQueryParams declares and places_form_backend.go honours cannot be switched on by any user o |
 | `test_the_place_search_helper_finds_the_places_the_table_holds` | /api/networks/place-search?q=Zhou returned 200 and an empty list; 3692 rows of ADDR_CODES carry that word in their name. c_admin_type is varchar(255) holding text and the handler scans it into an int |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', 'CBD |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', 'CBD |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', |
 
 ## 測試套件的涵蓋範圍
 
@@ -49,8 +43,9 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 | 發行檔本身 | 59 | 受測的檔案樹確實逐一符合釋出的壓縮檔 |
 | 應用程式行程 | 13 | 釋出的執行檔能啟動、能服務、並能釋放資料庫 |
 | 所有已註冊的路由 | 17 | 從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測 |
+| 在表單之間傳遞查詢結果 | 18 | 已儲存人物清單：一個表單存入的，另一個表單取回的 |
 | 各頁面與其後端的對照 | 13 | 表單的前後兩半對於請求與回應是否一致——後端從不讀取的控制項、頁面讀不懂的回應、沒有任何入口的功能 |
-| 代碼與地址清單 | 35 | 各表單在查詢前提供的下拉選單 |
+| 代碼與地址清單 | 41 | 各表單在查詢前提供的下拉選單 |
 | 查詢建構器 | 51 | 白名單、顯示給使用者的 SQL，以及各項防護 |
 | 六個單次查詢的表單 | 51 | 入仕、官職、社會地位、著述、社會關係、地點——查詢與匯出 |
 | 具狀態的表單 | 17 | 親屬關係、社會網路、關係配對、群組資料——工作清單 |
@@ -59,12 +54,12 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 | 所有匯出按鈕 | 498 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
 | 在真實瀏覽器中的頁面 | 7 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
 | 同時開兩個分頁 | 3 | 一次查詢是否會取代另一個分頁即將匯出的內容 |
-| 暫存工作表 | 6 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
+| 暫存工作表 | 7 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
 | 本次執行自身的覆蓋率 | 5 | 釋出頁面能觸及的每一個端點，本次執行是否真的都請求過 |
 | 已協商擱置的項目 | 28 | 每一條擱置項目是否仍對應到本次執行中存在的檢查，以及套件中沒有其他地方私自容忍失敗 |
-| 本報告自身的依據 | 43 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
+| 本報告自身的依據 | 49 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
 | 本報告本身 | 23 | 本報告可由上述執行結果完整重現，不會憑空產生問題、不會遺漏問題，也不會隱藏任何擱置項目 |
-| 本次執行的全部測試 | 1135 |  |
+| 本次執行的全部測試 | 1166 |  |
 
 ## 已協商暫時擱置的項目
 
@@ -87,6 +82,8 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 | CBDB-D-010 | P0 | 已確認 | 有三個使用者可以設定的控制項不起作用：關聯配對的 KML 核取方塊，以及網絡表單的 Max Loops 與 Include ID |
 | CBDB-D-012 | P0 | 已確認 | 「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果 |
 | CBDB-D-013 | P0 | 已確認 | 關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提 |
+| CBDB-D-015 | P0 | 已確認 | 同一個人若被匯入兩次，就會被計數兩次、查詢兩次，並在社會網絡七種匯出中的六種裡被寫出兩次 |
+| CBDB-D-016 | P0 | 已確認 | 關聯配對回報的是檔案裡有多少個 id，而不是實際載入了多少人 |
 | CBDB-D-004 | P2 | 已確認 | 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位 |
 | CBDB-D-005 | P2 | 已確認 | 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數 |
 | CBDB-D-006 | P2 | 已確認 | 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤 |
@@ -104,6 +101,8 @@ _本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行�
 - [CBDB-D-010 — 有三個使用者可以設定的控制項不起作用：關聯配對的 KML 核取方塊，以及網絡表單的 Max Loops 與 Include ID](#cbdb-d-010--有三個使用者可以設定的控制項不起作用：關聯配對的-kml-核取方塊，以及網絡表單的-max-loops-與-include-id)
 - [CBDB-D-012 — 「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果](#cbdb-d-012--「select-all-filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果)
 - [CBDB-D-013 — 關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提](#cbdb-d-013--關聯配對頁面的-recall-以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提)
+- [CBDB-D-015 — 同一個人若被匯入兩次，就會被計數兩次、查詢兩次，並在社會網絡七種匯出中的六種裡被寫出兩次](#cbdb-d-015--同一個人若被匯入兩次，就會被計數兩次、查詢兩次，並在社會網絡七種匯出中的六種裡被寫出兩次)
+- [CBDB-D-016 — 關聯配對回報的是檔案裡有多少個 id，而不是實際載入了多少人](#cbdb-d-016--關聯配對回報的是檔案裡有多少個-id，而不是實際載入了多少人)
 - [CBDB-D-004 — 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位](#cbdb-d-004--網絡表單四個網絡匯出中有三個對任何輸入都回傳-http-500：它們查詢了自己的暫存表所沒有的欄位)
 - [CBDB-D-005 — 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數](#cbdb-d-005--只要查詢結果帶有地址，關聯表單的-neo4j-匯出就回傳-http-500：程式把一個文字欄位讀進整數變數)
 - [CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤](#cbdb-d-006--查詢建構器提供了-30-個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤)
@@ -425,6 +424,98 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 #### 對應的測試
 
 - 1 × 失敗: `test_a_query_that_keeps_only_some_rows_says_which_ones`
+
+## CBDB-D-015 — 同一個人若被匯入兩次，就會被計數兩次、查詢兩次，並在社會網絡七種匯出中的六種裡被寫出兩次
+
+**涉及範圍：** 社會網絡：匯入的工作清單
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+`networks_form_backend.go` 把它的工作清單宣告為 `CREATE TABLE IF NOT EXISTS ZZ_SIP_NETWORK (... UNIQUE (c_person_id))`，並且在四處填入資料的地方全都使用 `INSERT OR IGNORE`。但這張表在釋出的資料庫中並沒有這個約束，而 `CREATE TABLE IF NOT EXISTS` 對一張已經存在的表而言是空操作——因此這道防護從未生效，`OR IGNORE` 也沒有東西可以忽略。重複的 id 是很平常的輸入：頁面是逐行從檔案讀出清單的，並不會去除重複。
+
+#### 實測依據
+
+以釋出的執行檔實測。將人物 0 匯入一次：`/api/networks/person-count` 回報 1，最小查詢回傳 19 列、19 個不重複人物。將同一個人匯入**兩次**：person-count 回報 **一個人卻是 2**，同一個查詢回傳 **20 列、19 個不重複人物**，人物 0 出現了兩次。這個重複並不止於工作清單：`networks_form_query.go` 由它填入 `ZZ_SP_NETWORK` 時沒有 `DISTINCT`，而結果列與七個匯出程式中的六個在讀取 `ZZ_SP_NETWORK` 時同樣沒有 `DISTINCT`——分別是 Export Results、GIS、KML、Gephi/GUESS、UCINet 與 Pajek。第七個 Neo4j 不受影響，而它之所以能倖免，正是這個修正的縮影：它以 `INSERT OR IGNORE ... SELECT DISTINCT` 把人物收進 `ZZ_SCRATCH_P_TEXT`，而那張表確實依其宣告帶有唯一約束。
+
+缺少約束的是釋出的資料表而不是 Go：`PRAGMA index_list` 在 `ZZ_SIP_NETWORK`、`ZZ_SIP_KINSHIP` 與 `ZZ_SIP_ASSOC_PAIR` 上都找不到唯一索引，而以同樣方式、在同一個檔案中宣告的 `ZZ_SCRATCH_ADDR` 卻有。可見這是資料庫建置程式的疏漏，而不是刻意的決定。親屬關係與關聯配對只是僥倖避開了可見的那一半：它們的工作清單同樣會重複、person-count 也同樣錯誤，只是它們的查詢在後續步驟中去除了重複。
+
+#### 影響
+
+一個網絡就是一組人數與一組關係，而這兩者都錯了。這個人會在結果表格中出現兩次、在 Export Results 中兩次、在 GIS 表中兩次、在 KML 中兩次，在 Gephi、UCINet 與 Pajek 檔案中也各出現兩次——在那些工具裡，重複的節點並不只是外觀問題，因為它們計算的網絡指標正是定義在節點集合之上的。只有 Neo4j 匯出是正確的。GIS 與 KML 匯出所帶的「每個座標點的人數」是以列數計算的，因此也會膨脹。畫面上沒有任何地方標示這件事，而造成它的輸入——一個帶有重複 id 的清單檔——正是歷史學者不會多想一秒的東西。
+
+#### 復現步驟
+
+1. 開啟社會網絡頁面，匯入一個同一個人物 id 出現在兩行的清單檔（或以 {"personIds": [1, 1]} 呼叫 POST /api/networks/import-people）。
+2. 看清單下方的人數：一個人卻顯示 2。
+3. 執行查詢，在結果表格中找這個人：有兩列。
+4. 執行 Save to GIS，數一數檔案中這個人的列數：兩列。再執行 Save to Neo4j，在那裡數一數：一列。
+
+#### 建議修復方式
+
+請在實際負責建立資料表的 `CBDB_AdditionalTablesViewsIndices.sql` 中，為 `ZZ_SIP_NETWORK` 加上 `UNIQUE (c_person_id)`；Go 端本來就宣告了這個約束，對該表的所有插入也早已是 `INSERT OR IGNORE`，因此不需要再改動其他地方。
+
+**僅限這一張表。**`ZZ_SIP_KINSHIP` 與 `ZZ_SIP_ASSOC_PAIR` 同樣會重複、person-count 也同樣錯誤，但這兩張表既沒有宣告該約束，插入時也沒有使用 `OR IGNORE`——因此若替它們加上 `UNIQUE`，只會把「靜默的重複」變成「插入失敗」，那是更糟的結果，也應由這兩個表單的負責人自行決定。若要修正它們的計數，在插入處加上 `SELECT DISTINCT` 才是安全的作法。另外也值得往反方向檢查一遍：Go 中每一處 `CREATE TABLE IF NOT EXISTS` 所描述的資料表都已隨版釋出，因此凡是宣告於該處、卻不存在於建置程式中的約束，都會以完全相同的方式失效。
+
+#### 對應的程式位置
+
+- `Code/networks_form_backend.go:384`
+- `Code/networks_form_backend.go:handleExportNeo4j`
+- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
+- `Code/networks_form_query.go`
+
+#### 對應的測試
+
+- 2 × 失敗: `test_importing_the_same_person_twice_imports_one_person`, `test_a_uniqueness_a_form_declares_is_one_the_table_enforces`
+
+## CBDB-D-016 — 關聯配對回報的是檔案裡有多少個 id，而不是實際載入了多少人
+
+**涉及範圍：** 關聯配對：import-list
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+`handleImportList` 是以連接 `BIOG_MAIN` 的方式插入的，因此資料庫中沒有的 id 什麼也不會插入——然後它卻回應 `"count": len(req.PersonIDs)`，也就是把請求原樣送回。頁面直接把這個數字顯示出來：「Imported N person IDs」、「N people loaded」。
+
+#### 實測依據
+
+送出三個 id，其中兩個存在於 `BIOG_MAIN`，另一個大於該表中最大的 id。關聯配對回應 `{"count": 3}`，而隨後的查詢所回傳的結果，與只送出那兩個真實 id 時完全相同。
+
+判準來自另外三個載入同類清單的端點，因為不一致的只有這一個：親屬關係回應 `{"count": 2, "errorCount": 1}`，社會網絡從自己的資料表把 `COUNT(*)` 讀回來、回應 `{"count": 2}`，分群資料回應 `{"count": 2}` 並附上實際找到的資料列。四者之中有三個回報的是實際發生的事，第四個回報的則是它被要求做的事。
+
+#### 影響
+
+歷史學者若從舊版 CBDB、或從同事的試算表匯入一份 id 清單，系統會告訴他整份清單都載入了，實際上查詢的卻只是其中一部分。後續也沒有任何地方會推翻這個說法：結果裡的人數就是比來源清單少，看起來像是關於資料本身的發現，而不是匯入出了問題。
+
+#### 復現步驟
+
+1. 在關聯配對頁面上，匯入一份含有兩個真實人物 id 與一個不存在 id 的清單。
+2. 頁面顯示載入了三個人。
+3. 執行查詢：得到的是兩個人的結果。
+4. 把同樣這三個 id 送到 /api/kinship/import-people 作為對照：它回應 count 2、errorCount 1。
+
+#### 建議修復方式
+
+請回報實際插入的筆數，而不是被要求的筆數。另外三個同類的處理常式示範了兩種作法：像親屬關係那樣統計 `RowsAffected` 並附上 `errorCount`，或像社會網絡那樣把 `COUNT(*)` 讀回來。其中親屬關係的形式較為實用，因為使用者一旦被告知有一個 id 載入失敗，就能自己去找出是哪一個。
+
+#### 對應的程式位置
+
+- `Code/assocpairs_form_backend.go:handleImportList`
+- `Templates/association_pairs/index.html:513`
+
+#### 對應的測試
+
+- 1 × 失敗: `test_a_list_loader_reports_how_many_people_it_loaded`
 
 ## CBDB-D-004 — 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位
 
@@ -769,7 +860,7 @@ Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展
 .\run_tests.ps1
 ```
 
-這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1135 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
+這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1166 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
 
 每一項問題底下都列出了對應的測試名稱。若只想執行其中一項：
 
