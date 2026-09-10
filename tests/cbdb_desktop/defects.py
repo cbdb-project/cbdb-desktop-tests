@@ -2742,6 +2742,490 @@ _DEFECTS: tuple[Defect, ...] = (
         tests=("test_a_criterion_the_grid_cannot_parse_is_not_silently_"
                "reinterpreted",),
     ),
+    Defect(
+        key="CBDB-D-024",
+        priority="P2", severity="high", origin="software",
+        title="The Networks sex filter answers HTTP 500 unless the user "
+              "is also filtering by dynasty or address",
+        title_zh="除非同時使用朝代或地址篩選，網絡表單的性別篩選一律"
+                 "回應 HTTP 500",
+        area="Networks: the sex filter",
+        area_zh="網絡表單：性別篩選",
+        summary="Ticking only *Male* or only *Female* makes the query "
+                "fail outright: `Database error: no such column: "
+                "BIOG_MAIN_1.c_female`.  The sex condition is written "
+                "against the alias `BIOG_MAIN_1` and appended to both "
+                "the kinship and the non-kinship WHERE strings that "
+                "the first and middle loops use.  Of the FROMs those "
+                "loops pair with, `fromKinDynasty`, `fromKinAddr` and "
+                "`fromKinAddrDynasty` define the alias and the plain "
+                "`fromKin` -- the one chosen when neither a dynasty nor "
+                "an address filter is set -- does not.  So the filter "
+                "works only for a user who happens to be filtering by "
+                "something else as well.  (The last-loop FROMs do not "
+                "define the alias either, and are harmless only because "
+                "the sex condition is never appended to them.)",
+        summary_zh="只勾選 *Male* 或只勾選 *Female*，查詢就會直接失敗："
+                   "`Database error: no such column: "
+                   "BIOG_MAIN_1.c_female`。性別條件是以別名 "
+                   "`BIOG_MAIN_1` 寫成的，並且同時附加到親屬與非親屬"
+                   "兩個 WHERE 字串上——也就是第一圈與中間各圈所用的"
+                   "那兩個。在這些迴圈所搭配的 FROM 之中，"
+                   "`fromKinDynasty`、`fromKinAddr` 與 "
+                   "`fromKinAddrDynasty` 都定義了這個別名，而在既沒有"
+                   "朝代篩選也沒有地址篩選時所選用的 `fromKin` 並沒有。"
+                   "因此這個篩選只對「剛好同時也在用其他篩選」的使用者"
+                   "有效。（最後一圈的 FROM 同樣沒有定義這個別名，"
+                   "只是性別條件從來不會被附加到它們上面，才沒有出事。）",
+        evidence="Driven through the shipped binary on person 1762 with "
+                 "the smallest network the form will build (depth one on "
+                 "both walks).  With both sexes ticked the query answers "
+                 "200.  With `useMale` unticked, or `useFemale` "
+                 "unticked, it answers 500 and the message names the "
+                 "missing column.  The same request with a dynasty "
+                 "filter added answers 200, which is what identifies the "
+                 "alias rather than the condition as the fault -- that "
+                 "second arm is driven by its own test so the diagnosis "
+                 "rests on a measurement and not on a reading of the "
+                 "source.\n\nOnly the dynasty half is measured.  "
+                 "`fromKinAddr` and `fromKinAddrDynasty` define the "
+                 "alias too, so an address filter should have the same "
+                 "effect, but no test drives that and the claim is made "
+                 "from the source alone -- a regression peculiar to the "
+                 "address FROMs would not be caught by either test "
+                 "named here.\n\nBIOG_MAIN does have `c_female`; the "
+                 "column is real and the alias is not.",
+        evidence_zh="以釋出的執行檔實測人物 1762，使用該表單能建立的"
+                    "最小網絡（兩種走訪都只有一層）。兩種性別都勾選時"
+                    "回應 200；取消勾選 `useMale` 或 `useFemale`，回應"
+                    "即為 500，訊息中指名了那個不存在的欄位。同一個請求"
+                    "若再加上朝代篩選則回應 200——正是這一點指出問題"
+                    "出在別名而不是條件本身；這後半段由另一個測試實際"
+                    "驅動，因此這項診斷立足於量測，而不是我對原始碼的"
+                    "解讀。\n\n實測的只有朝代那一半。"
+                    "`fromKinAddr` 與 `fromKinAddrDynasty` 同樣定義了"
+                    "這個別名，因此地址篩選理應有相同的效果，但並沒有"
+                    "任何測試驅動它，這個說法僅出自原始碼——若日後"
+                    "出現只影響地址那幾個 FROM 的迴歸，此處所列的兩個"
+                    "測試都抓不到。\n\nBIOG_MAIN 確實有 `c_female` "
+                    "這個欄位：欄位是真的，別名才是假的。",
+        impact="Sex is one of the few filters this form offers, and for "
+               "most users it simply does not work: the page reports a "
+               "database error.  The subset of users it does work for is "
+               "arbitrary -- those who set a dynasty or address filter "
+               "in the same query -- which makes it look intermittent "
+               "rather than broken, and an intermittent failure is the "
+               "kind a user blames on their own input.",
+        impact_zh="性別是這個表單所提供的少數幾個篩選之一，而對多數"
+                  "使用者而言它根本無法運作：頁面回報資料庫錯誤。"
+                  "能夠正常運作的那一小部分使用者是任意決定的——"
+                  "亦即在同一次查詢中同時設定了朝代或地址篩選的人"
+                  "——這使它看起來像是時好時壞，而不是壞掉；而時好"
+                  "時壞的失敗，使用者往往會歸咎於自己的輸入。",
+        fix="Give the plain `fromKin` the same `BIOG_MAIN AS "
+            "BIOG_MAIN_1` join its dynasty and address siblings have, or "
+            "build the sex condition against an alias every kinship FROM "
+            "defines.",
+        fix_zh="請讓 `fromKin` 也加上其朝代版與地址版所具備的 "
+               "`BIOG_MAIN AS BIOG_MAIN_1` 連接，或者改用每一個親屬 "
+               "FROM 都會定義的別名來組出性別條件。",
+        steps=(
+            "Open the Networks form, choose a person, and run with both "
+            "sexes ticked: the network appears.",
+            "Untick Female and run again: HTTP 500, no such column "
+            "BIOG_MAIN_1.c_female.",
+            "Tick a dynasty filter as well and run again: it works.",
+        ),
+        steps_zh=(
+            "開啟網絡表單，選定一個人，兩種性別都勾選後執行："
+            "網絡正常出現。",
+            "取消勾選 Female 再執行一次：HTTP 500，訊息為 no such "
+            "column BIOG_MAIN_1.c_female。",
+            "再加上一個朝代篩選後執行：又可以了。",
+        ),
+        source=("Code/networks_form_query.go:885",
+                "Code/networks_form_query.go:471"),
+        tests=("test_the_sex_filter_removes_the_sex_it_was_told_to",
+               "test_the_sex_filter_stops_erroring_when_a_dynasty_filter_"
+               "is_on"),
+    ),
+    Defect(
+        key="CBDB-D-025",
+        priority="P0", severity="medium", origin="software",
+        title="The two Military association categories select nothing: "
+              "the form offers them and no branch inserts them",
+        title_zh="兩個軍事類的關聯類別什麼也選不到：表單提供了它們，"
+                 "卻沒有任何分支會把它們寫入",
+        area="Networks: the association categories",
+        area_zh="網絡表單：關聯類別",
+        summary="`makeAssocFilter` turns each ticked category into a set "
+                "of association codes, inserted into "
+                "`ZZ_SCRATCH_ASSOC_FILTER`, which the query INNER JOINs. "
+                " Twenty-seven of the twenty-nine categories have a "
+                "branch there.  `chkMilitaryOppose` and "
+                "`chkMilitarySupport` have none: the function counts "
+                "them into `militaryCount`, compares nothing against "
+                "`militaryMax`, and never inserts a code.  The prefix "
+                "its own comment calls Military, `'06'`, appears in no "
+                "branch of the function.",
+        summary_zh="`makeAssocFilter` 會把每個勾選的類別轉換成一組"
+                   "關聯代碼，寫入 `ZZ_SCRATCH_ASSOC_FILTER`，查詢再以"
+                   "INNER JOIN 連接該表。二十九個類別中有二十七個在"
+                   "該函式裡有對應分支，`chkMilitaryOppose` 與 "
+                   "`chkMilitarySupport` 則沒有：函式會把它們計入 "
+                   "`militaryCount`，卻不曾拿它與 `militaryMax` 比較，"
+                   "也從未寫入任何代碼。函式自己的註解稱作軍事的前綴 "
+                   "`'06'`，在整個函式的任何分支中都不曾出現。",
+        evidence="Every `if q.Chk... { exec(...) }` branch in "
+                 "`makeAssocFilter` was collected from the source and "
+                 "matched against the `chk*` categories `NetworkQuery` "
+                 "declares.  Twenty-nine categories, twenty-seven "
+                 "branches, and the two without one are the military "
+                 "pair.  The prefixes any branch can insert are '02', "
+                 "'03', '04', '05', '07', '08', '09' and '10'.\n\nThe "
+                 "counters are not merely unused, they are maintained: "
+                 "`militaryCount++` runs in both branches and "
+                 "`militaryMax = 2` is declared beside the scholar, "
+                 "politics and literary maxima, each of which *is* read "
+                 "to decide whether to insert a whole prefix.  The "
+                 "military one is read by nothing, so the shape of the "
+                 "omission is a group whose insert was never written "
+                 "rather than a flag someone forgot to add.",
+        evidence_zh="已從原始碼蒐集 `makeAssocFilter` 中所有 "
+                    "`if q.Chk... { exec(...) }` 分支，並與 "
+                    "`NetworkQuery` 所宣告的 `chk*` 類別逐一比對："
+                    "二十九個類別、二十七個分支，沒有分支的那兩個正是"
+                    "軍事那一組。所有分支可能寫入的前綴為 '02'、'03'、"
+                    "'04'、'05'、'07'、'08'、'09' 與 '10'。\n\n"
+                    "這兩個計數器不只是沒被使用，而是有被維護的："
+                    "兩個分支中都會執行 `militaryCount++`，而 "
+                    "`militaryMax = 2` 就宣告在學術、政治、文學三組的"
+                    "上限旁邊，那三個上限**都**會被讀取，用來決定是否"
+                    "整個前綴一次寫入。唯獨軍事這個從未被讀取。因此這個"
+                    "疏漏的形狀，是某一組的寫入從來沒有被寫出來，而不是"
+                    "某人漏加了一個旗標。",
+        impact="A user who ticks *Military opposition* or *Military "
+               "support* gets no military ties, and is told nothing.  "
+               "Filed as a silent wrong answer rather than as an "
+               "unreachable feature: the unreachable band is for "
+               "something the application implements and no page can "
+               "ask for, and this is its inverse -- the page ships both "
+               "checkboxes and the application implements nothing "
+               "behind them.  "
+               "Worse than inert: the count still moves the threshold "
+               "that decides whether any category filter is applied at "
+               "all (CBDB-D-026), so ticking a military box changes the "
+               "answer without selecting anything -- it can push the "
+               "total to the value at which the whole filter is skipped.",
+        impact_zh="勾選 *Military opposition* 或 *Military support* 的"
+                  "使用者，得不到任何軍事關係，而且不會收到任何提示。"
+                  "此處歸為「靜默的錯誤結果」而非「無法觸及的功能」："
+                  "後者指的是程式實作了某項功能、卻沒有頁面可以呼叫它，"
+                  "而這裡恰好相反——頁面提供了兩個核取方塊，程式在其"
+                  "背後什麼也沒有實作。"
+                  "這比單純無效更糟：該計數仍會影響「是否要套用任何"
+                  "類別篩選」的判斷門檻（見 CBDB-D-026），因此勾選"
+                  "軍事方塊會在什麼也沒選到的情況下改變結果——它可能"
+                  "把總數推到「整個篩選被略過」的那個值。",
+        fix="Add the two branches, selecting `'06'` the way the other "
+            "groups select their prefixes, or remove the two checkboxes "
+            "from the page.  If the original Access application also "
+            "omitted them, say so on the page rather than offering a "
+            "control that cannot work.",
+        fix_zh="請補上這兩個分支，比照其他各組選取自己前綴的方式選取 "
+               "`'06'`；或者把這兩個核取方塊從頁面上移除。若原本的 "
+               "Access 應用程式同樣沒有實作它們，也請在頁面上說明，"
+               "而不是提供一個不可能生效的控制項。",
+        steps=(
+            "On the Networks form untick every association category, "
+            "then tick only Military opposition, and run.",
+            "No military tie appears; what does appear is whatever the "
+            "unfiltered last loop returns (CBDB-D-027).",
+        ),
+        steps_zh=(
+            "在網絡表單上取消所有關聯類別的勾選，只勾選 Military "
+            "opposition，然後執行。",
+            "不會出現任何軍事關係；出現的是未經篩選的最後一圈所回傳"
+            "的內容（見 CBDB-D-027）。",
+        ),
+        source=("Code/networks_form_backend.go:997",
+                "Code/networks_form_backend.go:1046"),
+        tests=("test_every_category_the_form_offers_selects_something",),
+    ),
+    Defect(
+        key="CBDB-D-026",
+        priority="P0", severity="high", origin="software",
+        title="Unticking every association category returns every "
+              "association, because the filter is skipped when nothing "
+              "is selected",
+        title_zh="取消勾選所有關聯類別，反而會回傳所有關聯——因為"
+                 "什麼都沒選時，整個篩選會被略過",
+        area="Networks: the association categories",
+        area_zh="網絡表單：關聯類別",
+        summary="`makeAssocFilter` inserts nothing at all unless "
+                "`totalCount < 29 && totalCount > 0`.  The categories "
+                "sum to twenty-nine, so *all ticked* and *none ticked* "
+                "both fall out of that branch and leave "
+                "`ZZ_SCRATCH_ASSOC_FILTER` empty.  Empty is not read as "
+                "\"nothing selected\"; the query simply stops "
+                "restricting.  So unticking every category widens the "
+                "answer instead of emptying it.",
+        summary_zh="除非 `totalCount < 29 && totalCount > 0` 成立，"
+                   "否則 `makeAssocFilter` 什麼也不會寫入。各類別加總"
+                   "恰好是二十九，因此**全部勾選**與**全部不勾選**"
+                   "都會落在這個分支之外，使 `ZZ_SCRATCH_ASSOC_FILTER` "
+                   "保持為空。而空的表並不會被解讀為「什麼都沒選」；"
+                   "查詢只是不再加以限制而已。於是取消勾選所有類別，"
+                   "結果不是變空，而是變寬。",
+        evidence="Measured on person 1762 with kinship unticked as well, "
+                 "so that every edge that appears has to belong to some "
+                 "association category the user turned off: the query "
+                 "returns 2,300 edges, all of link type 'N', carrying "
+                 "association codes 4, 7, 8, 9, 10, 11, 12, 13 and "
+                 "more.\n\nThe arithmetic is in the source: five "
+                 "single-unit categories, seven scholar, six politics, "
+                 "two military and nine literary is twenty-nine, and "
+                 "`totalCount` counts each ticked box including the two "
+                 "military ones that select nothing (CBDB-D-025).  This "
+                 "is the same shape as CBDB-D-002 on the Places page, on "
+                 "a second form -- which is why it was looked for.",
+        evidence_zh="在人物 1762 上實測，並且同時取消勾選親屬關係，"
+                    "如此一來出現的每一條邊都必然屬於某個被使用者關掉"
+                    "的關聯類別：查詢回傳 2,300 條邊，連結類型全為 "
+                    "'N'，帶有 4、7、8、9、10、11、12、13 等關聯代碼。"
+                    "\n\n這個算術就寫在原始碼裡：五個單一類別、七個"
+                    "學術、六個政治、兩個軍事、九個文學，合計二十九；"
+                    "而 `totalCount` 會把每一個被勾選的方塊都計入，"
+                    "包含那兩個什麼也選不到的軍事方塊（見 "
+                    "CBDB-D-025）。這與地點頁面的 CBDB-D-002 是同一個"
+                    "形狀，只是出現在第二個表單上——這也正是會去找它的"
+                    "原因。",
+        impact="A researcher who unticks the categories to narrow a "
+               "network gets the widest possible answer instead, and "
+               "nothing on the page says so.  The failure is silent and "
+               "in the dangerous direction: too many ties looks like a "
+               "well-connected subject, not like a filter that did not "
+               "run.  The all-ticked case reaches the same branch and is "
+               "harmless, which is presumably why the threshold was "
+               "written this way.",
+        impact_zh="研究者若以取消勾選類別的方式來收窄網絡，得到的反而"
+                  "是最寬的結果，而頁面上沒有任何說明。這個失敗是無聲"
+                  "的，而且方向危險：關係過多看起來像是這個人交遊廣闊，"
+                  "而不像是篩選沒有執行。全部勾選的情形會走到同一個"
+                  "分支，但那是無害的——想必也正是這個門檻會寫成這樣"
+                  "的原因。",
+        fix="Distinguish \"every category\" from \"no category\".  The "
+            "first legitimately needs no filter; the second should "
+            "return nothing, or the page should refuse to run and say "
+            "why.",
+        fix_zh="請區分「全部類別」與「沒有任何類別」這兩種情形。"
+               "前者確實不需要篩選；後者則應該回傳空結果，或者由頁面"
+               "拒絕執行並說明原因。",
+        steps=(
+            "On the Networks form untick Kinship and every association "
+            "category, then run.",
+            "Thousands of association ties come back.",
+        ),
+        steps_zh=(
+            "在網絡表單上取消勾選 Kinship 以及所有關聯類別，然後執行。",
+            "會回傳數以千計的關聯關係。",
+        ),
+        source=("Code/networks_form_backend.go:1046",),
+        tests=("test_turning_every_category_off_leaves_no_association_ties",),
+    ),
+    Defect(
+        key="CBDB-D-027",
+        priority="P0", severity="high", origin="software",
+        title="An association category returns ties of the categories "
+              "the user did not pick: the last loop of the walk joins no "
+              "filter",
+        title_zh="關聯類別會回傳使用者沒有選取的類別的關係："
+                 "走訪的最後一圈沒有連接任何篩選表",
+        area="Networks: the association categories",
+        area_zh="網絡表單：關聯類別",
+        summary="Tick one category and the network comes back with ties "
+                "of others.  With only *Teacher* selected, person 1762's "
+                "own edges include `Recommended` (a politics code), "
+                "`Preface of book by` and `Epitaph written by` (writing "
+                "codes) and `Member of the school of` (a different "
+                "scholarly code).  The FROM strings come in pairs -- "
+                "`fromAssoc` without the filter join and "
+                "`fromAssocAssoc` with it -- and the recruiting loops "
+                "use the filtered ones.  None of the seven *last-loop* "
+                "variants joins `ZZ_SCRATCH_ASSOC_FILTER` at all: six "
+                "are defined as `= fromAssocLast`, `fromAssocAssocLast` "
+                "among them, and the seventh is its own string with no "
+                "such join either.  So the closure pass that draws ties "
+                "between people already on the list is unfiltered.",
+        summary_zh="只勾選一個類別，回傳的網絡卻帶有其他類別的關係。"
+                   "只選 *Teacher* 時，人物 1762 自身的邊之中就包含 "
+                   "`Recommended`（政治類代碼）、`Preface of book by` "
+                   "與 `Epitaph written by`（書寫類代碼），以及 "
+                   "`Member of the school of`（另一個學術類代碼）。"
+                   "FROM 字串是成對的——不連接篩選表的 `fromAssoc` "
+                   "與連接篩選表的 `fromAssocAssoc`——而負責招募的幾圈"
+                   "用的是有篩選的那一版。但**最後一圈**的七個變體，"
+                   "沒有任何一個連接 `ZZ_SCRATCH_ASSOC_FILTER`："
+                   "其中六個被定義為 `= fromAssocLast`（"
+                   "`fromAssocAssocLast` 也在內），第七個雖是自成一格"
+                   "的字串，同樣沒有這個連接。因此，在已經進入名單的人"
+                   "之間畫出關係的那一趟收尾查詢，是沒有篩選的。",
+        evidence="Each category was driven alone, with kinship off, "
+                 "and the answers compared with each other.  Every "
+                 "association code in `ASSOC_CODE_TYPE_REL` carries "
+                 "exactly one type -- measured, zero codes with more "
+                 "than one -- so the categories partition the codes and "
+                 "no code belongs to two of them.  Twenty-one of the "
+                 "twenty-seven categories returned anything at all on "
+                 "this subject, and **146 pairs of them returned the "
+                 "same association code**: *Friendship* and *Political "
+                 "opposition* share codes 5, 9, 32, 43, 145 and 146, "
+                 "*Friendship* and *Teacher* share 43, 146, 429, 430, "
+                 "431 and 432, and so on.  At least one answer in each "
+                 "pair contains a tie its own category does not "
+                 "select.\n\nThat comparison is between two of the "
+                 "application's own answers and needs no mapping from "
+                 "category to code.  An earlier version of this test "
+                 "took the clause `makeAssocFilter` inserts for a "
+                 "checkbox and resolved it against "
+                 "`ASSOC_CODE_TYPE_REL` to decide what that checkbox "
+                 "may return -- which is how the handler computes the "
+                 "same set, so a build that mapped a category to the "
+                 "wrong type code would have had the mistake copied "
+                 "into the expectation and passed.  The comparison used "
+                 "here catches that case as an overlap.\n\n"
+                 "The reciprocal explanation is ruled out and is "
+                 "worth ruling out, because an association carries a "
+                 "paired code for the other direction and a tie "
+                 "reported from the far side would look foreign without "
+                 "being so.  For *Teacher* the pair set is identical to "
+                 "the admitted set -- 19/20, 22/23, 36/37, 49/50, "
+                 "558/559 -- and the intruding codes are in neither.\n\n"
+                 "What the measurement does **not** settle is whether "
+                 "this is a filtering fault or a labelling one, and the "
+                 "distinction decides the fix.  The recruiting loops are "
+                 "filtered; only the closure pass is not, and its own "
+                 "comment describes it as looking for connections "
+                 "between people already on the list.  Read one way the "
+                 "categories choose which ties bring a person into the "
+                 "network and the closure then draws that community's "
+                 "whole tie set, which is an ordinary social-network "
+                 "design and would make this a page that does not say "
+                 "what its control means.  Read the other way the "
+                 "control is labelled *Association Types* and the answer "
+                 "contains types the user excluded.\n\nTwo things this "
+                 "entry deliberately does not claim.  Ego-incident "
+                 "foreign edges do not show that the first loop is "
+                 "unfiltered: the subject is on the list at distance 0, "
+                 "so the closure pass produces edges touching it as a "
+                 "matter of course.  And person-pairs that vanish when a "
+                 "category is added are not proof that ties were lost "
+                 "rather than reoriented -- `sqlPruneAssocInverse2` "
+                 "deletes a row once its inverse pair code enters the "
+                 "same batch with the larger `c_personid`, so a wider "
+                 "selection can flip which orientation survives.",
+        evidence_zh="每個類別都單獨驅動過一次，並關閉親屬關係，再把"
+                    "這些答案彼此相互比對。`ASSOC_CODE_TYPE_REL` 中"
+                    "每一個關聯代碼都恰好只有一個類型——實測：沒有任何"
+                    "代碼具有一個以上的類型——因此各類別構成一個劃分，"
+                    "沒有任何代碼同時屬於兩個類別。在這個主體身上，"
+                    "二十七個類別中有二十一個回傳了內容，而其中"
+                    "**有 146 對類別回傳了同一個關聯代碼**："
+                    "*Friendship* 與 *Political opposition* 共有代碼 "
+                    "5、9、32、43、145、146，*Friendship* 與 *Teacher* "
+                    "共有 43、146、429、430、431、432，其餘依此類推。"
+                    "每一對之中，至少有一方的答案含有自己所屬類別並未"
+                    "選取的關係。\n\n這個比對是拿應用程式自己的兩個答案"
+                    "互相對照，完全不需要「類別對應到哪些代碼」的映射。"
+                    "本測試的前一個版本，是把 `makeAssocFilter` 為某個"
+                    "核取方塊寫入的子句取出來，再拿去 "
+                    "`ASSOC_CODE_TYPE_REL` 解析，以決定該方塊可以回傳"
+                    "哪些代碼——而後端計算同一組集合用的正是這個做法，"
+                    "因此若某個版本把類別對應到錯誤的類型代碼，這個錯誤"
+                    "會被一併抄進期望值裡，測試照樣通過。改用現在這個"
+                    "比對之後，那種情形會以「兩個類別重疊」的形式被"
+                    "抓出來。\n\n「互為對應的代碼」這個解釋"
+                    "已經排除，而且值得排除：一段關聯對於另一個方向會有"
+                    "配對代碼，若某條關係是從對面那一側回報的，看起來就"
+                    "會像外來的，其實不是。就 *Teacher* 而言，配對集合"
+                    "與被納入集合完全相同——19/20、22/23、36/37、"
+                    "49/50、558/559——而那些闖入的代碼兩者皆不屬於。"
+                    "\n\n這項量測**沒有**釐清的是：這究竟是篩選的錯，"
+                    "還是標示的錯；而這個分別決定了該怎麼修。負責招募的"
+                    "幾圈是有篩選的，只有收尾那一趟沒有，而它自己的註解"
+                    "說明它的用途是尋找「已經在名單上的人彼此之間的"
+                    "連結」。若照一種讀法，這些類別決定的是「哪些關係"
+                    "會把一個人帶進網絡」，收尾那一趟則把這個群體完整的"
+                    "關係集合畫出來——那是社會網絡分析中常見的作法，"
+                    "如此一來，問題就在於頁面沒有說明它的控制項是什麼"
+                    "意思。若照另一種讀法，這個控制項標示的是 "
+                    "*Association Types*，而回傳的結果卻含有使用者已經"
+                    "排除的類型。\n\n有兩件事這則條目刻意不主張。"
+                    "其一，主體本人身上帶有外來代碼的邊，並不能證明"
+                    "第一圈沒有篩選：主體本來就以距離 0 在名單上，"
+                    "收尾那一趟自然會產生與它相連的邊。其二，加入一個"
+                    "類別之後整組消失的人物配對，也不足以證明關係是"
+                    "「不見了」而不是「換了方向」——"
+                    "`sqlPruneAssocInverse2` 會在同一批資料中出現互為"
+                    "對應的代碼、且 `c_personid` 較大時刪去該列，"
+                    "因此選取範圍變寬本來就可能改變是哪一個方向留下來。"
+                    "\n\n二十七個類別產生了二十二種不同的結果，因此這個"
+                    "選擇並不是完全被忽略——它會影響找到哪些人。",
+        impact="This is the form's main control and the answer does "
+               "not match the label above it -- the page calls the "
+               "group *Association Types (Non-Kinship)*.  A historian "
+               "asking for scholarly ties is shown political and "
+               "literary ones mixed in, with nothing marking which is "
+               "which, and the network they read, count, export and "
+               "publish is not the one they think they asked for.  "
+               "Whether the remedy is to filter the closure pass or to "
+               "say on the page what the categories actually select, "
+               "the user is currently given no way to tell -- and the "
+               "wrong answer is indistinguishable from the right one, "
+               "which is what puts it in this band rather than among "
+               "the visible failures.",
+        impact_zh="這是這個表單最主要的控制項，而回傳的結果與它"
+                  "上方的標示對不起來——頁面把這一組稱為 *Association "
+                  "Types (Non-Kinship)*。歷史學者要求的是學術關係，"
+                  "看到的卻混雜著政治與文學關係，畫面上也沒有任何標示"
+                  "可以分辨；他所閱讀、計數、匯出、乃至發表的那個網絡，"
+                  "並不是他以為自己要的那一個。無論解法是替收尾那一趟"
+                  "加上篩選，還是在頁面上說明這些類別實際選的是什麼，"
+                  "使用者目前都無從判斷——而錯誤的答案與正確的答案"
+                  "無從分辨，這正是它被歸在這個級別、而不是歸在「可見"
+                  "的失敗」之中的原因。",
+        fix="Give the last loop the same filtered FROM its earlier "
+            "loops have -- `fromAssocAssocLast` should join "
+            "`ZZ_SCRATCH_ASSOC_FILTER` rather than alias the unfiltered "
+            "string.  Note that the aliases are annotated as verified "
+            "against the original Access source, so this may be a "
+            "faithful port of the original's behaviour; if the original "
+            "was deliberate, the page should say that the categories "
+            "select whom to find rather than which ties to show.",
+        fix_zh="請讓最後一圈使用與前面各圈相同的、帶篩選的 FROM——"
+               "`fromAssocAssocLast` 應該連接 "
+               "`ZZ_SCRATCH_ASSOC_FILTER`，而不是別名指向那個沒有篩選"
+               "的字串。另請注意，這些別名都附有「已對照原始 Access "
+               "原始碼確認」的註記，因此這有可能是忠實移植了原程式的"
+               "行為；若原程式是刻意如此，則頁面上應當說明這些類別"
+               "決定的是「要找到哪些人」，而不是「要顯示哪些關係」。",
+        steps=(
+            "On the Networks form untick Kinship and every association "
+            "category, then tick only Teacher, and run.",
+            "Read the tie types in the result: epitaphs, prefaces and "
+            "recommendations appear beside the teaching ties.",
+        ),
+        steps_zh=(
+            "在網絡表單上取消勾選 Kinship 與所有關聯類別，只勾選 "
+            "Teacher，然後執行。",
+            "檢視結果中的關係類型：墓誌銘、序跋與薦舉會與師生關係"
+            "並列出現。",
+        ),
+        source=("Code/networks_form_query.go:273",
+                "Code/networks_form_query.go:235",
+                "Code/networks_form_backend.go:1046"),
+        tests=("test_no_two_categories_return_the_same_association",),
+    ),
 )
 
 #: What the report iterates.  Keyed by ``Defect.key`` (CBDB-D-0NN),
