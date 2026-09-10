@@ -4,30 +4,43 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260908.7z_
 
-_本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行結果（耗時 366 秒）。_
+_本報告產生於 2026-09-10 05:18 UTC，依據一次 1135 項測試的執行結果（耗時 357 秒）。_
 
 尊敬的維護者：
 
 以下是我們在為 CBDB-Desktop 編寫自動化迴歸測試套件的過程中，陸續整理出來的問題清單。我們希望這份報告能在您繼續主持這份寶貴資料集時有所助益；同時，對您多年來在這套資料與程式上的辛勤付出，我們由衷表示感謝與敬意。
 
-以下的問題，多數是實際啟動釋出的 `cbdb.exe`、以它自己的 HTTP 介面搭配釋出的資料庫實測出來的；其餘則是直接閱讀釋出的頁面模板、Go 原始碼與發行壓縮檔而確認的——對於根本不需要查詢就能證明的問題，這才是誠實的說法。無論是哪一種，我們都沒有用 Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實行為。問題按嚴重程度排序（P0 最高），每一條都包含：簡要說明、據以認定的實測數據、逐步復現方式，以及一份建議的修復方案。這些問題都不緊急，整理於此只是方便您在合適的時候逐一處理。
+以下的問題，多數是實際啟動釋出的 `cbdb.exe`、以它自己的 HTTP 介面搭配釋出的資料庫實測出來的；其餘則是直接閱讀釋出的頁面模板、Go 原始碼與發行壓縮檔而確認的——對於根本不需要查詢就能證明的問題，這才是誠實的說法。無論是哪一種，我們都沒有用 Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實行為。
+
+各條目所標示的級別，既是輕重也是類別：P0 至 P2 確實由重到輕，但 P3 以後標示的是類別——封裝、資料完整性、沒有任何入口的功能——因此 P5 並不比 P3 輕微；各級別的意義均隨附說明。每一條都包含：簡要說明、據以認定的實測數據、逐步復現方式，以及一份建議的修復方案。
+
+我們無意代為排定優先順序：這些級別描述的是我們量測到的情況，而不是您的使用者正在反映的需求，孰輕孰重，您遠比我們更有判斷的立場。其中有幾項是「靜默」的——程式給出錯誤或不完整的結果，卻沒有顯示任何錯誤——凡屬此類我們都已明白標示，因為這種問題最容易被忽略，事後也最難察覺。這裡沒有任何一項需要今天就回覆。
 
 ## 本次執行結果
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 894 |
-| 失敗 | 78 |
+| 通過 | 915 |
+| 失敗 | 93 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
 | 略過 | 124 |
 
-在 78 項失敗中，有 **77** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
+在 93 項失敗中，有 **88** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **5** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
 
 其中 **1** 項指向的是本測試套件自身的覆蓋缺口，而不是釋出版本的缺陷：介面上有、但我們尚未驅動過的東西。那部分該由我們補上，與您無關。
 
 | 對應檢查 | 指出我們尚未驅動的部分 |
 | --- | --- |
 | `test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run` | 介面上可以到達、但本次執行從未實際請求過的端點；完整清單見 artifacts/endpoint_coverage.json（14 endpoint(s) a user can reach from the interface were never requested by this run） |
+
+**本次執行有 4 項失敗尚未歸類。**它們既不屬於下列問題，也不屬於我們已知的覆蓋缺口——換句話說，這次執行發現了還沒有人看過的東西。它們可能是值得立案的缺陷，也可能是檢查本身的問題；請務必逐一閱讀，不要把下面的清單當成已經完整。
+
+| 對應檢查 | 回報的內容 |
+| --- | --- |
+| `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it` | the Places page hard-codes filterBac: false and offers no control that can change it, so the BAC filter PlaceQueryParams declares and places_form_backend.go honours cannot be switched on by any user o |
+| `test_the_place_search_helper_finds_the_places_the_table_holds` | /api/networks/place-search?q=Zhou returned 200 and an empty list; 3692 rows of ADDR_CODES carry that word in their name. c_admin_type is varchar(255) holding text and the handler scans it into an int |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', 'CBD |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-013.title', |
 
 ## 測試套件的涵蓋範圍
 
@@ -36,21 +49,22 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 | 發行檔本身 | 59 | 受測的檔案樹確實逐一符合釋出的壓縮檔 |
 | 應用程式行程 | 13 | 釋出的執行檔能啟動、能服務、並能釋放資料庫 |
 | 所有已註冊的路由 | 17 | 從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測 |
+| 各頁面與其後端的對照 | 13 | 表單的前後兩半對於請求與回應是否一致——後端從不讀取的控制項、頁面讀不懂的回應、沒有任何入口的功能 |
 | 代碼與地址清單 | 35 | 各表單在查詢前提供的下拉選單 |
 | 查詢建構器 | 51 | 白名單、顯示給使用者的 SQL，以及各項防護 |
 | 六個單次查詢的表單 | 51 | 入仕、官職、社會地位、著述、社會關係、地點——查詢與匯出 |
-| 具狀態的表單 | 16 | 親屬關係、社會網路、關係配對、群組資料——工作清單 |
+| 具狀態的表單 | 17 | 親屬關係、社會網路、關係配對、群組資料——工作清單 |
 | 索引地址排序 | 12 | 唯一會改寫 CBDB 正式資料（而非暫存表）的端點 |
 | 每一個篩選條件，輸入取自資料本身 | 254 | 依釋出資料庫中實際有資料的組合各跑一次查詢，並將每個開關的兩種狀態都測過 |
-| 所有匯出按鈕 | 497 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
+| 所有匯出按鈕 | 498 | 45 個會產生檔案的端點全部按過，並回讀所得檔案 |
 | 在真實瀏覽器中的頁面 | 7 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
 | 同時開兩個分頁 | 3 | 一次查詢是否會取代另一個分頁即將匯出的內容 |
 | 暫存工作表 | 6 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
 | 本次執行自身的覆蓋率 | 5 | 釋出頁面能觸及的每一個端點，本次執行是否真的都請求過 |
 | 已協商擱置的項目 | 28 | 每一條擱置項目是否仍對應到本次執行中存在的檢查，以及套件中沒有其他地方私自容忍失敗 |
-| 本報告自身的依據 | 22 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
+| 本報告自身的依據 | 43 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
 | 本報告本身 | 23 | 本報告可由上述執行結果完整重現，不會憑空產生問題、不會遺漏問題，也不會隱藏任何擱置項目 |
-| 本次執行的全部測試 | 1099 |  |
+| 本次執行的全部測試 | 1135 |  |
 
 ## 已協商暫時擱置的項目
 
@@ -69,20 +83,34 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 | CBDB-D-001 | P0 | 已確認 | 兩個 KML 匯出功能寫出的 XML 宣告沒有結尾，任何軟體都無法讀取這個檔案 |
 | CBDB-D-002 | P0 | 已確認 | 地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料 |
 | CBDB-D-003 | P0 | 已確認 | 二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存 |
+| CBDB-D-008 | P0 | 已確認 | 網絡表單遺漏了朝代篩選所依據的四個年份欄位，跨兩個朝代的區間因而只剩下一個人 |
+| CBDB-D-010 | P0 | 已確認 | 有三個使用者可以設定的控制項不起作用：關聯配對的 KML 核取方塊，以及網絡表單的 Max Loops 與 Include ID |
+| CBDB-D-012 | P0 | 已確認 | 「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果 |
+| CBDB-D-013 | P0 | 已確認 | 關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提 |
 | CBDB-D-004 | P2 | 已確認 | 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位 |
 | CBDB-D-005 | P2 | 已確認 | 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數 |
 | CBDB-D-006 | P2 | 已確認 | 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤 |
+| CBDB-D-009 | P2 | 已確認 | 關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「Unknown error」 |
 | CBDB-D-007 | P3 | 已確認 | 發行檔中一併附上了十份帶日期的模板工作副本 |
+| CBDB-D-014 | P3 | 已確認 | 首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中 |
+| CBDB-D-011 | P5 | 已確認 | 有五項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、關聯配對的 KML 輸出程式、兩個自動完成端點，以及地點表單的 ASCII 編碼 |
 
 ## 目錄
 
 - [CBDB-D-001 — 兩個 KML 匯出功能寫出的 XML 宣告沒有結尾，任何軟體都無法讀取這個檔案](#cbdb-d-001--兩個-kml-匯出功能寫出的-xml-宣告沒有結尾，任何軟體都無法讀取這個檔案)
 - [CBDB-D-002 — 地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料](#cbdb-d-002--地點頁面允許使用者取消勾選全部類別，然後回傳他們已排除的「傳記」資料)
 - [CBDB-D-003 — 二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存](#cbdb-d-003--二十二個匯出按鈕會一次要求瀏覽器儲存多個檔案，其中二十一個更在只有第一個檔案下載成功時，回報所有檔案都已儲存)
+- [CBDB-D-008 — 網絡表單遺漏了朝代篩選所依據的四個年份欄位，跨兩個朝代的區間因而只剩下一個人](#cbdb-d-008--網絡表單遺漏了朝代篩選所依據的四個年份欄位，跨兩個朝代的區間因而只剩下一個人)
+- [CBDB-D-010 — 有三個使用者可以設定的控制項不起作用：關聯配對的 KML 核取方塊，以及網絡表單的 Max Loops 與 Include ID](#cbdb-d-010--有三個使用者可以設定的控制項不起作用：關聯配對的-kml-核取方塊，以及網絡表單的-max-loops-與-include-id)
+- [CBDB-D-012 — 「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果](#cbdb-d-012--「select-all-filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果)
+- [CBDB-D-013 — 關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提](#cbdb-d-013--關聯配對頁面的-recall-以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提)
 - [CBDB-D-004 — 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位](#cbdb-d-004--網絡表單四個網絡匯出中有三個對任何輸入都回傳-http-500：它們查詢了自己的暫存表所沒有的欄位)
 - [CBDB-D-005 — 只要查詢結果帶有地址，關聯表單的 Neo4j 匯出就回傳 HTTP 500：程式把一個文字欄位讀進整數變數](#cbdb-d-005--只要查詢結果帶有地址，關聯表單的-neo4j-匯出就回傳-http-500：程式把一個文字欄位讀進整數變數)
 - [CBDB-D-006 — 查詢建構器提供了 30 個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤](#cbdb-d-006--查詢建構器提供了-30-個欄位，而釋出的檢視表其實是以另一個名稱呈現它們；每一個都會讓使用者得到伺服器錯誤)
+- [CBDB-D-009 — 關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「Unknown error」](#cbdb-d-009--關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「unknown-error」)
 - [CBDB-D-007 — 發行檔中一併附上了十份帶日期的模板工作副本](#cbdb-d-007--發行檔中一併附上了十份帶日期的模板工作副本)
+- [CBDB-D-014 — 首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中](#cbdb-d-014--首頁的-users-guide-連結是-404：該-pdf-並不在發行檔中)
+- [CBDB-D-011 — 有五項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、關聯配對的 KML 輸出程式、兩個自動完成端點，以及地點表單的 ASCII 編碼](#cbdb-d-011--有五項已隨版釋出的功能沒有任何入口：分群資料的-kml-匯出、關聯配對的-kml-輸出程式、兩個自動完成端點，以及地點表單的-ascii-編碼)
 - [嚴重等級說明](#嚴重等級說明)
 - [如何重現這份報告](#如何重現這份報告)
 
@@ -224,11 +252,185 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 
 - 1 × 失敗: `test_no_page_asks_the_browser_for_more_than_one_download`
 
+## CBDB-D-008 — 網絡表單遺漏了朝代篩選所依據的四個年份欄位，跨兩個朝代的區間因而只剩下一個人
+
+**涉及範圍：** 網絡表單：朝代範圍
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+`buildDynastyConditions` 篩選的是朝代所跨越的**年份**，而不是朝代代碼：`DYNASTIES_1.c_end > FromDynastyBegin` 與 `DYNASTIES_1.c_start < ToDynastyEnd`。頁面在朝代選擇視窗回傳時已算出這四個數字（`gFromDynastyBegin` 等），但組 `const params={...}` 時並未帶上，因此後端讀到的四個值都是 0。由此產生三種使用者可見的後果；而這個頁面並沒有第四種選擇朝代的方式：所有朝代選擇都走這同一條路徑。
+
+#### 實測依據
+
+以人物 1762、深度 1、四項親屬上限皆為 1 進行實測，統計 `nodeRecords` 中的不重複人數；所用的兩個朝代及其年份界線是從 `DYNASTIES` 讀出、而非人工挑選——宋（960-1279）至西夏（1032-1227）：不加朝代篩選為 441；單一朝代為 429；**只設起始朝代為 439**——`c_end > 0` 在 `DYNASTIES` 的 85 列中有 80 列成立，因此使用者要求的篩選幾乎等於沒有生效，而少掉的那兩個人正是它留下的可量測痕跡；**跨兩個朝代為 1**——`c_start < 0` 在八十五個朝代中只有五個成立，結果因而塌縮，且沒有任何提示；**「All Dynasties」為 HTTP 500**，訊息為 `Database error: no such column: DYNASTIES_1.c_end`——頁面本身的按鈕把兩個代碼都設成 `-2` 哨兵值，繞過了後端「兩端皆未設定」的判斷，於是對一張所選 FROM 子句根本沒有連接的資料表加上了條件。最關鍵的是最後一組對照：把同一個請求**補上**頁面已算好的四個年份欄位後得到 433，可見後端是對的，出問題的是頁面。建置本身也提供了對照組——關聯配對頁面把同一個問題處理對了：它以布林值送出 `allDynasties: true`，而不是把「全部」編碼成一個額外的代碼；而且每選一個朝代，都會連同兩個年份界線一併送出，接收端是可為 nil 的 `*int`，分得出「未設定」與「0」。可行的作法，就在隔壁一張表單上。
+
+#### 影響
+
+研究者若把網絡限縮在橫跨兩個朝代的區間，只會得到一個人，而且沒有任何跡象顯示出了問題；最自然的解讀是「資料本來就少」，於是得到一份看起來可以發表、實際上卻是錯的結果。只設起始朝代時，未篩選查詢回傳 441 人，它回傳 439 人，等於使用者所設的篩選幾乎完全沒有生效。而「All Dynasties」則直接失敗。
+
+#### 復現步驟
+
+1. 開啟網絡表單，選一位網絡較大的人物（1762）。
+2. 將起始朝代設為宋、迄止朝代設為西夏，然後按 Run Query。
+3. 觀察結果：只有一個節點，且沒有任何提示。
+4. 改按「All Dynasties」再執行查詢：HTTP 500。
+
+#### 建議修復方式
+
+請在 `params` 中一併送出 `fromDynastyBegin`、`fromDynastyEnd`、`toDynastyBegin` 與 `toDynastyEnd`；這四個值頁面已存於全域變數中，而關聯配對頁面也已示範了正確的寫法。另外，請在後端明確處理 `-2` 這個情形，或不要讓頁面送出後端未定義的哨兵值——並讓判斷式在遇到無法識別的代碼時直接拒絕，而不是拿它去組 SQL。
+
+#### 對應的程式位置
+
+- `Code/networks_form_query.go:buildDynastyConditions`
+- `Templates/networks/index.html:704`
+- `Templates/networks/index.html:1054`
+
+#### 對應的測試
+
+- 1 × 失敗: `test_the_networks_page_sends_the_dynasty_span_its_handler_needs`
+
+## CBDB-D-010 — 有三個使用者可以設定的控制項不起作用：關聯配對的 KML 核取方塊，以及網絡表單的 Max Loops 與 Include ID
+
+**涉及範圍：** 關聯配對、網絡表單：無作用的控制項
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+這三者都會從 DOM 讀出、隨請求送出，然後就沒有人讀它了。關聯配對頁面送出 `useKML`，而 `AssocPairsExportParams` 宣告的是 `format`、`network` 與 `people`，這個鍵因此從未生效，`handleExportGIS` 所判斷的 `format` 則是該頁面從不送出的欄位。網絡表單送出 `maxLoop` 與 `includeID`，`NetworkQuery` 也確實宣告了 `MaxLoop` 與 `IncludeID`，但 `Code/` 之下的 Go 原始碼中，這兩個識別字再也沒有出現過。
+
+#### 實測依據
+
+**KML。**頁面送往 `export-gis` 的請求帶的是 `['useKML']`，而後端參數結構宣告的是 `['format', 'network', 'people']`。兩種情況都實際呼叫過，回傳的檔名都是 `assocpairs_network.tsv`，可見 `assocWriteKML` 從唯一提供該選項的頁面根本到不了（CBDB-D-011 已把它計入沒有任何入口的功能之中）。
+
+**Max Loops 與 Include ID。**把 `Code/*.go` 中所有帶 `json:` 標籤的欄位與其名稱的所有出現次數逐一比對，恰好有三個欄位的識別字只出現過一次，就是它自己的宣告。其中兩個是 `NetworkQuery.MaxLoop` 與 `NetworkQuery.IncludeID`，而網絡表單兩者都會送出——`maxLoop: parseInt(document.getElementById('txt-max-loop').value,10)||2` 與 `includeID: document.getElementById('chk-include-id').checked`。第三個 `KinRecord.KinRel0` 是回應欄位、沒有任何頁面會讀取，屬於無害而非缺陷；此處一併點名，是為了讓上面那個數字可以被查核。
+
+#### 影響
+
+Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指的展開深度其實由別的東西決定；Include ID in Output 則不會改變任何輸出：兩者都是使用者可以更動的設定，而更動它們不會有任何效果。KML 核取方塊是同一種毛病，但還多了一層後果——因為它從未生效，它背後的 KML 輸出程式就只能靠直接呼叫端點才到得了。而在這一版上，使用者連 TSV 都拿不到：依 CBDB-D-009，頁面會顯示「GIS export error: Unknown error」且不會下載任何東西。若只修好那個封裝格式，使用者就會在勾選 KML 的情況下拿到一個 TSV——這正是兩者應該在同一次修改中一併處理的原因。
+
+#### 復現步驟
+
+1. 開啟網絡表單，將 Max Loops 設為 1 執行查詢，再設為 10 執行一次，比較兩次的結果集。
+2. 勾選 Include ID in Output，執行匯出，再比較欄位。
+3. 至於 KML，請直接檢視關聯配對頁面所組出的請求：它送的是 useKML，而 AssocPairsExportParams 並沒有這個欄位。
+
+#### 建議修復方式
+
+關於 KML：請讓這個頁面比照同類頁面送出 `format`，或讓後端改為讀取 `useKML`——並請在同一次修改中一併處理 CBDB-D-009，否則這個核取方塊看起來仍然毫無作用。關於網絡表單的兩個欄位：請將它們實際接到展開邏輯與輸出程式，否則就把控制項移除。一個存在卻毫無作用的控制項，比根本沒有這個控制項更糟，因為使用者設定了它，就會相信結果反映了它。
+
+#### 對應的程式位置
+
+- `Code/assocpairs_form_backend.go:handleExportGIS`
+- `Code/networks_form_backend.go:NetworkQuery`
+- `Templates/association_pairs/index.html:173`
+- `Templates/networks/index.html:1071`
+
+#### 對應的測試
+
+- 2 × 失敗: `test_the_assocpairs_kml_checkbox_changes_what_comes_back`, `test_a_field_the_json_declares_is_a_field_the_program_uses`
+
+## CBDB-D-012 — 「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個篩選結果
+
+**涉及範圍：** 地址選擇視窗
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+這個選擇視窗同時維護 `filteredAddresses`（其註解自述為「完整的比對結果集（所有符合篩選條件的列）」）與 `renderedAddresses = filteredAddresses.slice(0, MAX_RENDER)`，其中 `MAX_RENDER = 100`。只有被繪出的這一段會變成 `<option>` 元素。`selectAllFiltered()` 走訪的是 `sel.options`，而 `sendResult` 也再一次走訪 `sel.options` 來組出要回傳的內容——因此，當篩選結果超過一百筆時，這個按鈕回傳的是前一百筆，而且回傳時帶著 `isSelectAllFiltered: true` 與篩選文字，所有呼叫端頁面都會把它解讀為「使用者選擇了整個篩選結果」。
+
+#### 實測依據
+
+讀自 `Templates/pickers/address_picker.html`；每個函式的主體是以大括號配對取出，而非以樣式比對，因此歸給 `selectAllFiltered` 的內容確實是該函式所做的事：上限（`const MAX_RENDER = 100`）、套用該上限的切片，以及兩個函式都在走訪 `sel.options`。按鈕自身的註解寫著它「選取所有可見（已篩選）的項目」。狀態列確實會顯示「Showing first 100 of N — refine your search」，但在該狀態下按鈕並未停用，而且它送出的結果裡沒有任何地方記錄了這次截斷。其規模可以量化，但必須對著正確的母體來量：這個選擇視窗篩選的並不是 `ADDR_CODES`，而是 `allAddresses`——它一次性載自 `/api/addresses`，共 37,118 列（因為該端點會連接 `ADDR_BELONGS_DATA`，每一列各自帶有年份範圍），而且比對的是拼音名稱、不分大小寫。依照頁面實際的篩選方式：「Zhou」得到 5,373 列，「Xian」7,166 列，「Fu」2,007 列。這個按鈕各自只回傳其中 100 列，也就是使用者所要求的 1.9%、1.4% 與 5.0%。
+
+#### 影響
+
+接下來的查詢是在一百筆地址上執行，而頁面顯示的卻是篩選文字，於是結果看起來像是針對整個篩選範圍的答案，實際上只是其中一小部分的答案。至於是哪一百筆，取決於清單送達時的順序——那既不是使用者的選擇，也不會顯示出來。
+
+#### 復現步驟
+
+1. 開啟任一提供地址選擇視窗的表單，並打開該視窗。
+2. 以「Zhou」進行篩選，使狀態列顯示「Showing first 100 of 5373」。
+3. 按下 Select All Filtered，再清點呼叫端頁面實際收到的地址筆數：100 筆。
+
+#### 建議修復方式
+
+請改以 `filteredAddresses` 而非 `sel.options` 來組出結果；完整集合本來就已在記憶體中，繪製上限的存在只是為了讓 `<select>` 不至於過大。若不希望送出數千個 id，可以改送篩選條件本身、由呼叫端頁面自行解析——但請不要送出一百列卻標示成整個篩選結果。
+
+#### 對應的程式位置
+
+- `Templates/pickers/address_picker.html:118`
+- `Templates/pickers/address_picker.html:223`
+- `Templates/pickers/address_picker.html:344`
+- `Templates/pickers/address_picker.html:381`
+
+#### 對應的測試
+
+- 1 × 失敗: `test_select_all_filtered_selects_every_address_the_filter_matched`
+- 1 × 通過: `test_the_function_body_reader_stops_at_the_function`
+
+## CBDB-D-013 — 關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入配對欄位，對已儲存清單中其餘的人則隻字未提
+
+**涉及範圍：** 關聯配對：recall-ids
+
+**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+`handleRecallIDs` 以 `SELECT s.c_personid, ... FROM ZZ_STORE_PERSON_ID s LEFT JOIN BIOG_MAIN bm ON ... LIMIT 2`（沒有 `ORDER BY`）回應 *GET /api/assocpairs/recall-ids*。`ZZ_STORE_PERSON_ID` 是整個程式的已儲存人物清單——也是查詢結果在各表單之間傳遞的唯一管道——它可以存放任意數量的人。回來的只有兩個，而且是由查詢計畫挑的。
+
+#### 實測依據
+
+本項是實際呼叫驗證的，不只是讀原始碼；而且筆數是透過另一個端點去數的，而不是看寫入時的回應。以 `POST /api/assocpairs/store-ids` 存入五個人，回應是 `{"count":5}`，但這個數字是 `len(req.PersonIDs)`——也就是把請求原樣回報，不論資料表實際如何都會是五。改用讀取同一張全域 `ZZ_STORE_PERSON_ID` 的 `POST /api/networks/recall-person-ids`，得到的同樣是 `{"count":5}`；接著 `GET /api/assocpairs/recall-ids` 只回傳兩個，連續三次呼叫回傳的都是同樣那兩個。也就是說，**五個人裡回來兩個，另外三個既沒有回傳、也沒有被提及**——這是對照另一個表單目前仍看得到的清單量測出來的，而這同時也證明那三個人仍存放著、並未遺失。
+
+處理常式自己的註解寫著「Returns people stored in ZZ_STORE_PERSON_ID (up to 2 for pair mode)」，可見這個上限是刻意的，本報告也不是要求取消它。不是刻意的是其餘的部分：沒有任何地方為這些列排序，因此是哪兩個交由查詢計畫決定；也沒有任何地方告訴使用者，另外三個人仍在清單裡等著，只是沒有出現在他眼前。至於這個選擇是「未明確指定」而非「不穩定」，則是由缺少 `ORDER BY` 所確立的：SQLite 並沒有義務一直回傳這兩個，程式裡也沒有任何地方要求它這麼做。`Code/*.go` 中所有「限制列數卻未排序」的 `SELECT` 都已清查，共三處；另外兩處是 `kinrelReductionUpdate` 中的相關子查詢，以 `kr.c_kinrel_target` 為鍵並搭配 `c_required = 1`，述詞本身已經選定了目標列。
+
+#### 影響
+
+使用者若從另一個表單把五個人送到這個表單，再按下 Recall，實際上是在其中兩個人身上作業，卻不知道是哪兩個、也不知道為什麼。配對欄位填滿了，頁面看起來一切正常。這裡沒有任何資料被破壞——已儲存清單仍完整保有五個人，其他表單也仍然讀得回來——所以這是「沒有據實告知」，而不是「資料遺失」；但使用者最後實際處理的那兩個人，是由查詢計畫挑出來的，而且因為沒有任何排序，他也無從歸納出其中的規律。
+
+#### 復現步驟
+
+1. 以五個 personId 呼叫 POST /api/assocpairs/store-ids，回應顯示 count: 5。
+2. 呼叫 GET /api/assocpairs/recall-ids：只有兩個人回來。
+3. 在頁面上執行同一串操作，配對欄位被填滿，另外三個人則完全沒有任何交代。
+
+#### 建議修復方式
+
+請先確定當已儲存清單超過兩人時，Recall 的語意究竟為何，並在程式中明確表達出來：加上能指明目標列的 `ORDER BY`（若資料表有記錄寫入順序就依寫入順序，否則依 `c_personid`），並在有資料被捨棄時給出提示。更好的做法是讓使用者自行選擇是哪兩個。
+
+#### 對應的程式位置
+
+- `Code/assocpairs_form_backend.go:handleRecallIDs`
+
+#### 對應的測試
+
+- 1 × 失敗: `test_a_query_that_keeps_only_some_rows_says_which_ones`
+
 ## CBDB-D-004 — 網絡表單四個網絡匯出中有三個對任何輸入都回傳 HTTP 500：它們查詢了自己的暫存表所沒有的欄位
 
 **涉及範圍：** 網絡表單的 Pajek、Gephi/GUESS 與 UCINet 匯出
 
-**嚴重等級：** P2 — 可見的執行時錯誤——使用者的操作以伺服器錯誤收場。
+**嚴重等級：** P2 — 可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個級別看的是使用者看到什麼，而不是程式的哪一半出了問題。
 
 **問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
 
@@ -274,7 +476,7 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 
 **涉及範圍：** 關聯表單的 Neo4j 匯出
 
-**嚴重等級：** P2 — 可見的執行時錯誤——使用者的操作以伺服器錯誤收場。
+**嚴重等級：** P2 — 可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個級別看的是使用者看到什麼，而不是程式的哪一半出了問題。
 
 **問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
 
@@ -287,6 +489,8 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 #### 實測依據
 
 端點回應 `500 Neo4j export error: scan addrRow: sql: Scan error on column index 3, name "admin_type": converting driver.Value type string ("Xian") to a int: invalid syntax`。釋出的結構描述把該欄位宣告為 `varchar(255)`；以唯讀方式統計釋出的資料庫，30,100 個值全部都是文字型別，最常見的是 "Xian"（13,687 列）。因此重建資料不會改變結果：問題在於 Go 結構中宣告的型別有誤。
+
+**同一個欄位還有第二處以同樣錯誤的方式被讀取**，位於 `networks_form_backend.go:handlePlaceSearch`；兩者值得對照著看，因為它們失敗的方式並不相同。在那裡，讀取動作位於一個逐列處理的迴圈中，錯誤分支是 `if err := rows.Scan(...); err != nil { continue }`，於是每一列都連同失敗的原因一起被丟棄，處理常式最後以 200 回傳一個空陣列：`GET /api/networks/place-search?q=Zhou` 要求的是 20 列、符合其述詞的有 5,136 列，回傳的卻是 `[]`——透過這個端點，資料表中沒有任何一列找得到。在這一版中該處是潛伏的，因為沒有任何頁面呼叫這個端點（見 CBDB-D-011）——這也正是此處只作記錄、而不另列為使用者看得到的缺陷的原因。兩處需要的是同一個小修正——把該欄位讀進它本來就是的字串型別；而 `continue` 才是更危險的一半：它把結構不符變成一次「成功卻什麼都找不到」的搜尋。
 
 #### 影響
 
@@ -321,7 +525,7 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 
 **涉及範圍：** 產生出來的查詢建構器結構檔，以及 CBDBSetUpCode 中的檢視表定義
 
-**嚴重等級：** P2 — 可見的執行時錯誤——使用者的操作以伺服器錯誤收場。
+**嚴重等級：** P2 — 可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個級別看的是使用者看到什麼，而不是程式的哪一半出了問題。
 
 **問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
 
@@ -366,11 +570,57 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 
 - 32 × 失敗: `test_every_offered_column_exists_in_the_database`, `test_every_offered_table_can_actually_be_queried`, `test_a_phantom_column_gives_the_user_a_server_error[View_BiogInstAddrData-c_personid]`, `test_a_phantom_column_gives_the_user_a_server_error[View_BiogInstAddrData-c_notes]` (+28)
 
+## CBDB-D-009 — 關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報「Unknown error」
+
+**涉及範圍：** 關聯配對：匯出
+
+**嚴重等級：** P2 — 可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個級別看的是使用者看到什麼，而不是程式的哪一半出了問題。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+頁面中的 `exportGIS`、`exportSNA` 與 `exportNeo4j` 共用同一套寫法：送出請求，接著 `if (j.status !== 'ok') throw new Error(j.status || 'Unknown error')`，然後 `j.files.forEach(...)`。四個處理常式中有兩個回傳 `{"status":"ok","files":[...]}`，正好是這套寫法讀得懂的格式。但 `handleExportGIS` 與 `handleExportSNA` 回傳的是 `{"url":...,"name":...}`，於是 `undefined !== 'ok'` 成立、頁面丟出例外——而該次請求其實是 HTTP 200，內容正是已經正確產生好的檔案。
+
+#### 實測依據
+
+以各處理常式自身判斷所能接受的最小請求主體（`people` 只有一列）送出：`/api/assocpairs/export-gis` 與 `/api/assocpairs/export-sna` 都回傳 200，鍵為 `['name', 'url']`；而同一個檔案中的 `/api/assocpairs/export-neo4j` 回傳的則是 `status` 與 `files`，與它並列的 `export-results` 也是如此。可見這是同一個檔案內部的不一致，而不是外部強加的規範。受影響的按鈕共四個：Save to GIS，以及共用 `export-sna` 的三種 SNA 格式（Pajek、Gephi、UCINet）。
+
+本項推翻了本專案 AGENTS.md 中原有的判斷——該文件曾把匯出封裝格式不一致列為「並非缺陷」，理由是「使用者看不到」。當初那個判斷只讀了後端，而後端彼此是一致的，並沒有讀任何頁面。在這個表單上使用者確實看得到，因此本次一併修訂了 AGENTS.md。
+
+#### 影響
+
+這個表單六個匯出按鈕中有四個無法使用。錯誤訊息沒有指出任何原因，使用者無從處理；又因為伺服器端其實是正確的，任何只測試後端的方法都看不見這個問題。
+
+#### 復現步驟
+
+1. 開啟關聯配對頁面，執行任一查詢。
+2. 按下 Save to GIS。頁面顯示「GIS export error: Unknown error」，且沒有任何檔案下載。
+3. 在瀏覽器的網路面板中觀察同一個請求：狀態為 200，內容正是以 base64 編碼的檔案。
+
+#### 建議修復方式
+
+請讓這兩個格式不同的處理常式改以頁面讀得懂的形式回應——`{"status":"ok","files":[{name,url}]}`——這也正是另外兩個同類處理常式已經在用的格式。若改頁面而不改後端，下次新增匯出功能時，三處呼叫點又會再度分歧。
+
+#### 對應的程式位置
+
+- `Code/assocpairs_form_backend.go:handleExportGIS`
+- `Code/assocpairs_form_backend.go:handleExportSNA`
+- `Templates/association_pairs/index.html:960`
+- `Templates/association_pairs/index.html:1002`
+
+#### 對應的測試
+
+- 2 × 失敗: `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-gis]`, `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-sna]`
+- 1 × 通過: `test_an_assocpairs_export_answers_in_the_envelope_its_page_reads[export-neo4j]`
+
 ## CBDB-D-007 — 發行檔中一併附上了十份帶日期的模板工作副本
 
 **涉及範圍：** 封裝內容：Templates/
 
-**嚴重等級：** P3 — 封裝問題——釋出的檔案裡含有不該出現的內容。
+**嚴重等級：** P3 — 封裝問題——釋出的檔案裡含有不該出現的內容，或缺少了應該有的內容。
 
 **問題來源：** `release` — 這一次釋出的組裝流程問題——例如把開發用的工作副本當成正式建置成果送出、某個檔案沒有重新產生。由負責建置發行檔的人在流程上修正。
 
@@ -408,13 +658,108 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 
 - 4 × 失敗: `test_distribution_ships_the_expected_pieces`, `test_the_distribution_ships_no_dated_working_copies`, `test_every_disabled_control_has_a_declared_precondition`, `test_every_page_has_the_buttons_it_shipped_with`
 
+## CBDB-D-014 — 首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中
+
+**涉及範圍：** 封裝內容：Static/
+
+**嚴重等級：** P3 — 封裝問題——釋出的檔案裡含有不該出現的內容，或缺少了應該有的內容。
+
+**問題來源：** `release` — 這一次釋出的組裝流程問題——例如把開發用的工作副本當成正式建置成果送出、某個檔案沒有重新產生。由負責建置發行檔的人在流程上修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+`Templates/navigation/index.html` 提供了一個 *Users Guide* 連結，指向 `../../static/CBDB_UserGuide.pdf`；然而 `Static/` 只釋出了一個檔案，就是 `cbdb_styles.css`。
+
+#### 實測依據
+
+已逐一走訪首頁上所有同源連結。除了這一個回傳 HTTP 404 之外，其餘皆可正常解析。`Static/` 是整個建置中唯一以檔案方式對外提供的目錄，因此這個檔案也不可能從別處取得。
+
+這個問題該歸屬哪一邊，發行檔自己就給了答案。隨壓縮檔根目錄一併釋出的 `The directory structure for CBDB-Desktop.txt`，在最後一行列有 `PDF files: CBDB-Desktop\Static\xxx.pdf`；而 `cbdb_navigation_backend.go:62` 也把它所提供的這個目錄描述為「Static files (PDF user guide, images, etc.)」。可見依照既定的目錄結構，PDF 本就該放在 `Static/`，負責提供該目錄的程式也預期使用手冊在其中，模板同樣是照著這個結構去連結的，缺的是檔案本身：問題出在封裝這一步，而不是模板指向了一個它本來就不該指向的位置。
+
+#### 影響
+
+程式指引使用者前往的說明文件並不存在。這是一套以研究者而非開發者為對象的桌面發行版，而在各表單之外，首頁總共也只提供兩個連結，這是其中之一。
+
+#### 復現步驟
+
+1. 啟動程式並開啟首頁。
+2. 按下 Users Guide。
+3. 或執行：7z l CBDB-Desktop_20260908.7z | findstr Static
+
+#### 建議修復方式
+
+請把 `CBDB_UserGuide.pdf` 一併放進 `Static/`，這也正是發行檔自身的目錄結構文件所指定的 PDF 存放位置。若這份指南另有存放之處（例如專案網站），請將連結改指向該處並加以說明。
+
+#### 對應的程式位置
+
+- `Templates/navigation/index.html:75`
+- `The directory structure for CBDB-Desktop.txt:82`
+- `Code/cbdb_navigation_backend.go:62`
+- `Static/`
+
+#### 對應的測試
+
+- 1 × 失敗: `test_every_link_the_navigation_offers_resolves`
+
+## CBDB-D-011 — 有五項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、關聯配對的 KML 輸出程式、兩個自動完成端點，以及地點表單的 ASCII 編碼
+
+**涉及範圍：** 分群資料、關聯配對、網絡表單、地點：無法觸及的功能
+
+**嚴重等級：** P5 — 無法觸及的功能——程式實作了某項功能，卻沒有任何頁面可以呼叫它。這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。
+
+**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
+
+**本次執行狀態：** 已確認
+
+#### 問題描述
+
+這是五項已經完成、但這一版的使用者都到不了的工作。`groupdata_form_backend.go` 有六處 `req.Format == "kml"` 分支，而 `Templates/group_data/index.html` 之中根本沒有出現 `kml` 這三個字母。關聯配對則是有字母而沒有接線：它的核取方塊送出的鍵，後端並不讀取（見 CBDB-D-010），因此 `assocWriteKML` 同樣到不了。`/api/networks/place-search` 與 `/api/networks/person-search` 都已有路由、已實作，卻沒有任何模板呼叫。而 `handleExportPajek` 接受 `encoding: "ascii"`，但地點頁面五處匯出呼叫送出的都是寫死的 `'unicode'`。
+
+#### 實測依據
+
+所有會依 `"kml"` 分支的後端檔案，都與其對應頁面比對過「頁面中是否以任何形式出現 `kml`」——控制項 id、值、註解皆可。共有九個後端含有這類分支，其中八個通過；`group_data` 是徹底沒通過的那一個，有六處分支而頁面中完全沒有提及。關聯配對之所以通過，只因為它的標記中有 `chkKML` 這個字面；而 CBDB-D-010 已說明那只是「提到」而非「接通」——因此這裡是五項而不是四項。
+
+至於端點，則是把 `Code/*.go` 中所有 `/api/` 路由，與 `Templates/` 之下所有仍在使用的模板逐一比對，**且包含各選擇視窗**——這一點很重要，因為這兩個端點都指名某個選擇視窗為其呼叫者，若只讀表單頁面，即使結論正確也是碰巧。結果恰好有兩條路由沒有任何呼叫者，正是這兩個。
+
+關於編碼，以 `grep` 檢索可見 `Templates/places/index.html` 有五處呼叫送出 `encoding: 'unicode'`（第 656、683、747、764、781 行），而 `ascii` 這個字串則不存在於任何模板中。直接呼叫端點可以看出這個分支是有作用的，但其中有一件事沒做到：以 `encoding="ascii"` 呼叫時，標籤確實改用拼音——記號之後，該檔案中沒有任何位元組值超過 0x7F，unicode 檔案則有 18 個——然而 `handleExportPajek` 是無條件加上 `utf8BOM` 的，因此它命名為 `network_ascii.net` 的檔案，開頭是 `EF BB BF`。最後這一點是「到不了的程式碼中的缺陷」，記在此處是留給日後接上該控制項的人參考，而不是列為使用者看得到的問題。
+
+#### 影響
+
+分群資料的使用者實際上只能拿到定位字元分隔的 GIS 輸出，因此 `groupWriteKMLStatus`、`groupWriteKMLOffice` 與 `groupWriteKMLOfficePeople` 是任何使用者都執行不到的程式碼，其他表單所提供的地圖工作流程在該處也付之闕如。兩個選擇視窗都沒有原本為它們寫好的自動完成功能。地點的匯出實作了兩種編碼，卻只提供其中一種。這些都不會在畫面上產生錯誤的結果——它們是少接了最後一段線路就釋出的成果。至於這些到不了的程式碼本身是否正確，是另一個問題；而此處有兩個地方答案是否定的：上述的位元組順序記號，以及記錄在 CBDB-D-005 之下、`place-search` 中的讀取錯誤。這正是「功能到不了」的代價——沒有任何東西會執行到它，於是也沒有任何東西會告訴別人它壞了。
+
+#### 復現步驟
+
+1. 開啟分群資料頁面，在任一 GIS 匯出旁尋找 KML 選項——找不到；在頁面中搜尋「kml」同樣毫無所獲。
+2. 在 Templates/ 之下所有檔案中搜尋「place-search」與「person-search」：除 Go 原始碼外沒有任何命中。
+3. 在 Templates/places/index.html 中搜尋「encoding」：五處命中，全部都是寫死的 'unicode'。
+
+#### 建議修復方式
+
+請比照其他表單，為分群資料的 GIS 匯出加上格式選擇控制項；讓關聯配對的核取方塊真正生效（見 CBDB-D-010）；為地點的匯出加上編碼選擇控制項，否則就移除該分支。至於兩個搜尋端點，請將對應的選擇視窗接上它們，或是移除這些路由。無論每一項最後如何處置，都請是有意識地決定：一個沒有任何呼叫者的端點，只是有維護成本而沒有使用者；而這幾項之中有兩項，一直帶著沒有人碰得到的錯誤。
+
+#### 對應的程式位置
+
+- `Code/groupdata_form_backend.go:1084`
+- `Templates/group_data/index.html`
+- `Code/networks_form_backend.go:handlePlaceSearch`
+- `Code/networks_form_backend.go:handlePersonSearch`
+- `Code/places_form_backend.go:handleExportPajek`
+- `Templates/places/index.html:656`
+
+#### 對應的測試
+
+- 3 × 失敗: `test_an_export_named_ascii_contains_ascii`, `test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for`, `test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`
+
 ## 嚴重等級說明
 
 - **P0** — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
 - **P1** — 破壞性寫入——一次請求改寫了本不該改寫的既存資料，原本的狀態無法復原。
-- **P2** — 可見的執行時錯誤——使用者的操作以伺服器錯誤收場。
-- **P3** — 封裝問題——釋出的檔案裡含有不該出現的內容。
+- **P2** — 可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個級別看的是使用者看到什麼，而不是程式的哪一半出了問題。
+- **P3** — 封裝問題——釋出的檔案裡含有不該出現的內容，或缺少了應該有的內容。
 - **P4** — 資料完整性——釋出資料中存在無法解析的參照。
+- **P5** — 無法觸及的功能——程式實作了某項功能，卻沒有任何頁面可以呼叫它。這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。
 
 ## 如何重現這份報告
 
@@ -424,7 +769,7 @@ _本報告產生於 2026-09-09 11:58 UTC，依據一次 1099 項測試的執行�
 .\run_tests.ps1
 ```
 
-這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1099 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
+這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1135 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
 
 每一項問題底下都列出了對應的測試名稱。若只想執行其中一項：
 

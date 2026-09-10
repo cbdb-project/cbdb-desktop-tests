@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""Turn one test run into the issue reports, in English and Chinese.
-
+"""Turn one test run into the issue reports, in English and Chinese.\n\n"
 Two inputs, and neither of them is written by hand:
 
 * ``tests/cbdb_desktop/defects.py`` -- the registry of what this round
@@ -82,12 +81,24 @@ STRINGS: dict[str, dict] = {
               "archive, which is the honest way to describe a defect that "
               "needs no query to demonstrate. Either way, nothing here "
               "re-implements the application's logic, so what is described "
-              "is what the released program does. The issues are ordered by "
-              "severity (P0 highest). "
+              "is what the released program does. The band on each issue is a "
+              "kind as much as a rank: P0 to P2 run from worse to less bad, "
+              "but P3 onwards name categories -- packaging, data integrity, "
+              "a feature no page can reach -- so a P5 is not milder than a "
+              "P3, and the text printed beside each band says what it "
+              "means. "
               "Each entry includes a short description, the measurement that "
               "establishes it, step-by-step reproduction, and a suggested "
-              "fix. None of these are urgent; they are documented so they can "
-              "be addressed at your convenience.",
+              "fix.\n\n"
+              "We have not tried to set your priorities: the bands "
+              "describe what we measured, not what your users are asking "
+              "for, and you are far better placed than we are to judge "
+              "which of these matter. Several are silent -- the "
+              "application gives a wrong or partial answer with no error "
+              "shown -- and we have said so plainly where that is the "
+              "case, because it is the kind of thing that is easy to miss "
+              "and hard to notice later. Nothing here needs to be "
+              "answered today.",
         "zh": "尊敬的維護者：\n\n以下是我們在為 CBDB-Desktop 編寫自動化迴歸"
               "測試套件的過程中，陸續整理出來的問題清單。我們希望這份報告能"
               "在您繼續主持這份寶貴資料集時有所助益；同時，對您多年來在這套"
@@ -97,10 +108,18 @@ STRINGS: dict[str, dict] = {
               "模板、Go 原始碼與發行壓縮檔而確認的——對於根本不需要查詢就能"
               "證明的問題，這才是誠實的說法。無論是哪一種，我們都沒有用 "
               "Python 重寫任何應用邏輯，因此這裡描述的就是釋出程式的真實"
-              "行為。問題按"
-              "嚴重程度排序（P0 最高），每一條都包含：簡要說明、據以認定的"
-              "實測數據、逐步復現方式，以及一份建議的修復方案。這些問題都"
-              "不緊急，整理於此只是方便您在合適的時候逐一處理。",
+              "行為。\n\n"
+              "各條目所標示的級別，既是輕重也是類別：P0 至 P2 確實由重到"
+              "輕，但 P3 以後標示的是類別——封裝、資料完整性、沒有任何"
+              "入口的功能——因此 P5 並不比 P3 輕微；各級別的意義均隨附"
+              "說明。每一條都包含：簡要說明、據以認定的"
+              "實測數據、逐步復現方式，以及一份建議的修復方案。\n\n"
+              "我們無意代為排定優先順序：這些級別描述的是我們量測到的"
+              "情況，而不是您的使用者正在反映的需求，孰輕孰重，您遠比"
+              "我們更有判斷的立場。其中有幾項是「靜默」的——程式給出"
+              "錯誤或不完整的結果，卻沒有顯示任何錯誤——凡屬此類我們都"
+              "已明白標示，因為這種問題最容易被忽略，事後也最難察覺。"
+              "這裡沒有任何一項需要今天就回覆。",
     },
     "run_summary": {"en": "How this run went", "zh": "本次執行結果"},
     "outcome": {"en": "outcome", "zh": "結果"},
@@ -283,6 +302,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_routes.py",
      "Every registered route",
      "All 141 routes read out of the shipped Go source, driven for real"),
+    ("test_page_contracts.py",
+     "Each page against its own handler",
+     "Whether the two halves of a form agree about the request and the "
+     "reply -- a control the handler never reads, a reply the page cannot "
+     "read, a capability with no way in"),
     ("test_lookups.py",
      "The code and address lists",
      "The dropdowns each form offers before a query is run"),
@@ -339,6 +363,10 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                            "釋出的執行檔能啟動、能服務、並能釋放資料庫"),
     "test_routes.py": ("所有已註冊的路由",
                        "從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測"),
+    "test_page_contracts.py": ("各頁面與其後端的對照",
+                               "表單的前後兩半對於請求與回應是否一致——"
+                               "後端從不讀取的控制項、頁面讀不懂的回應、"
+                               "沒有任何入口的功能"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
     "test_qbe.py": ("查詢建構器", "白名單、顯示給使用者的 SQL，以及各項防護"),
     "test_form_queries.py": ("六個單次查詢的表單",
@@ -398,8 +426,7 @@ def load_run(path: Path) -> dict:
 
 
 def outcomes_for(run: dict, defect: Defect) -> dict[str, list[str]]:
-    """Group the run's outcomes for the tests that demonstrate a defect.
-
+    """Group the run's outcomes for the tests that demonstrate a defect.\n\n"
     Matched by suffix, so an entry may name a test either bare or
     file-qualified.  ``test_defect_registry.py`` is what keeps the names
     honest: it fails on any entry naming a function no test module
@@ -480,8 +507,7 @@ def _table_safe(text: str) -> str:
 
 
 def ours_rows(ours: list[tuple[str, str]], lang: str) -> list[tuple[str, str]]:
-    """The gap table's rows, in one language.
-
+    """The gap table's rows, in one language.\n\n"
     The reason a check gives is its own failure message, and those are
     written in English because they are written for whoever is fixing
     the suite.  For the Chinese report a translated sentence is used
@@ -502,8 +528,7 @@ def ours_rows(ours: list[tuple[str, str]], lang: str) -> list[tuple[str, str]]:
 
 
 def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
-    """Split this run's failures into findings and our own gaps.
-
+    """Split this run's failures into findings and our own gaps.\n\n"
     Returns three lists: the node ids that demonstrate a filed issue,
     the failures that are **this suite's own** gaps, and the failures
     that are neither.
@@ -650,8 +675,7 @@ def undescribed_files(run: dict) -> list[str]:
 
 
 def coverage_rows(run: dict, lang: str) -> list[tuple[str, int, str]]:
-    """The coverage table, derived from the run rather than declared.
-
+    """The coverage table, derived from the run rather than declared.\n\n"
     Every file the run collected gets a row, in the declared order first
     and then whatever else appeared, and the last row is the run's own
     total -- so the rows have to add up to the number of tests reported
@@ -677,8 +701,7 @@ DEFAULT_WAIVERS = ROOT / "artifacts" / "waivers_applied.json"
 
 
 def load_waivers(path: Path = DEFAULT_WAIVERS) -> dict | None:
-    """What this run agreed to leave alone, or None if nothing was recorded.
-
+    """What this run agreed to leave alone, or None if nothing was recorded.\n\n"
     Written by ``tests/conftest.py`` on every run (see
     ``cbdb_desktop/waivers.py``).  Absent means the suite ran before this
     existed, or outside pytest -- not "nothing was waived", so the
@@ -922,8 +945,7 @@ def render_markdown(run: dict, lang: str, build: str,
 # ---------------------------------------------------------------------------
 
 def _set_fonts(document, lang: str) -> None:
-    """Give the document a font that can render what is in it.
-
+    """Give the document a font that can render what is in it.\n\n"
     python-docx sets only the Latin font; a Chinese run needs the East
     Asian font set too, or Word substitutes one and the result looks
     wrong in ways nobody notices until it is printed.
@@ -1148,8 +1170,7 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
 # ---------------------------------------------------------------------------
 
 def render_pdf(docx_path: Path, out_path: Path) -> Path:
-    """Convert the Word file with Word itself.
-
+    """Convert the Word file with Word itself.\n\n"
     Word is used rather than a Python PDF library because these reports
     are bilingual: laying Chinese out correctly needs the fonts and the
     line-breaking rules, and Word already has both.  If Word is missing

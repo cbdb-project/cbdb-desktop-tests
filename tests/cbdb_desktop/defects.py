@@ -63,15 +63,31 @@ PRIORITIES: dict[str, tuple[str, str]] = {
     "P1": ("Destructive write — a request rewrites stored data that it "
            "should not, and the previous state cannot be recovered.",
            "破壞性寫入——一次請求改寫了本不該改寫的既存資料，原本的狀態無法復原。"),
-    "P2": ("Visible runtime error — the user's action fails with a server "
-           "error.",
-           "可見的執行時錯誤——使用者的操作以伺服器錯誤收場。"),
+    "P2": ("Visible failure — the user's action fails with an error they "
+           "see.  Usually a server error; sometimes a page that reports "
+           "failure on a request that in fact succeeded.  The band is about "
+           "what the user is shown, not about which half of the application "
+           "went wrong.",
+           "可見的失敗——使用者的操作以他看得到的錯誤收場。多半是伺服器"
+           "錯誤，有時則是頁面把一次其實已經成功的請求回報為失敗。這個"
+           "級別看的是使用者看到什麼，而不是程式的哪一半出了問題。"),
     "P3": ("Packaging — the released files contain something they should "
-           "not.",
-           "封裝問題——釋出的檔案裡含有不該出現的內容。"),
+           "not, or lack something they should.",
+           "封裝問題——釋出的檔案裡含有不該出現的內容，或缺少了應該有的"
+           "內容。"),
     "P4": ("Data integrity — a reference in the shipped data does not "
            "resolve.",
            "資料完整性——釋出資料中存在無法解析的參照。"),
+    "P5": ("Unreachable feature — the application implements something no "
+           "page can ask for.  The band says only that no user can get to "
+           "it.  Whether the code behind it is correct is a separate "
+           "question with a separate answer, so an unreachable feature that "
+           "is also broken is recorded in both places rather than argued "
+           "about in one.",
+           "無法觸及的功能——程式實作了某項功能，卻沒有任何頁面可以呼叫它。"
+           "這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否"
+           "正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又"
+           "有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。"),
 }
 
 #: Where a defect comes from, which is the same question as who can fix
@@ -115,7 +131,12 @@ class Defect:
     """One confirmed defect in the shipped build, in both languages."""
 
     key: str
-    priority: str            # "P0" … "P4"
+    #: One of PRIORITIES.  The ladder is not fixed in length: it gains
+    #: a band when a round finds a kind of defect the existing ones would
+    #: have to be stretched to cover, because stretching a band is worse
+    #: than adding one -- a reader told that P2 means "server error" and
+    #: then shown an entry that is not one stops trusting the glossary.
+    priority: str
     severity: str            # "high" | "medium" | "low"
     #: One of ORIGINS.  Decides who the defect is reported to.
     origin: str
@@ -503,7 +524,24 @@ _DEFECTS: tuple[Defect, ...] = (
                  "over the shipped database finds all 30,100 values are of "
                  "type text, the commonest being \"Xian\" (13,687 rows).  So "
                  "a rebuild of the data would not change it: the declared "
-                 "type in the Go struct is wrong.",
+                 "type in the Go struct is wrong.\n\n"
+                 "**The same column is read the same "
+                 "wrong way a second time**, in "
+                 "`networks_form_backend.go:handlePlaceSearch`, and the two "
+                 "are worth reading together because they fail differently. "
+                 " There the scan sits in a row loop whose error arm is `if "
+                 "err := rows.Scan(...); err != nil { continue }`, so every "
+                 "row is discarded along with the reason it failed, and the "
+                 "handler encodes the empty slice with a 200: `GET "
+                 "/api/networks/place-search?q=Zhou` returns `[]` where "
+                 "20 rows were asked for and 5,136 match the predicate, so "
+                 "not one row of the table can be found through it.  That instance is latent in this build, because "
+                 "no page calls the endpoint (CBDB-D-011) -- which is why it "
+                 "is recorded here rather than filed as something users can "
+                 "see.  Both sites need the same small change -- scan "
+                 "the column into the string it already is -- and the "
+                 "`continue` is the more dangerous half: it turns a schema mismatch into a "
+                 "search that succeeds and finds nothing.",
         evidence_zh="端點回應 `500 Neo4j export error: scan addrRow: sql: "
                     "Scan error on column index 3, name \"admin_type\": "
                     "converting driver.Value type string (\"Xian\") to a "
@@ -511,7 +549,21 @@ _DEFECTS: tuple[Defect, ...] = (
                     "`varchar(255)`；以唯讀方式統計釋出的資料庫，30,100 個值"
                     "全部都是文字型別，最常見的是 \"Xian\"（13,687 列）。"
                     "因此重建資料不會改變結果：問題在於 Go 結構中宣告的型別"
-                    "有誤。",
+                    "有誤。\n\n"
+                    "**同一個欄位還有第二處以同樣錯誤的方式被讀取**，位於 "
+                    "`networks_form_backend.go:handlePlaceSearch`；兩者值得"
+                    "對照著看，因為它們失敗的方式並不相同。在那裡，讀取動作"
+                    "位於一個逐列處理的迴圈中，錯誤分支是 `if err := "
+                    "rows.Scan(...); err != nil { continue }`，於是每一列都"
+                    "連同失敗的原因一起被丟棄，處理常式最後以 200 回傳一個"
+                    "空陣列：`GET /api/networks/place-search?q=Zhou` "
+                    "要求的是 20 列、符合其述詞的有 5,136 列，回傳的卻是 `[]`"
+                    "——透過這個端點，資料表中沒有任何一列找得到。在這一版中該處是潛伏的，因為沒有任何頁面呼叫"
+                    "這個端點（見 CBDB-D-011）——這也正是此處只作記錄、"
+                    "而不另列為使用者看得到的缺陷的原因。兩處需要的是同一個小修正——把該欄位讀進"
+                    "它本來就是的字串型別；而 `continue` 才是更危險的"
+                    "一半："
+                    "它把結構不符變成一次「成功卻什麼都找不到」的搜尋。",
         impact="The Associations form cannot export to Neo4j for any query "
                "whose people have addresses, which is almost all of them.  "
                "The user sees a server error.",
@@ -790,6 +842,802 @@ _DEFECTS: tuple[Defect, ...] = (
                "shipped_with",
                "test_every_disabled_control_has_a_"
                "declared_precondition"),
+    ),
+    Defect(
+        key="CBDB-D-008",
+        priority="P0", severity="high", origin="software",
+        title="The Networks page drops the four year fields its dynasty "
+              "filter is built on, and a two-dynasty span collapses to a "
+              "single person",
+        title_zh="網絡表單遺漏了朝代篩選所依據的四個年份欄位，"
+                 "跨兩個朝代的區間因而只剩下一個人",
+        area="Networks: dynasty range",
+        area_zh="網絡表單：朝代範圍",
+        summary="`buildDynastyConditions` filters on the *years* a dynasty "
+                "spans, not on its code: `DYNASTIES_1.c_end > "
+                "FromDynastyBegin` and `DYNASTIES_1.c_start < "
+                "ToDynastyEnd`.  The page computes those four numbers when "
+                "the dynasty picker returns -- `gFromDynastyBegin` and "
+                "friends -- and then builds `const params={...}` without "
+                "them, so the handler reads all four as 0.  Three "
+                "user-visible consequences follow, and there is no fourth "
+                "way to choose a dynasty on this page: every dynasty "
+                "choice goes through this one path.",
+        summary_zh="`buildDynastyConditions` 篩選的是朝代所跨越的**年份**，"
+                   "而不是朝代代碼：`DYNASTIES_1.c_end > FromDynastyBegin` "
+                   "與 `DYNASTIES_1.c_start < ToDynastyEnd`。頁面在朝代選擇"
+                   "視窗回傳時已算出這四個數字（`gFromDynastyBegin` 等），"
+                   "但組 `const params={...}` 時並未帶上，因此後端讀到的四個"
+                   "值都是 0。由此產生三種使用者可見的後果；而這個頁面並沒有"
+                   "第四種選擇朝代的方式：所有朝代選擇都走這同一條路徑。",
+        evidence="Driven against person 1762 at depth 1, all four kinship "
+                 "limits at 1, counting distinct people in `nodeRecords`, "
+                 "with the two dynasties and their year bounds read out of "
+                 "`DYNASTIES` rather than hand-picked -- Song (960-1279) to "
+                 "Western Xia (1032-1227):  no dynasty filter, 441; one "
+                 "dynasty, 429; **From only, 439** -- `c_end > 0` holds for 80 of "
+                 "the 85 rows in `DYNASTIES`, so the filter the user asked "
+                 "for is very nearly a no-op, and the two people it does "
+                 "drop are the measurable trace of that; **two dynasties, 1** -- `c_start < 0` is true of "
+                 "five dynasties out of eighty-five, so the answer collapses "
+                 "with no message; **All Dynasties, HTTP 500** `Database "
+                 "error: no such column: DYNASTIES_1.c_end` -- the page's "
+                 "own button sets both codes to a `-2` sentinel that slips "
+                 "past the handler's \"neither boundary set\" guard and "
+                 "builds a condition on a table the chosen FROM clause never "
+                 "joined.  The decisive comparison is the last: sending the "
+                 "identical request **with** the four year fields the page "
+                 "computed gives 433, so the handler is right and the page "
+                 "is what is broken.  The build contains its own control -- "
+                 "the Association Pairs page solves the same problem "
+                 "correctly, sending `allDynasties: true` as a boolean "
+                 "instead of an out-of-band code, and sending both year "
+                 "bounds with each dynasty into nil-able `*int` fields that "
+                 "can tell \"unset\" from \"0\".  The pattern that works is "
+                 "one form away.",
+        evidence_zh="以人物 1762、深度 1、四項親屬上限皆為 1 進行實測，統計 "
+                    "`nodeRecords` 中的不重複人數；所用的兩個朝代及其年份界線"
+                    "是從 `DYNASTIES` 讀出、而非人工挑選——宋（960-1279）至"
+                    "西夏（1032-1227）：不加朝代篩選為 441；單一朝代為 429；"
+                    "**只設起始朝代為 439**——`c_end > 0` 在 `DYNASTIES` 的 85 列中"
+                    "有 80 列成立，因此使用者要求的篩選幾乎等於沒有生效，"
+                    "而少掉的那兩個人正是它留下的可量測痕跡；**跨兩個朝代為 1**——"
+                    "`c_start < 0` 在八十五個朝代中只有五個成立，結果因而塌縮，"
+                    "且沒有任何提示；**「All Dynasties」為 HTTP 500**，訊息為 "
+                    "`Database error: no such column: DYNASTIES_1.c_end`——"
+                    "頁面本身的按鈕把兩個代碼都設成 `-2` 哨兵值，繞過了後端"
+                    "「兩端皆未設定」的判斷，於是對一張所選 FROM 子句根本沒有"
+                    "連接的資料表加上了條件。最關鍵的是最後一組對照：把同一個"
+                    "請求**補上**頁面已算好的四個年份欄位後得到 433，"
+                    "可見後端是對的，出問題的是頁面。建置本身也提供了對照組"
+                    "——關聯配對頁面把同一個問題處理對了：它以布林值送出 "
+                    "`allDynasties: true`，而不是把「全部」編碼成一個額外的"
+                    "代碼；而且每選一個朝代，都會連同兩個年份界線一併送出，"
+                    "接收端是可為 nil 的 `*int`，分得出「未設定」與「0」。"
+                    "可行的作法，就在隔壁一張表單上。",
+        impact="A researcher who narrows a network to a span of two "
+               "dynasties gets one person back and no indication that "
+               "anything went wrong; the natural reading is that the data "
+               "is thin, and the result is publishable-looking and false.  "
+               "From-only returns 439 of the 441 people an unfiltered "
+               "query returns, so the filter the user set is very nearly "
+               "not applied at all.  All "
+               "Dynasties fails outright.",
+        impact_zh="研究者若把網絡限縮在橫跨兩個朝代的區間，只會得到一個人，"
+                  "而且沒有任何跡象顯示出了問題；最自然的解讀是「資料本來就"
+                  "少」，於是得到一份看起來可以發表、實際上卻是錯的結果。"
+                  "只設起始朝代時，未篩選查詢回傳 441 人，它回傳 439 人，"
+                  "等於使用者所設的篩選幾乎完全沒有生效。而「All "
+                  "Dynasties」則直接失敗。",
+        fix="Send `fromDynastyBegin`, `fromDynastyEnd`, `toDynastyBegin` and "
+            "`toDynastyEnd` in `params`; the page already has all four in "
+            "globals, and the Association Pairs page shows the shape.  "
+            "Separately, give the handler an explicit `-2` case, or stop the "
+            "page sending a sentinel the handler does not define -- and make "
+            "the guard reject an unrecognised code rather than build SQL "
+            "from it.",
+        fix_zh="請在 `params` 中一併送出 `fromDynastyBegin`、`fromDynastyEnd`、"
+               "`toDynastyBegin` 與 `toDynastyEnd`；這四個值頁面已存於全域"
+               "變數中，而關聯配對頁面也已示範了正確的寫法。另外，請在後端"
+               "明確處理 `-2` 這個情形，或不要讓頁面送出後端未定義的哨兵值"
+               "——並讓判斷式在遇到無法識別的代碼時直接拒絕，而不是拿它去"
+               "組 SQL。",
+        steps=(
+            "Open Networks, choose a person with a large network (1762).",
+            "Set From Dynasty = Song and To Dynasty = Western Xia, then "
+            "press Run Query.",
+            "Note the result: one node, no message.",
+            "Press All Dynasties and Run Query: HTTP 500.",
+        ),
+        steps_zh=(
+            "開啟網絡表單，選一位網絡較大的人物（1762）。",
+            "將起始朝代設為宋、迄止朝代設為西夏，然後按 Run Query。",
+            "觀察結果：只有一個節點，且沒有任何提示。",
+            "改按「All Dynasties」再執行查詢：HTTP 500。",
+        ),
+        source=("Code/networks_form_query.go:buildDynastyConditions",
+                "Templates/networks/index.html:704",
+                "Templates/networks/index.html:1054"),
+        tests=("test_the_networks_page_sends_the_dynasty_span_its_handler_"
+               "needs",),
+    ),
+    Defect(
+        key="CBDB-D-009",
+        priority="P2", severity="high", origin="software",
+        title="Four Association Pairs export buttons report \"Unknown "
+              "error\" on exports that succeeded",
+        title_zh="關聯配對頁面有四個匯出按鈕，在匯出其實已成功時仍回報"
+                 "「Unknown error」",
+        area="Association Pairs: exports",
+        area_zh="關聯配對：匯出",
+        summary="`exportGIS`, `exportSNA` and `exportNeo4j` in the page "
+                "share one recipe: post, then `if (j.status !== 'ok') throw "
+                "new Error(j.status || 'Unknown error')`, then "
+                "`j.files.forEach(...)`.  Two of the four handlers answer "
+                "`{\"status\":\"ok\",\"files\":[...]}`, which that reads.  "
+                "`handleExportGIS` and `handleExportSNA` answer "
+                "`{\"url\":...,\"name\":...}` instead, so `undefined !== "
+                "'ok'` is true and the page throws -- on an HTTP 200 whose "
+                "body holds the finished file, correctly built.",
+        summary_zh="頁面中的 `exportGIS`、`exportSNA` 與 `exportNeo4j` 共用"
+                   "同一套寫法：送出請求，接著 `if (j.status !== 'ok') throw "
+                   "new Error(j.status || 'Unknown error')`，然後 "
+                   "`j.files.forEach(...)`。四個處理常式中有兩個回傳 "
+                   "`{\"status\":\"ok\",\"files\":[...]}`，正好是這套寫法讀"
+                   "得懂的格式。但 `handleExportGIS` 與 `handleExportSNA` "
+                   "回傳的是 `{\"url\":...,\"name\":...}`，於是 `undefined "
+                   "!== 'ok'` 成立、頁面丟出例外——而該次請求其實是 HTTP "
+                   "200，內容正是已經正確產生好的檔案。",
+        evidence="Posting the smallest body each handler's own guard admits "
+                 "(`people` with one row): `/api/assocpairs/export-gis` and "
+                 "`/api/assocpairs/export-sna` both answer 200 with keys "
+                 "`['name', 'url']`; `/api/assocpairs/export-neo4j`, in the "
+                 "same file, answers with `status` and `files`, as does "
+                 "`export-results` beside it.  So this is "
+                 "a disagreement inside one file rather than a convention "
+                 "imposed from outside.  Four buttons are affected: Save to "
+                 "GIS, and the three SNA formats (Pajek, Gephi, UCINet) that "
+                 "share `export-sna`.\n\nThis reverses a judgement recorded "
+                 "in this project's own AGENTS.md, which listed the "
+                 "inconsistent export envelopes as *not* a defect \"because "
+                 "no user can see it\".  That was decided by reading the "
+                 "handlers, which agree with each other; no page had been "
+                 "read.  On this form a user does see it, and AGENTS.md is "
+                 "amended in the same change.",
+        evidence_zh="以各處理常式自身判斷所能接受的最小請求主體（`people` "
+                    "只有一列）送出：`/api/assocpairs/export-gis` 與 "
+                    "`/api/assocpairs/export-sna` 都回傳 200，鍵為 "
+                    "`['name', 'url']`；而同一個檔案中的 "
+                    "`/api/assocpairs/export-neo4j` 回傳的則是 `status` 與 "
+                    "`files`，與它並列的 `export-results` 也是如此。可見這是"
+                    "同一個檔案內部的不一致，而不是外部強加"
+                    "的規範。受影響的按鈕共四個：Save to GIS，以及共用 "
+                    "`export-sna` 的三種 SNA 格式（Pajek、Gephi、UCINet）。"
+                    "\n\n本項推翻了本專案 AGENTS.md 中原有的判斷——該文件曾"
+                    "把匯出封裝格式不一致列為「並非缺陷」，理由是「使用者看"
+                    "不到」。當初那個判斷只讀了後端，而後端彼此是一致的，"
+                    "並沒有讀任何頁面。在這個表單上使用者確實看得到，因此"
+                    "本次一併修訂了 AGENTS.md。",
+        impact="Four of this form's six export buttons cannot be used.  The "
+               "message names no cause, so a user has nothing to act on, and "
+               "because the server side is in fact correct the fault is "
+               "invisible to anything that tests handlers alone.",
+        impact_zh="這個表單六個匯出按鈕中有四個無法使用。錯誤訊息沒有指出"
+                  "任何原因，使用者無從處理；又因為伺服器端其實是正確的，"
+                  "任何只測試後端的方法都看不見這個問題。",
+        fix="Make the two odd handlers answer in the shape the page reads "
+            "-- `{\"status\":\"ok\",\"files\":[{name,url}]}` -- which is "
+            "what their two siblings already do.  Changing the page instead "
+            "would mean three call sites diverging again the next time an "
+            "export is added.",
+        fix_zh="請讓這兩個格式不同的處理常式改以頁面讀得懂的形式回應——"
+               "`{\"status\":\"ok\",\"files\":[{name,url}]}`——這也正是"
+               "另外兩個同類處理常式已經在用的格式。若改頁面而不改後端，"
+               "下次新增匯出功能時，三處呼叫點又會再度分歧。",
+        steps=(
+            "Open Look At Association Pairs and run any query.",
+            "Press Save to GIS.  The page shows \"GIS export error: Unknown "
+            "error\" and downloads nothing.",
+            "Watch the same request in the browser's network panel: 200, "
+            "with the file base64-encoded in the body.",
+        ),
+        steps_zh=(
+            "開啟關聯配對頁面，執行任一查詢。",
+            "按下 Save to GIS。頁面顯示「GIS export error: Unknown error」，"
+            "且沒有任何檔案下載。",
+            "在瀏覽器的網路面板中觀察同一個請求：狀態為 200，內容正是以 "
+            "base64 編碼的檔案。",
+        ),
+        source=("Code/assocpairs_form_backend.go:handleExportGIS",
+                "Code/assocpairs_form_backend.go:handleExportSNA",
+                "Templates/association_pairs/index.html:960",
+                "Templates/association_pairs/index.html:1002"),
+        tests=("test_an_assocpairs_export_answers_in_the_envelope_its_page_"
+               "reads",),
+    ),
+    Defect(
+        key="CBDB-D-010",
+        priority="P0", severity="high", origin="software",
+        title="Three controls the user can set change nothing: the "
+              "Association Pairs KML checkbox, and Networks' Max Loops and "
+              "Include ID",
+        title_zh="有三個使用者可以設定的控制項不起作用：關聯配對的 KML "
+                 "核取方塊，以及網絡表單的 Max Loops 與 Include ID",
+        area="Association Pairs, Networks: dead controls",
+        area_zh="關聯配對、網絡表單：無作用的控制項",
+        summary="Each is read from the DOM, sent in the request, and then "
+                "not read.  The Association Pairs page posts `useKML`; "
+                "`AssocPairsExportParams` declares `format`, `network` and "
+                "`people`, so the key never binds and `handleExportGIS` "
+                "branches on a `format` this page never sends.  The Networks "
+                "page posts `maxLoop` and `includeID`; `NetworkQuery` "
+                "declares `MaxLoop` and `IncludeID`, and no line of Go under "
+                "`Code/` mentions either identifier again.",
+        summary_zh="這三者都會從 DOM 讀出、隨請求送出，然後就沒有人讀它了。"
+                   "關聯配對頁面送出 `useKML`，而 `AssocPairsExportParams` "
+                   "宣告的是 `format`、`network` 與 `people`，這個鍵因此從未"
+                   "生效，`handleExportGIS` 所判斷的 `format` 則是該頁面從不"
+                   "送出的欄位。網絡表單送出 `maxLoop` 與 `includeID`，"
+                   "`NetworkQuery` 也確實宣告了 `MaxLoop` 與 `IncludeID`，"
+                   "但 `Code/` 之下的 Go 原始碼中，這兩個識別字再也沒有"
+                   "出現過。",
+        evidence="**KML.**  The page's request to `export-gis` carries "
+                 "`['useKML']`; the handler's params struct declares "
+                 "`['format', 'network', 'people']`.  Driven both ways, the "
+                 "reply names `assocpairs_network.tsv` either way, so "
+                 "`assocWriteKML` is unreachable from the only page that "
+                 "offers it (CBDB-D-011 counts it among the capabilities "
+                 "with no way in).\n\n**Max Loops and Include ID.**  "
+                 "Surveying every `json:`-tagged field in `Code/*.go` "
+                 "against every mention of its name turns up exactly three "
+                 "whose identifier occurs once, in its own declaration.  Two "
+                 "are `NetworkQuery.MaxLoop` and `NetworkQuery.IncludeID`, "
+                 "and the Networks page sends both -- `maxLoop: "
+                 "parseInt(document.getElementById('txt-max-loop').value,10)"
+                 "||2` and `includeID: "
+                 "document.getElementById('chk-include-id').checked`.  The "
+                 "third, `KinRecord.KinRel0`, is a response field no page "
+                 "reads: inert rather than a defect, and named here so the "
+                 "count above can be checked.",
+        evidence_zh="**KML。**頁面送往 `export-gis` 的請求帶的是 "
+                    "`['useKML']`，而後端參數結構宣告的是 `['format', "
+                    "'network', 'people']`。兩種情況都實際呼叫過，回傳的"
+                    "檔名都是 `assocpairs_network.tsv`，可見 "
+                    "`assocWriteKML` 從唯一提供該選項的頁面根本到不了"
+                    "（CBDB-D-011 已把它計入沒有任何入口的功能之中）。"
+                    "\n\n**Max Loops 與 Include ID。**把 `Code/*.go` 中"
+                    "所有帶 `json:` 標籤的欄位與其名稱的所有出現次數逐一"
+                    "比對，恰好有三個欄位的識別字只出現過一次，就是它自己"
+                    "的宣告。其中兩個是 `NetworkQuery.MaxLoop` 與 "
+                    "`NetworkQuery.IncludeID`，而網絡表單兩者都會送出——"
+                    "`maxLoop: parseInt(document.getElementById"
+                    "('txt-max-loop').value,10)||2` 與 `includeID: "
+                    "document.getElementById('chk-include-id').checked`。"
+                    "第三個 `KinRecord.KinRel0` 是回應欄位、沒有任何頁面"
+                    "會讀取，屬於無害而非缺陷；此處一併點名，是為了讓上面"
+                    "那個數字可以被查核。",
+        impact="Max Loops is a numeric input offered between 1 and 10 whose "
+               "traversal depth is fixed by something else, and Include ID "
+               "in Output changes no output: both are settings a user can "
+               "change, and changing them changes nothing.  The KML "
+               "checkbox is the same fault with a further consequence -- "
+               "because it never binds, the KML writer behind it can only "
+               "be reached by calling the endpoint directly.  On this build "
+               "a user does not even get the TSV: CBDB-D-009 means the page "
+               "reports \"GIS export error: Unknown error\" and downloads "
+               "nothing.  Fixing that envelope alone would hand the user a "
+               "TSV with the KML box ticked, which is why the two belong in "
+               "the same change.",
+        impact_zh="Max Loops 是一個標示範圍 1 到 10 的數值輸入框，但它所指"
+                  "的展開深度其實由別的東西決定；Include ID in Output 則不會"
+                  "改變任何輸出：兩者都是使用者可以更動的設定，而更動它們"
+                  "不會有任何效果。KML 核取方塊是同一種毛病，但還多了一層"
+                  "後果——因為它從未生效，它背後的 KML 輸出程式就只能靠"
+                  "直接呼叫端點才到得了。而在這一版上，使用者連 TSV 都拿"
+                  "不到：依 CBDB-D-009，頁面會顯示「GIS export error: "
+                  "Unknown error」且不會下載任何東西。若只修好那個封裝格式，"
+                  "使用者就會在勾選 KML 的情況下拿到一個 TSV——這正是"
+                  "兩者應該在同一次修改中一併處理的原因。",
+        fix="For KML: send `format` from this page as its siblings do, or "
+            "have the handler read `useKML` -- and fix CBDB-D-009 in the "
+            "same change, or the box still appears to do nothing.  For the "
+            "two Networks fields: wire them to the traversal and the "
+            "writers, or remove the controls.  A control that is present "
+            "and inert is worse than one that is absent, because a user who "
+            "sets it believes the result reflects it.",
+        fix_zh="關於 KML：請讓這個頁面比照同類頁面送出 `format`，或讓後端"
+               "改為讀取 `useKML`——並請在同一次修改中一併處理 "
+               "CBDB-D-009，否則這個核取方塊看起來仍然毫無作用。關於網絡"
+               "表單的兩個欄位：請將它們實際接到展開邏輯與輸出程式，否則"
+               "就把控制項移除。一個存在卻毫無作用的控制項，比根本沒有這個"
+               "控制項更糟，因為使用者設定了它，就會相信結果反映了它。",
+        steps=(
+            "Open Networks, set Max Loops to 1, run a query, then set it to "
+            "10 and run again.  Compare the two result sets.",
+            "Tick Include ID in Output, export, and compare the columns.",
+            "For KML, read the request the Association Pairs page builds: "
+            "it posts useKML, and AssocPairsExportParams has no such field.",
+        ),
+        steps_zh=(
+            "開啟網絡表單，將 Max Loops 設為 1 執行查詢，再設為 10 執行"
+            "一次，比較兩次的結果集。",
+            "勾選 Include ID in Output，執行匯出，再比較欄位。",
+            "至於 KML，請直接檢視關聯配對頁面所組出的請求：它送的是 "
+            "useKML，而 AssocPairsExportParams 並沒有這個欄位。",
+        ),
+        source=("Code/assocpairs_form_backend.go:handleExportGIS",
+                "Code/networks_form_backend.go:NetworkQuery",
+                "Templates/association_pairs/index.html:173",
+                "Templates/networks/index.html:1071"),
+        tests=("test_the_assocpairs_kml_checkbox_changes_what_comes_back",
+               "test_a_field_the_json_declares_is_a_field_the_program_uses"),
+    ),
+    Defect(
+        key="CBDB-D-011",
+        priority="P5", severity="medium", origin="software",
+        title="Five shipped capabilities have no way in: Group Data's KML "
+              "exports, Association Pairs' KML writer, two autocomplete "
+              "endpoints, and the Places ASCII encoding",
+        title_zh="有五項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、"
+                 "關聯配對的 KML 輸出程式、兩個自動完成端點，"
+                 "以及地點表單的 ASCII 編碼",
+        area="Group Data, Association Pairs, Networks, Places: unreachable "
+             "features",
+        area_zh="分群資料、關聯配對、網絡表單、地點：無法觸及的功能",
+        summary="Five pieces of finished work that no user of this build can "
+                "reach.  `groupdata_form_backend.go` has six `req.Format == "
+                "\"kml\"` branches and `Templates/group_data/index.html` "
+                "does not contain the letters `kml` at all.  Association "
+                "Pairs has the letters and not the binding: its checkbox "
+                "sends a key the handler does not read (CBDB-D-010), so "
+                "`assocWriteKML` is unreachable too.  "
+                "`/api/networks/place-search` and "
+                "`/api/networks/person-search` are routed, implemented, and "
+                "called by no template.  And `handleExportPajek` accepts "
+                "`encoding: \"ascii\"` while all five of the Places page's "
+                "export calls send the literal `'unicode'`.",
+        summary_zh="這是五項已經完成、但這一版的使用者都到不了的工作。"
+                   "`groupdata_form_backend.go` 有六處 `req.Format == "
+                   "\"kml\"` 分支，而 `Templates/group_data/index.html` "
+                   "之中根本沒有出現 `kml` 這三個字母。關聯配對則是有字母"
+                   "而沒有接線：它的核取方塊送出的鍵，後端並不讀取"
+                   "（見 CBDB-D-010），因此 `assocWriteKML` 同樣到不了。"
+                   "`/api/networks/place-search` 與 "
+                   "`/api/networks/person-search` 都已有路由、已實作，"
+                   "卻沒有任何模板呼叫。而 `handleExportPajek` 接受 "
+                   "`encoding: \"ascii\"`，但地點頁面五處匯出呼叫送出的"
+                   "都是寫死的 `'unicode'`。",
+        evidence="Every backend that branches on `\"kml\"` was checked "
+                 "against its own page for any mention of `kml` in any form "
+                 "-- a control id, a value, a comment.  Nine backends carry "
+                 "such a branch and eight pass that test; `group_data` is "
+                 "the one that fails it outright, with six branches and no "
+                 "mention.  Association Pairs passes it only on the literal "
+                 "`chkKML` in its markup, which CBDB-D-010 shows is a "
+                 "mention and not a route: hence five here rather than "
+                 "four.\n\nFor the endpoints, every `/api/` route in "
+                 "`Code/*.go` was matched against every live template under "
+                 "`Templates/`, **pickers included** -- which matters, since "
+                 "both endpoints name a picker as their caller, and a survey "
+                 "reading only the form pages would have got the right "
+                 "answer for the wrong reason.  Exactly two routes have no "
+                 "caller, and they are those two.\n\nFor the encoding, "
+                 "`grep` finds `encoding: 'unicode'` at five call sites in "
+                 "`Templates/places/index.html` (656, 683, 747, 764, 781) "
+                 "and the string `ascii` in no template at all.  Driving "
+                 "the endpoint directly shows the branch works and one "
+                 "thing in it does not: with `encoding=\"ascii\"` the "
+                 "labels do switch to pinyin -- past the mark the file holds "
+                 "0 byte values above 0x7F against 18 in the unicode one -- "
+                 "yet `handleExportPajek` prepends `utf8BOM` "
+                 "unconditionally, so the file it names `network_ascii.net` "
+                 "opens with `EF BB BF`.  That last part is a defect in "
+                 "unreachable code, recorded here for whoever connects the "
+                 "control rather than filed as something users can see.",
+        evidence_zh="所有會依 `\"kml\"` 分支的後端檔案，都與其對應頁面"
+                    "比對過「頁面中是否以任何形式出現 `kml`」——控制項 id、"
+                    "值、註解皆可。共有九個後端含有這類分支，其中八個通過；"
+                    "`group_data` 是徹底沒通過的那一個，有六處分支而頁面中"
+                    "完全沒有提及。關聯配對之所以通過，只因為它的標記中有 "
+                    "`chkKML` 這個字面；而 CBDB-D-010 已說明那只是「提到」"
+                    "而非「接通」——因此這裡是五項而不是四項。\n\n至於"
+                    "端點，則是把 `Code/*.go` 中所有 `/api/` 路由，與 "
+                    "`Templates/` 之下所有仍在使用的模板逐一比對，**且包含"
+                    "各選擇視窗**——這一點很重要，因為這兩個端點都指名某個"
+                    "選擇視窗為其呼叫者，若只讀表單頁面，即使結論正確也是"
+                    "碰巧。結果恰好有兩條路由沒有任何呼叫者，正是這兩個。"
+                    "\n\n關於編碼，以 `grep` 檢索可見 "
+                    "`Templates/places/index.html` 有五處呼叫送出 "
+                    "`encoding: 'unicode'`（第 656、683、747、764、781 行），"
+                    "而 `ascii` 這個字串則不存在於任何模板中。直接呼叫端點"
+                    "可以看出這個分支是有作用的，但其中有一件事沒做到："
+                    "以 `encoding=\"ascii\"` 呼叫時，標籤確實改用拼音"
+                    "——記號之後，該檔案中沒有任何位元組值超過 0x7F，"
+                    "unicode 檔案則有 18 個——然而 `handleExportPajek` "
+                    "是無條件加上 `utf8BOM` 的，因此它命名為 "
+                    "`network_ascii.net` 的檔案，開頭是 `EF BB BF`。"
+                    "最後這一點是「到不了的程式碼中的缺陷」，記在此處是"
+                    "留給日後接上該控制項的人參考，而不是列為使用者看得到"
+                    "的問題。",
+        impact="The GIS output a Group Data user can actually obtain is "
+               "tab-separated only, so `groupWriteKMLStatus`, "
+               "`groupWriteKMLOffice` and `groupWriteKMLOfficePeople` are "
+               "code no user can run, and the mapping workflow the other "
+               "forms offer is missing there.  Neither picker has the "
+               "autocomplete that was written for it.  The Places export "
+               "offers one encoding of the two it implements.  None of this "
+               "puts a wrong answer on screen -- it is finished work that "
+               "shipped without its last connection.  Whether the "
+               "unreachable code is itself correct is a separate question, "
+               "and twice here the answer is no: the BOM above, and the "
+               "scan bug in `place-search` recorded under CBDB-D-005.  That "
+               "is the cost of an unreachable feature -- nothing exercises "
+               "it, so nothing tells anyone it is broken.",
+        impact_zh="分群資料的使用者實際上只能拿到定位字元分隔的 GIS 輸出，"
+                  "因此 `groupWriteKMLStatus`、`groupWriteKMLOffice` 與 "
+                  "`groupWriteKMLOfficePeople` 是任何使用者都執行不到的"
+                  "程式碼，其他表單所提供的地圖工作流程在該處也付之闕如。"
+                  "兩個選擇視窗都沒有原本為它們寫好的自動完成功能。地點的"
+                  "匯出實作了兩種編碼，卻只提供其中一種。這些都不會在畫面上"
+                  "產生錯誤的結果——它們是少接了最後一段線路就釋出的成果。"
+                  "至於這些到不了的程式碼本身是否正確，是另一個問題；"
+                  "而此處有兩個地方答案是否定的：上述的位元組順序記號，"
+                  "以及記錄在 CBDB-D-005 之下、`place-search` 中的讀取"
+                  "錯誤。這正是「功能到不了」的代價——沒有任何東西會執行"
+                  "到它，於是也沒有任何東西會告訴別人它壞了。",
+        fix="Add the format control to the Group Data GIS exports, matching "
+            "the other forms; make the Association Pairs checkbox bind "
+            "(CBDB-D-010); give the Places export an encoding control, or "
+            "drop the branch.  For the two search endpoints, either wire "
+            "the pickers to them or remove the routes.  Whichever way each "
+            "one goes, decide it deliberately: an endpoint nothing calls is "
+            "a maintenance cost with no user, and two of these have been "
+            "carrying bugs nobody could have hit.",
+        fix_zh="請比照其他表單，為分群資料的 GIS 匯出加上格式選擇控制項；"
+               "讓關聯配對的核取方塊真正生效（見 CBDB-D-010）；為地點的"
+               "匯出加上編碼選擇控制項，否則就移除該分支。至於兩個搜尋"
+               "端點，請將對應的選擇視窗接上它們，或是移除這些路由。"
+               "無論每一項最後如何處置，都請是有意識地決定：一個沒有任何"
+               "呼叫者的端點，只是有維護成本而沒有使用者；而這幾項之中"
+               "有兩項，一直帶著沒有人碰得到的錯誤。",
+        steps=(
+            "Open Group Data and look for a KML option beside any GIS "
+            "export.  There is none; searching the page for \"kml\" finds "
+            "nothing either.",
+            "Search every file under Templates/ for \"place-search\" and "
+            "\"person-search\": no hits outside the Go source.",
+            "Search Templates/places/index.html for \"encoding\": five "
+            "hits, all the literal 'unicode'.",
+        ),
+        steps_zh=(
+            "開啟分群資料頁面，在任一 GIS 匯出旁尋找 KML 選項——找不到；"
+            "在頁面中搜尋「kml」同樣毫無所獲。",
+            "在 Templates/ 之下所有檔案中搜尋「place-search」與"
+            "「person-search」：除 Go 原始碼外沒有任何命中。",
+            "在 Templates/places/index.html 中搜尋「encoding」：五處命中，"
+            "全部都是寫死的 'unicode'。",
+        ),
+        source=("Code/groupdata_form_backend.go:1084",
+                "Templates/group_data/index.html",
+                "Code/networks_form_backend.go:handlePlaceSearch",
+                "Code/networks_form_backend.go:handlePersonSearch",
+                "Code/places_form_backend.go:handleExportPajek",
+                "Templates/places/index.html:656"),
+        tests=("test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_"
+               "for",
+               "test_every_api_endpoint_the_build_routes_has_a_page_that_"
+               "calls_it",
+               "test_an_export_named_ascii_contains_ascii"),
+    ),
+    Defect(
+        key="CBDB-D-012",
+        priority="P0", severity="high", origin="software",
+        title="\"Select All Filtered\" returns the first hundred addresses "
+              "and reports them as the whole filter",
+        title_zh="「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個"
+                 "篩選結果",
+        area="Address picker",
+        area_zh="地址選擇視窗",
+        summary="The picker keeps `filteredAddresses` (its own comment: "
+                "*\"full match set (all rows matching the filter)\"*) and "
+                "`renderedAddresses = filteredAddresses.slice(0, "
+                "MAX_RENDER)` with `MAX_RENDER = 100`.  Only the rendered "
+                "slice becomes `<option>` elements.  `selectAllFiltered()` "
+                "walks `sel.options`, and `sendResult` walks `sel.options` "
+                "again to build what it hands back -- so on a filter "
+                "matching more than a hundred addresses the button returns "
+                "the first hundred, and returns them with "
+                "`isSelectAllFiltered: true` plus the filter text, which "
+                "every host page reads as \"the user chose the whole "
+                "filter\".",
+        summary_zh="這個選擇視窗同時維護 `filteredAddresses`（其註解自述為"
+                   "「完整的比對結果集（所有符合篩選條件的列）」）與 "
+                   "`renderedAddresses = filteredAddresses.slice(0, "
+                   "MAX_RENDER)`，其中 `MAX_RENDER = 100`。只有被繪出的這"
+                   "一段會變成 `<option>` 元素。`selectAllFiltered()` 走訪"
+                   "的是 `sel.options`，而 `sendResult` 也再一次走訪 "
+                   "`sel.options` 來組出要回傳的內容——因此，當篩選結果超過"
+                   "一百筆時，這個按鈕回傳的是前一百筆，而且回傳時帶著 "
+                   "`isSelectAllFiltered: true` 與篩選文字，所有呼叫端頁面"
+                   "都會把它解讀為「使用者選擇了整個篩選結果」。",
+        evidence="Read from `Templates/pickers/address_picker.html`, with "
+                 "each function's body taken by brace matching rather than "
+                 "by pattern, so that what is attributed to "
+                 "`selectAllFiltered` is what that function does: the cap "
+                 "(`const MAX_RENDER = 100`), the slice that applies it, and "
+                 "both functions walking `sel.options`.  The button's own "
+                 "comment says it *\"selects every visible (filtered) "
+                 "item\"*.  The status bar does say *\"Showing first 100 of "
+                 "N -- refine your search\"*, but the button is not disabled "
+                 "in that state and nothing in the result it sends records "
+                 "the truncation.  The scale is measurable, and has to "
+                 "be measured against the right population: the picker "
+                 "does not filter `ADDR_CODES`.  It filters "
+                 "`allAddresses`, loaded once from `/api/addresses` -- "
+                 "37,118 rows, because that endpoint joins "
+                 "`ADDR_BELONGS_DATA` and each row carries its own year "
+                 "range -- and it matches case-insensitively on the pinyin "
+                 "name.  Filtered the way the page filters, \"Zhou\" gives "
+                 "5,373 rows, \"Xian\" 7,166 and \"Fu\" 2,007, so the "
+                 "button returns 1.9%, 1.4% and 5.0% of what the user "
+                 "asked for.",
+        evidence_zh="讀自 `Templates/pickers/address_picker.html`；每個函式"
+                    "的主體是以大括號配對取出，而非以樣式比對，因此歸給 "
+                    "`selectAllFiltered` 的內容確實是該函式所做的事：上限"
+                    "（`const MAX_RENDER = 100`）、套用該上限的切片，以及"
+                    "兩個函式都在走訪 `sel.options`。按鈕自身的註解寫著它"
+                    "「選取所有可見（已篩選）的項目」。狀態列確實會顯示"
+                    "「Showing first 100 of N — refine your search」，但在"
+                    "該狀態下按鈕並未停用，而且它送出的結果裡沒有任何地方"
+                    "記錄了這次截斷。其規模可以量化，但必須對著正確的母體來量："
+                    "這個選擇視窗篩選的並不是 `ADDR_CODES`，而是 "
+                    "`allAddresses`——它一次性載自 `/api/addresses`，"
+                    "共 37,118 列（因為該端點會連接 `ADDR_BELONGS_DATA`，"
+                    "每一列各自帶有年份範圍），而且比對的是拼音名稱、"
+                    "不分大小寫。依照頁面實際的篩選方式：「Zhou」得到 "
+                    "5,373 列，「Xian」7,166 列，「Fu」2,007 列。這個按鈕"
+                    "各自只回傳其中 100 列，也就是使用者所要求的 1.9%、"
+                    "1.4% 與 5.0%。",
+        impact="The query then runs on a hundred addresses while the page "
+               "displays the filter text, so the result looks like an answer "
+               "about the whole filter and is an answer about a small "
+               "fraction of it.  Which hundred depends on the order the list "
+               "arrived in, which is not the user's choice and is not shown.",
+        impact_zh="接下來的查詢是在一百筆地址上執行，而頁面顯示的卻是篩選"
+                  "文字，於是結果看起來像是針對整個篩選範圍的答案，實際上"
+                  "只是其中一小部分的答案。至於是哪一百筆，取決於清單送達"
+                  "時的順序——那既不是使用者的選擇，也不會顯示出來。",
+        fix="Build the result from `filteredAddresses` rather than from "
+            "`sel.options`; the full set is already in memory and the render "
+            "cap exists only to keep the `<select>` manageable.  If sending "
+            "thousands of ids is not wanted, send the filter itself and let "
+            "the host page resolve it -- but do not send a hundred rows "
+            "labelled as the filter.",
+        fix_zh="請改以 `filteredAddresses` 而非 `sel.options` 來組出結果；"
+               "完整集合本來就已在記憶體中，繪製上限的存在只是為了讓 "
+               "`<select>` 不至於過大。若不希望送出數千個 id，可以改送"
+               "篩選條件本身、由呼叫端頁面自行解析——但請不要送出一百列"
+               "卻標示成整個篩選結果。",
+        steps=(
+            "Open any form that offers an address picker and open it.",
+            "Filter on \"Zhou\" so the status bar reads \"Showing first 100 "
+            "of 5373\".",
+            "Press Select All Filtered, and count the addresses the host "
+            "page received: 100.",
+        ),
+        steps_zh=(
+            "開啟任一提供地址選擇視窗的表單，並打開該視窗。",
+            "以「Zhou」進行篩選，使狀態列顯示「Showing first 100 of 5373」。",
+            "按下 Select All Filtered，再清點呼叫端頁面實際收到的地址筆數："
+            "100 筆。",
+        ),
+        source=("Templates/pickers/address_picker.html:118",
+                "Templates/pickers/address_picker.html:223",
+                "Templates/pickers/address_picker.html:344",
+                "Templates/pickers/address_picker.html:381"),
+        tests=("test_select_all_filtered_selects_every_address_the_filter_"
+               "matched",
+               "test_the_function_body_reader_stops_at_the_function"),
+    ),
+    Defect(
+        key="CBDB-D-013",
+        priority="P0", severity="medium", origin="software",
+        title="Recall on the Association Pairs page fills the pair with "
+              "two people nothing chose, and says nothing about the "
+              "rest of the stored list",
+        title_zh="關聯配對頁面的 Recall 以無所依據的方式挑出兩個人填入"
+                 "配對欄位，對已儲存清單中其餘的人則隻字未提",
+        area="Association Pairs: recall-ids",
+        area_zh="關聯配對：recall-ids",
+        summary="`handleRecallIDs` answers *GET "
+                "/api/assocpairs/recall-ids* with `SELECT s.c_personid, ... "
+                "FROM ZZ_STORE_PERSON_ID s LEFT JOIN BIOG_MAIN bm ON ... "
+                "LIMIT 2` and no `ORDER BY`.  `ZZ_STORE_PERSON_ID` is the "
+                "application's stored-person list -- the one channel by "
+                "which a result travels between forms -- and it can hold any "
+                "number of people.  Two come back, chosen by the query plan.",
+        summary_zh="`handleRecallIDs` 以 `SELECT s.c_personid, ... FROM "
+                   "ZZ_STORE_PERSON_ID s LEFT JOIN BIOG_MAIN bm ON ... "
+                   "LIMIT 2`（沒有 `ORDER BY`）回應 *GET "
+                   "/api/assocpairs/recall-ids*。`ZZ_STORE_PERSON_ID` 是整個"
+                   "程式的已儲存人物清單——也是查詢結果在各表單之間傳遞的"
+                   "唯一管道——它可以存放任意數量的人。回來的只有兩個，"
+                   "而且是由查詢計畫挑的。",
+        evidence="Driven, not merely read, and counted "
+                 "through a second endpoint rather than through the reply "
+                 "to the write.  Storing five people via `POST "
+                 "/api/assocpairs/store-ids` answers `{\"count\":5}`, but "
+                 "that number is `len(req.PersonIDs)` -- the request handed "
+                 "back, which would say five whatever the table did.  `POST "
+                 "/api/networks/recall-person-ids`, which reads the same "
+                 "global `ZZ_STORE_PERSON_ID`, independently answers "
+                 "`{\"count\":5}`; `GET "
+                 "/api/assocpairs/recall-ids` then returns two, the same "
+                 "two on three consecutive calls.  "
+                 "So *two of the five come back and the other three "
+                 "are neither returned nor mentioned* -- measured "
+                 "against the list as another form still sees it, "
+                 "which is also what shows those three are still "
+                 "stored rather than lost.\n\nThe handler's own comment says "
+                 "*\"Returns people stored in ZZ_STORE_PERSON_ID (up to 2 "
+                 "for pair mode)\"*, so the cap is deliberate and this "
+                 "report does not ask for it to be lifted.  What is not "
+                 "deliberate is the rest: nothing orders the rows, so which "
+                 "two is left to the query plan, and nothing tells the user "
+                 "that the other three are still in the list, waiting, "
+                 "and not in front of them.  That the choice is unspecified rather than "
+                 "unstable is what the missing `ORDER BY` establishes: "
+                 "SQLite is not obliged to keep returning these two, and "
+                 "nothing in the code asks it to.  Every `SELECT` in "
+                 "`Code/*.go` that caps its rows without ordering them was "
+                 "surveyed; the build has three, and the other two are "
+                 "correlated subqueries in `kinrelReductionUpdate` keyed on "
+                 "`kr.c_kinrel_target` with `c_required = 1`, where the "
+                 "predicate already selects the intended row.",
+        evidence_zh="本項是實際呼叫驗證的，不只是讀原始碼；而且"
+                    "筆數是透過另一個端點去數的，而不是看寫入時的回應。"
+                    "以 `POST /api/assocpairs/store-ids` 存入五個人，"
+                    "回應是 `{\"count\":5}`，但這個數字是 "
+                    "`len(req.PersonIDs)`——也就是把請求原樣回報，不論"
+                    "資料表實際如何都會是五。改用讀取同一張全域 "
+                    "`ZZ_STORE_PERSON_ID` 的 `POST "
+                    "/api/networks/recall-person-ids`，得到的同樣是 "
+                    "`{\"count\":5}`；接著 `GET "
+                    "/api/assocpairs/recall-ids` 只回傳兩個，連續三次呼叫"
+                    "回傳的都是同樣那兩個。也就是說，**五個人裡回來兩個，"
+                    "另外三個既沒有回傳、也沒有被提及**——這是對照另一"
+                    "個表單目前仍看得到的清單量測出來的，而這同時也證明"
+                    "那三個人仍存放著、並未遺失。\n\n處理常式自己的註解寫著"
+                    "「Returns people stored in ZZ_STORE_PERSON_ID (up to "
+                    "2 for pair mode)」，可見這個上限是刻意的，本報告也"
+                    "不是要求取消它。不是刻意的是其餘的部分：沒有任何"
+                    "地方為這些列排序，因此是哪兩個交由查詢計畫決定；"
+                    "也沒有任何地方告訴使用者，另外三個人仍在清單裡"
+                    "等著，只是沒有出現在他眼前。至於這個選擇是「未明確"
+                    "指定」而非「不穩定」，則是由缺少 `ORDER BY` 所確立的："
+                    "SQLite 並沒有義務一直回傳這兩個，程式裡也沒有任何地方"
+                    "要求它這麼做。`Code/*.go` 中所有「限制列數卻未排序」的 "
+                    "`SELECT` 都已清查，共三處；另外兩處是 "
+                    "`kinrelReductionUpdate` 中的相關子查詢，以 "
+                    "`kr.c_kinrel_target` 為鍵並搭配 `c_required = 1`，"
+                    "述詞本身已經選定了目標列。",
+        impact="A user who sent five people to this form from another one, "
+               "then pressed Recall, is working on two of them and is not "
+               "told which two or why.  The pair is filled and the page "
+               "looks correct.  Nothing is destroyed -- the stored list "
+               "still holds all five, and another form still reads them "
+               "back -- so this is a failure to report rather than data "
+               "loss; but the two the user ends up working on were chosen "
+               "by the query plan, and because nothing orders the rows it "
+               "is not a choice they could learn to predict either.",
+        impact_zh="使用者若從另一個表單把五個人送到這個表單，再按下 Recall，"
+                  "實際上是在其中兩個人身上作業，卻不知道是哪兩個、也不知道"
+                  "為什麼。配對欄位填滿了，頁面看起來一切正常。這裡沒有任何"
+                  "資料被破壞——已儲存清單仍完整保有五個人，其他表單也仍然"
+                  "讀得回來——所以這是「沒有據實告知」，而不是「資料遺失」；"
+                  "但使用者最後實際處理的那兩個人，是由查詢計畫挑出來的，"
+                  "而且因為沒有任何排序，他也無從歸納出其中的規律。",
+        fix="Decide what Recall means when the stored list holds more than "
+            "two, and say it in the code: an `ORDER BY` that names the "
+            "intended rows (insertion order if the table records it, "
+            "`c_personid` otherwise), and a message when rows are dropped.  "
+            "Better still, let the user pick which two.",
+        fix_zh="請先確定當已儲存清單超過兩人時，Recall 的語意究竟為何，"
+               "並在程式中明確表達出來：加上能指明目標列的 `ORDER BY`"
+               "（若資料表有記錄寫入順序就依寫入順序，否則依 `c_personid`），"
+               "並在有資料被捨棄時給出提示。更好的做法是讓使用者自行選擇"
+               "是哪兩個。",
+        steps=(
+            "POST /api/assocpairs/store-ids with five personIds; the reply "
+            "says count: 5.",
+            "GET /api/assocpairs/recall-ids: two people come back.",
+            "On the page, the same sequence fills the pair and reports "
+            "nothing about the other three.",
+        ),
+        steps_zh=(
+            "以五個 personId 呼叫 POST /api/assocpairs/store-ids，"
+            "回應顯示 count: 5。",
+            "呼叫 GET /api/assocpairs/recall-ids：只有兩個人回來。",
+            "在頁面上執行同一串操作，配對欄位被填滿，另外三個人則完全"
+            "沒有任何交代。",
+        ),
+        source=("Code/assocpairs_form_backend.go:handleRecallIDs",),
+        tests=("test_a_query_that_keeps_only_some_rows_says_which_ones",),
+    ),
+    Defect(
+        key="CBDB-D-014",
+        priority="P3", severity="low", origin="release",
+        title="The front page's Users Guide link is a 404: the PDF is not in "
+              "the distribution",
+        title_zh="首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中",
+        area="Packaging: Static/",
+        area_zh="封裝內容：Static/",
+        summary="`Templates/navigation/index.html` offers a *Users Guide* "
+                "link pointing at `../../static/CBDB_UserGuide.pdf`.  "
+                "`Static/` ships one file, `cbdb_styles.css`.",
+        summary_zh="`Templates/navigation/index.html` 提供了一個 *Users "
+                   "Guide* 連結，指向 `../../static/CBDB_UserGuide.pdf`；"
+                   "然而 `Static/` 只釋出了一個檔案，就是 "
+                   "`cbdb_styles.css`。",
+        evidence="Every same-origin link on the navigation page was "
+                 "followed.  All resolve except this one, which answers HTTP "
+                 "404.  `Static/` is the only file-served directory in the "
+                 "build, so there is nowhere else the file could be reached "
+                 "from.\n\nThe distribution settles for itself which side "
+                 "this belongs on.  `The directory structure for "
+                 "CBDB-Desktop.txt`, shipped at the root of the archive, "
+                 "lists `PDF files: "
+                 "CBDB-Desktop\\Static\\xxx.pdf` at its last line, and "
+                 "`cbdb_navigation_backend.go:62` describes the directory it "
+                 "serves as \"Static files (PDF user guide, images, "
+                 "etc.)\".  So the layout expects PDFs in `Static/`, the "
+                 "code that serves it expects the guide among them, the "
+                 "template links to it accordingly, and what is missing is "
+                 "the file: this is the packaging step, not a template "
+                 "pointing somewhere it never should have.",
+        evidence_zh="已逐一走訪首頁上所有同源連結。除了這一個回傳 HTTP 404 "
+                    "之外，其餘皆可正常解析。`Static/` 是整個建置中唯一以"
+                    "檔案方式對外提供的目錄，因此這個檔案也不可能從別處"
+                    "取得。\n\n這個問題該歸屬哪一邊，發行檔自己就給了答案。"
+                    "隨壓縮檔根目錄一併釋出的 `The directory structure for "
+                    "CBDB-Desktop.txt`，在最後一行列有 `PDF files: "
+                    "CBDB-Desktop\\Static\\xxx.pdf`；而 "
+                    "`cbdb_navigation_backend.go:62` 也把它所提供的這個"
+                    "目錄描述為「Static files (PDF user guide, images, "
+                    "etc.)」。可見依照既定的目錄結構，PDF 本就該放在 "
+                    "`Static/`，負責提供該目錄的程式也預期使用手冊在其中，"
+                    "模板同樣是照著這個結構去連結的，缺的是檔案本身："
+                    "問題出在封裝這一步，而不是模板指向了一個它本來就"
+                    "不該指向的位置。",
+        impact="The documentation the application points its users at is not "
+               "there.  This is a desktop distribution aimed at researchers "
+               "rather than developers, and the guide is one of only two "
+               "links the front page offers outside the forms themselves.",
+        impact_zh="程式指引使用者前往的說明文件並不存在。這是一套以研究者"
+                  "而非開發者為對象的桌面發行版，而在各表單之外，首頁總共"
+                  "也只提供兩個連結，這是其中之一。",
+        fix="Ship `CBDB_UserGuide.pdf` in `Static/`, which is where the "
+            "distribution's own layout document says PDFs go.  If the guide "
+            "lives elsewhere -- a project website -- make the link point "
+            "there and say so.",
+        fix_zh="請把 `CBDB_UserGuide.pdf` 一併放進 `Static/`，這也正是發行檔"
+               "自身的目錄結構文件所指定的 PDF 存放位置。若這份指南另有存放"
+               "之處（例如專案網站），請將連結改指向該處並加以說明。",
+        steps=(
+            "Start the application and open the front page.",
+            "Press Users Guide.",
+            "Or: 7z l CBDB-Desktop_20260908.7z | findstr Static",
+        ),
+        steps_zh=(
+            "啟動程式並開啟首頁。",
+            "按下 Users Guide。",
+            "或執行：7z l CBDB-Desktop_20260908.7z | findstr Static",
+        ),
+        source=("Templates/navigation/index.html:75",
+                "The directory structure for CBDB-Desktop.txt:82",
+                "Code/cbdb_navigation_backend.go:62",
+                "Static/"),
+        tests=("test_every_link_the_navigation_offers_resolves",),
     ),
 )
 

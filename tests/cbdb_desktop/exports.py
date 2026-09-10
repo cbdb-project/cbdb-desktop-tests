@@ -63,6 +63,21 @@ FILES = "files"
 
 #: ``{"name": ..., "url": ...}`` -- one file, no envelope.  Sometimes
 #: with a ``status`` field alongside (entry's Save Codes), sometimes not.
+#:
+#: This inventory records which envelope each endpoint *answers with*,
+#: and for a long time that was taken to settle the matter: the
+#: envelopes disagree, nobody chose it, and no user could see it.  That
+#: last clause was never checked against a page.  On Association Pairs
+#: it is false -- the page throws unless the reply carries
+#: ``status == 'ok'``, so ``SINGLE_FILE`` there is four export buttons
+#: that cannot succeed (CBDB-D-009, and
+#: ``test_page_contracts.py`` is where a *page* is read).
+#:
+#: The bodies below are another reason the suite could not have found
+#: it: they send what each handler reads (``format="kml"``), which is
+#: right for testing a handler and is not what the page sends.  Nothing
+#: here is wrong; it just answers a different question, and the two
+#: questions are now in two files.
 SINGLE_FILE = "single"
 
 #: The file streamed as the response body, with a Content-Disposition

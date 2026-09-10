@@ -41,10 +41,13 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 803 tests collected, and the defect registry is
-deliberately empty.**  Cleared on 2026-09-08, together with the previous
-round's reports and every run artefact, so that the next distribution is
-assessed with no carried-over knowledge of what an earlier build did --
+**Current state: 1135 tests collected, and the defect registry
+holds this round's findings.**  It was cleared on 2026-09-08, together
+with the previous round's reports and every run artefact, so that this
+distribution was assessed with no carried-over knowledge of what an
+earlier build did -- and it has since been filled by *this* round, which
+is the whole of its intended life: it is emptied again before the next
+one.  Do not read it as an inventory of what CBDB-Desktop does wrong --
 § *Every run is a fresh assessment*, taken to its limit at the
 maintainer's request.  What was removed is the *expectation*: the nine
 registry entries and every `xfail` marker that quoted them.  What was
@@ -646,10 +649,12 @@ after extraction is restaged, not served.
 
 ## Confirmed defects in the shipped build
 
-**None recorded.**  The registry (`tests/cbdb_desktop/defects.py`) was
-emptied on 2026-09-08, together with the previous round's reports and
-every run artefact, for a deliberately stateless assessment of the next
-distribution.
+**Not listed here, deliberately.**  The registry
+(`tests/cbdb_desktop/defects.py`) was emptied on 2026-09-08 for a
+stateless assessment of this distribution, and now holds that
+assessment's findings.  Read it there, or read the generated reports;
+copying the list into this file is what would turn one round's findings
+into an expectation the next round starts from.
 
 There is no *inventory* here of what earlier builds did, and that is the
 point.  The record is the git history of `defects.py` and of
@@ -749,9 +754,25 @@ named test, and re-deriving it costs an hour.
   forms, `{files}` on two, a bare `{name, url}` for every SNA export,
   and a raw file stream for six of the GIS exports. Nobody chose that,
   and it is pinned per endpoint in `exports.py` rather than filed,
-  because no user can see it. A form that *changed* which one it
-  answers with would break its own page, and that is what the pin
+  because on most forms no user can see it. A form that *changed* which
+  one it answers with would break its own page, and that is what the pin
   catches.
+
+  **Amended 2026-09-10, and this is the shape of the correction rather
+  than an exception to the rule.** The ruling above turned on "no user
+  can see it", and it was never checked against the pages — only against
+  the handlers, which agree with themselves. One page does not agree with
+  its handlers: Association Pairs throws unless the reply carries
+  `status === 'ok'`, so on that form the bare `{name, url}` is four
+  export buttons that report an error on exports that succeeded, and it
+  is filed. (No identifier here on purpose: the number belongs to one
+  round's report and would point at something else by the next.) The pin
+  in `exports.py` still
+  stands for the other forms and still describes what they answer with;
+  what changed is that a *page* now has to be read before "no user can
+  see it" may be said. The old ruling's last sentence had the answer in
+  it — "a form that changed which one it answers with would break its
+  own page" — and nobody had asked whether a form already had.
 
 ---
 
