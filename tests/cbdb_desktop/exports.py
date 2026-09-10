@@ -70,7 +70,7 @@ FILES = "files"
 #: last clause was never checked against a page.  On Association Pairs
 #: it is false -- the page throws unless the reply carries
 #: ``status == 'ok'``, so ``SINGLE_FILE`` there is four export buttons
-#: that cannot succeed (CBDB-D-009, and
+#: that cannot succeed (the Unknown-error finding, and
 #: ``test_page_contracts.py`` is where a *page* is read).
 #:
 #: The bodies below are another reason the suite could not have found

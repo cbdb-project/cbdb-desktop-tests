@@ -27,9 +27,9 @@ Database front end, shipped to historians as
 
 ```
 Bin/cbdb.exe          a Go HTTP server (gorilla/mux), ~33 MB
-Data/CBDB.db          1.2 GB SQLite, 658,941 people; 124 tables (incl.
-                      sqlite_stat1 and four ZZZ_NAMES_FTS_* shadow
-                      tables) and 19 views
+Data/CBDB.db          1.2 GB SQLite, 661,124 people; 135 tables
+                      (incl. five ZZZ_NAMES_FTS_* shadow tables)
+                      and 19 views
 Data/qbe_schema.json  the Query Builder's table/column whitelist
 Templates/<form>/     one index.html per form, plus pickers/ and qbe/
 Static/               one stylesheet
@@ -41,7 +41,7 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1155 tests collected, and the defect registry
+**Current state: 1389 tests collected, and the defect registry
 holds this round's findings.**  It was cleared on 2026-09-08, together
 with the previous round's reports and every run artefact, so that this
 distribution was assessed with no carried-over knowledge of what an
@@ -72,8 +72,8 @@ tolerated*. A failure is either something to fix, something to file, or
 something to agree to leave alone in the waiver table; it is never
 something the suite quietly expects.
 
-Of those tests, 254 are generated from the shipped data
-(`test_query_matrix.py`, including the switch sweep) and 247 from the
+Of those tests, 418 are generated from the shipped data
+(`test_query_matrix.py`, including the switch sweep) and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
 `artifacts/endpoint_coverage.json`; last measured, on the 2026-09-08
@@ -279,7 +279,9 @@ like one that passes.
 `(code, dynasty)`, `(code, half-century)` and `(code, address)`
 combinations are populated, caches the answer against the database's own
 SHA-256, and `test_query_matrix.py` generates one test per combination
-(234 of them on this build). A data refresh moves the inputs by itself.
+(386 of them on this build; `test_query_matrix.py` holds 418 in
+all, the rest being the switch sweep and its gates). A data refresh
+moves the inputs by itself.
 
 **Choosing an input from the data is not an oracle. Predicting a count
 from the data is.** The discovery queries do join a base table to
@@ -785,6 +787,80 @@ named test, and re-deriving it costs an hour.
   see it" may be said. The old ruling's last sentence had the answer in
   it — "a form that changed which one it answers with would break its
   own page" — and nobody had asked whether a form already had.
+
+---
+
+## ⭐ A finding is not finished until a test would find it again
+
+**Every defect this project reports must be detected by test code, and
+the test is written before the finding is filed — not after, and not
+instead.** A defect established by reading the source, by a one-off
+probe, or by driving the app by hand is a *lead*. It becomes a finding
+when a test in this suite fails on it, on its own, in an ordinary run.
+
+The reason is the stateless round. `defects.py` is emptied between
+rounds on purpose (§ *Every run is a fresh assessment*), so the registry
+cannot be what remembers. If the only record of a problem is prose in an
+entry, then clearing the registry deletes the knowledge, the next round
+starts from nothing, and a defect that was found once is found again by
+luck or not at all. The test code is the memory. The registry is this
+round's letter to the maintainers.
+
+What that requires, concretely:
+
+1. **Write the test first, and watch it fail.** A test added after the
+   entry tends to be written to match the entry rather than the build,
+   and it is easy to write one that passes for the wrong reason. Make it
+   fail, read the failure, *then* write the entry from what the failure
+   says.
+2. **Name the test in the entry's `tests=`.** Both directions matter.
+   An entry with no test is a claim nothing checks. A failing test no
+   entry names shows up in the report's *unclassified* table, which is
+   the right place for something nobody has triaged yet and the wrong
+   place for something you already understood — see the gate below.
+3. **Make the failure message self-sufficient.** Assume the reader has
+   no registry, no report, and no memory of this round. The message has
+   to carry the measurement, the mechanism, and enough of the input to
+   reproduce it. `assert x == y` teaches the next round nothing.
+4. **Generalise where the defect has a species.** If a form has it, ask
+   whether the other five do, and drive the question at all six from an
+   inventory rather than testing the one you happened to find. Several
+   of this round's findings came from exactly that step, not from the
+   original lead.
+
+This is checked, not merely asked for.
+`test_reports.py::test_every_finding_this_run_raises_is_accounted_for`
+fails when a test raises `KnownShippedDefect` and neither an entry nor a
+waiver names it. Note what it keys on: the exception, not the failure.
+An ordinary assertion failure is also unfiled and also wants reading,
+but it is a pin that moved or a test somebody broke, and answering that
+with "file it in `defects.py`" would send the reader the wrong way.
+
+That gate exists because the property drifted in the 2026-09-08 round.
+Two tests raised findings that no entry named, and the report said so:
+`test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it`
+and `test_the_place_search_helper_finds_the_places_the_table_holds` are
+both in the *unclassified* table of the report committed as `abbbd2f`.
+Honest, and the wrong place for either of them. (The citation is to
+that commit and not to "the committed report", because regenerating
+the report is what closes the gap — the current one has no unclassified
+rows, which is the point.)
+
+They were adrift for different reasons, and the gap-shaped one is the
+`place-search` scan. Its diagnosis already existed and was thorough —
+the entry on the Neo4j export's `c_admin_type` scan explains the whole
+mechanism — and the test that demonstrates it was named by nothing. So
+clearing the registry would have deleted a diagnosis somebody had
+already done, and the next round would have paid for it twice. The
+Places `filterBac` control had neither prose nor a naming entry: found
+during a sweep, left on the failure list.
+
+Two habits follow, and only the first is checked. When you write a test
+that raises a finding, name it in an entry in the same edit — the gate
+enforces that much. And when you add a test to an entry that already
+exists, add the finding to that entry's *prose* too, and re-read any
+count the entry states: nothing checks the sentence against the test
+list, so an entry can name six tests while its summary still says five.
 
 ---
 

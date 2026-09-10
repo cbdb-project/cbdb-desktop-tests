@@ -501,3 +501,190 @@ def test_a_waiver_covering_every_case_says_so_rather_than_leaving_it_blank():
     for lang in LANGS:
         _check, applies, *_rest = gr.waived_rows(recorded, lang)[0]
         assert applies == gr.STRINGS["waived_all"][lang]
+
+
+def _load_run() -> dict | None:
+    """The committed run artefact, or None when there is not one.
+
+    ``reports/pytest_report.json`` is gitignored, so a fresh checkout
+    has none and the caller skips.
+    """
+    path = gr.DEFAULT_JSON
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _bare(node: str) -> str:
+    """A node id reduced to the test function name, params dropped."""
+    return node.split("::")[-1].split("[", 1)[0]
+
+
+def _waived_test_names() -> set[str]:
+    """Test function names the waiver table covered in the last run.
+
+    A belt to the braces rather than the mechanism.  A waived test is
+    turned into an ``xfail``, and the run records it as ``xfailed``,
+    which ``failures_by_kind`` never looks at -- so in an ordinary run
+    a waived test cannot reach the gate below in the first place.  This
+    stays for the case where it does: ``--runxfail``, or a waiver whose
+    ``raises`` key did not match so the test failed outright.  Do not
+    read it as the reason waived findings are quiet.
+    """
+    path = gr.DEFAULT_WAIVERS
+    if not path.exists():
+        return set()
+    applied = json.loads(path.read_text(encoding="utf-8")).get("applied", {})
+    # A waiver may be written ``module.py::function`` as well as bare
+    # (see waivers.py), and the keys here are whatever was written, so
+    # both get reduced to the function name the caller compares on.
+    return {_bare(key) for key in applied}
+
+
+def test_every_gap_check_reads_in_both_languages():
+    """A named gap check has an English and a Chinese sentence.
+
+    ``ours_rows`` falls back to the test's own failure message when a
+    check has no sentence, and that message is English, so a missing
+    row does not break the report -- it quietly makes one line of the
+    Chinese report English.  That is exactly what happened while the
+    sentences lived in a second table: two checks were added carrying
+    both languages, the renderer read the other table, and the Chinese
+    that had been written for them was never printed by anything.
+
+    So the fallback stays -- a new check should not fail the suite for
+    want of a translation before anyone has read its message -- and
+    this states the requirement instead, where adding the row is the
+    obvious fix.
+    """
+    incomplete = {name: sorted(row)
+                  for name, row in gr.SUITE_OWN_CHECKS.items()
+                  if not (row.get("en") or "").strip()
+                  or not (row.get("zh") or "").strip()}
+    assert not incomplete, (
+        "SUITE_OWN_CHECKS rows missing a language: "
+        + json.dumps(incomplete, ensure_ascii=False)
+        + ".  Each row needs an `en` and a `zh`; the Chinese report "
+          "prints the `zh` with the check's own measured message in "
+          "brackets after it, and falls back to the English message "
+          "alone when there is none.")
+
+
+def test_a_gap_check_with_no_sentence_still_renders():
+    """The fallback the test above relies on actually works.
+
+    Asserting the requirement is worth nothing if the fallback it
+    tolerates is itself broken -- the report would fail to render for
+    a check somebody added an hour ago, which is the moment the report
+    is most wanted.
+    """
+    name = "test_a_check_nobody_has_written_a_sentence_for"
+    assert name not in gr.SUITE_OWN_CHECKS
+    node = f"tests/test_x.py::{name}"
+    for lang in LANGS:
+        (rendered, why), = gr.ours_rows([(node, "measured: 3 of 4")], lang)
+        assert rendered == name
+        assert "measured: 3 of 4" in why
+
+
+def test_a_gap_checks_chinese_reaches_the_chinese_report():
+    """The sentence written for a check is the one that gets printed.
+
+    The two tests above are both true of a renderer that ignores
+    ``SUITE_OWN_CHECKS`` altogether and always falls back to the
+    English message -- which is the bug they were written after.  One
+    reads no renderer at all, the other drives only the unknown-name
+    path, where fixed and broken behave alike.  This drives a *known*
+    name, which is the only path where the two differ.
+    """
+    name, row = next(iter(gr.SUITE_OWN_CHECKS.items()))
+    node = f"tests/test_x.py::{name}"
+
+    (_rendered, zh), = gr.ours_rows([(node, "measured: 3 of 4")], "zh")
+    assert row["zh"] in zh, (
+        f"the Chinese report prints no part of the sentence "
+        f"SUITE_OWN_CHECKS gives {name}; it rendered {zh!r}.  A "
+        "renderer reading its Chinese from anywhere but "
+        "SUITE_OWN_CHECKS falls back to the English failure message, "
+        "which reads as working and is how two checks shipped with "
+        "Chinese that nothing ever printed.")
+    assert "measured: 3 of 4" in zh, (
+        "the measured detail was dropped in favour of the sentence; "
+        "the Chinese row is the sentence with the measurement after it")
+
+    (_rendered, en), = gr.ours_rows([(node, "measured: 3 of 4")], "en")
+    assert row["zh"] not in en, "the English row should not carry the Chinese"
+
+
+def test_every_finding_this_run_raises_is_accounted_for():
+    """A test that raises a finding must be filed or waived, not adrift.
+
+    The registry is cleared between rounds by design, so the test code
+    is what remembers a defect and the entry is only this round's
+    letter about it.  That arrangement has one hole, and this closes
+    it: a test that raises ``KnownShippedDefect`` while no entry names
+    it and no waiver covers it.  The failure is loud, so the *defect*
+    is not lost -- but the diagnosis is, and the next round has to
+    work out from scratch what somebody already knew.
+
+    It happened twice in the 2026-09-08 round.  The report committed
+    as ``abbbd2f`` lists two unclassified findings --
+    ``test_a_filter_the_places_handler_offers_has_a_control_that_can_
+    set_it`` and
+    ``test_the_place_search_helper_finds_the_places_the_table_holds``.
+    The ``place-search`` scan was the costlier of the two, because its
+    diagnosis already existed in full, in the entry on the Neo4j
+    export's ``c_admin_type`` scan, and no entry named the test -- so
+    clearing the registry would have thrown away work somebody had
+    already done.  The Places ``filterBac`` control had no entry and no
+    prose anywhere.
+
+    Read from the committed run rather than by re-running: this is a
+    property of the artefacts a reader receives.  A round that has
+    genuinely found something new fails here until it is filed or
+    waived, which is the intended cost -- § *A finding is not finished
+    until a test would find it again*.
+
+    Two limits, both deliberate.  ``pytest_report.json`` is a
+    gitignored artefact, so this skips on a fresh checkout rather than
+    failing for want of one.  And inside a canonical run it reads the
+    *previous* run, so a finding added today is caught by tomorrow's
+    run rather than by its own -- one round late, which is late enough
+    to matter and far better than never.  The alternative, scanning the
+    source for tests that *can* raise, would fail on a build where the
+    defect had been fixed and the entry rightly removed.
+    """
+    run = _load_run()
+    if run is None:
+        pytest.skip("no committed pytest_report.json to judge")
+
+    _demonstrating, ours, unclassified = gr.failures_by_kind(run)
+    waived = _waived_test_names()
+    # ``failures_by_kind`` reports the stem -- ``node.split("[", 1)[0]``
+    # -- while ``signature_nodes`` returns full node ids.  Comparing
+    # the two directly is a membership test that is false for every
+    # parametrised test, which is 71 of the 98 findings in the run
+    # committed when this was written: the gate would have passed on
+    # the majority shape in this suite while reading like a gate.
+    raised_a_finding = {node.split("[", 1)[0]
+                        for node in gr.signature_nodes(run)}
+
+    # Only a failure carrying ``KnownShippedDefect`` is a finding.  An
+    # ordinary assertion failure is also unclassified and also wants
+    # attention, but it is a pin that moved or a test somebody broke,
+    # and answering it with "file this in defects.py" would be wrong.
+    # ``test_the_run_this_report_describes_is_the_committed_one`` and
+    # the pins are what speak to those.
+    adrift = [(node, why) for node, why in unclassified
+              if node in raised_a_finding
+              and _bare(node) not in waived]
+
+    assert not adrift, (
+        f"{len(adrift)} test(s) raised a finding that no registry entry "
+        "names and no waiver covers:\n  "
+        + "\n  ".join(f"{node} -- {why[:120]}" for node, why in adrift)
+        + "\n\nFile each in defects.py naming the test, or waive it with "
+          "a reason and a date.  Leaving it here means the next round, "
+          "which starts from an empty registry, rediscovers it from "
+          "nothing.  (Checks the suite makes about itself are already "
+          f"excluded; {len(ours)} of those were found in this run.)")

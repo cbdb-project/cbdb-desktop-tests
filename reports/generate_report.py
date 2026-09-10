@@ -138,20 +138,21 @@ STRINGS: dict[str, dict] = {
               "這些數字去對照問題清單，卻發現兩邊對不起來。",
     },
     "ours_intro": {
-        "en": "**{n}** of them: gaps in this test suite rather than defects "
-              "in the distribution -- something the interface offers that we "
-              "have not yet driven.  Ours to close, not yours.",
-        "zh": "其中 **{n}** 項指向的是本測試套件自身的覆蓋缺口，而不是釋出"
-              "版本的缺陷：介面上有、但我們尚未驅動過的東西。那部分該由"
-              "我們補上，與您無關。",
+        "en": "**{n}** of them are this suite's own business rather than "
+              "defects in the distribution: something the interface offers "
+              "that we have not yet driven, or a piece of our own "
+              "bookkeeping that has slipped.  Ours to close, not yours.",
+        "zh": "其中 **{n}** 項屬於本測試套件自身的問題，而不是釋出版本的"
+              "缺陷：可能是介面上有、但我們尚未驅動過的東西，也可能是"
+              "我們自己的作業流程出了紕漏。那部分該由我們補上，與您無關。",
     },
     "failure_split_none": {
         "en": "Every one of the {failed} failures is a test that "
               "demonstrates an issue below.",
         "zh": "{failed} 項失敗全部都是用來證明下列問題的測試。",
     },
-    "ours_head": {"en": ("Check", "What it says we have not driven"),
-                  "zh": ("對應檢查", "指出我們尚未驅動的部分")},
+    "ours_head": {"en": ("Check", "What it reported about us"),
+                  "zh": ("對應檢查", "它指出我們這邊的什麼問題")},
     "unclassified": {
         "en": "**{n} failure(s) in this run are not yet classified.**  They "
               "are not among the issues below and they are not one of our "
@@ -166,18 +167,6 @@ STRINGS: dict[str, dict] = {
     },
     "unclassified_head": {"en": ("Check", "What it reported"),
                           "zh": ("對應檢查", "回報的內容")},
-    #: A Chinese reason per check that reports one of our own gaps.  The
-    #: fallback is the test's own message, which is written in English
-    #: because it is written for whoever is fixing the suite -- so a new
-    #: gap reads in English in the Chinese report until it is given a row
-    #: here.  Better than a machine rendering of a sentence about our
-    #: internals, and the counts and the explanation around it are
-    #: translated either way.
-    "ours_reason_zh": {
-        "test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run":
-            "介面上可以到達、但本次執行從未實際請求過的端點；"
-            "完整清單見 artifacts/endpoint_coverage.json",
-    },
     "outcomes": {
         "en": {"passed": "passed", "failed": "failed", "error": "error",
                "xfailed": "xfailed (a known defect, still present)",
@@ -313,6 +302,10 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_lookups.py",
      "The code and address lists",
      "The dropdowns each form offers before a query is run"),
+    ("test_qbe_grid.py",
+     "The Query Builder's grid, cell by cell",
+     "Its eleven operators, four aggregates, sort row, join kinds and "
+     "what it does with a cell it cannot parse"),
     ("test_qbe.py",
      "The Query Builder",
      "Its whitelist, the SQL it shows the user, and its guards"),
@@ -374,6 +367,9 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "後端從不讀取的控制項、頁面讀不懂的回應、"
                                "沒有任何入口的功能"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
+    "test_qbe_grid.py": ("查詢建構器的格線，逐格檢查",
+                         "十一種運算子、四種彙總函數、排序列、連接方式，"
+                         "以及遇到無法剖析的儲存格時的行為"),
     "test_qbe.py": ("查詢建構器", "白名單、顯示給使用者的 SQL，以及各項防護"),
     "test_form_queries.py": ("六個單次查詢的表單",
                              "入仕、官職、社會地位、著述、社會關係、地點"
@@ -471,21 +467,34 @@ _SIGNATURE = re.compile(r"^(?:[\w.]+\.)?KnownShippedDefect(?::|\b)")
 _PHASES = ("call", "setup", "teardown")
 
 
-def signature_failures(run: dict, defect: Defect) -> list[str]:
-    """The defect's tests that failed *with its recognised signature*."""
-    found = []
+def signature_nodes(run: dict) -> set[str]:
+    """Every node id in the run that failed carrying the signature.
+
+    The whole run, filed or not.  ``signature_failures`` narrows this
+    to one entry's tests; the accountability gate in ``test_reports.py``
+    needs the other direction -- a finding raised by a test **no** entry
+    names -- and both should agree on what counts as a finding rather
+    than each deciding for itself.
+    """
+    found = set()
     for test in run["tests"]:
-        stem = test["nodeid"].split("[", 1)[0]
-        if not any(stem.endswith(name) for name in defect.tests):
-            continue
         if test["outcome"] not in ("failed", "error"):
             continue
         for phase in _PHASES:
             crash = (test.get(phase) or {}).get("crash") or {}
             if _SIGNATURE.match(crash.get("message", "").lstrip()):
-                found.append(test["nodeid"])
+                found.add(test["nodeid"])
                 break
     return found
+
+
+def signature_failures(run: dict, defect: Defect) -> list[str]:
+    """The defect's tests that failed *with its recognised signature*."""
+    raised = signature_nodes(run)
+    return [test["nodeid"] for test in run["tests"]
+            if test["nodeid"] in raised
+            and any(test["nodeid"].split("[", 1)[0].endswith(name)
+                    for name in defect.tests)]
 
 
 #: The checks that report a gap in **this suite** rather than a defect
@@ -502,7 +511,22 @@ SUITE_OWN_CHECKS: dict[str, dict[str, str]] = {
         "en": "an endpoint the interface can reach that this run never "
               "requested -- a hole in our coverage, not in the build",
         "zh": "介面可以到達、但本次執行從未請求過的端點——這是我們覆蓋範圍"
-              "的缺口，不是版本的缺陷",
+              "的缺口，不是版本的缺陷；完整清單見 "
+              "artifacts/endpoint_coverage.json",
+    },
+    "test_the_committed_report_still_says_what_the_registry_says": {
+        "en": "the committed report is older than the registry -- the "
+              "report was not regenerated after an entry changed, which "
+              "is our bookkeeping and not the build's",
+        "zh": "已提交的報告比登錄表舊——條目變更後沒有重新產生報告，"
+              "這是我們自己的作業疏漏，與版本無關",
+    },
+    "test_every_finding_this_run_raises_is_accounted_for": {
+        "en": "a finding in the last run was neither filed nor waived; "
+              "again our bookkeeping, and reported here so the count "
+              "below still reconciles",
+        "zh": "上一次執行中有一項發現既未登錄也未列入豁免；同樣是我們"
+              "自己的作業問題，列於此處是為了讓下方的數字仍然對得起來",
     },
 }
 
@@ -516,24 +540,33 @@ def ours_rows(ours: list[tuple[str, str]], lang: str) -> list[tuple[str, str]]:
     """The gap table's rows, in one language.\n\n"
     The reason a check gives is its own failure message, and those are
     written in English because they are written for whoever is fixing
-    the suite.  For the Chinese report a translated sentence is used
-    where one exists, with the measured English detail kept alongside it
-    -- dropping the measurement to translate the sentence would be a
-    worse trade, and machine-rendering a sentence about our internals a
-    worse one still.
+    the suite.  For the Chinese report the sentence from
+    ``SUITE_OWN_CHECKS`` is used, with the measured English detail kept
+    alongside it -- dropping the measurement to translate the sentence
+    would be a worse trade, and machine-rendering a sentence about our
+    internals a worse one still.
+
+    That sentence is read from ``SUITE_OWN_CHECKS`` and nowhere else.
+    It used to be read from a second table keyed by the same test
+    names, and the two drifted the moment a check was added: the entry
+    was written with both languages, and only the English of it was
+    ever rendered.  One table, and ``test_reports.py`` requires both
+    languages of every row in it.
     """
     rows = []
     for node, why in ours:
         name = node.split("::")[-1]
         if lang == "zh":
-            translated = STRINGS["ours_reason_zh"].get(name)
+            translated = SUITE_OWN_CHECKS.get(name, {}).get("zh")
             if translated:
                 why = f"{translated}（{why}）"
         rows.append((name, why))
     return rows
 
 
-def failures_by_kind(run: dict) -> tuple[list[str], list[tuple[str, str]]]:
+def failures_by_kind(
+        run: dict,
+) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]]]:
     """Split this run's failures into findings and our own gaps.\n\n"
     Returns three lists: the node ids that demonstrate a filed issue,
     the failures that are **this suite's own** gaps, and the failures
