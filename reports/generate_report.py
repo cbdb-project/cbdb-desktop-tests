@@ -302,6 +302,14 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_lookups.py",
      "The code and address lists",
      "The dropdowns each form offers before a query is run"),
+    ("test_group_data.py",
+     "The Group Data form",
+     "Its five section switches driven one at a time, and what it "
+     "answers when every one of them is off"),
+    ("test_pickers.py",
+     "The Entry and Status pickers",
+     "Their type trees: that every type offered has codes somewhere "
+     "beneath it, and that every parent named is a type that exists"),
     ("test_networks_filters.py",
      "The Networks form's filters",
      "Its kin and non-kin switches, the sex filter, and each of the "
@@ -372,6 +380,12 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "後端從不讀取的控制項、頁面讀不懂的回應、"
                                "沒有任何入口的功能"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
+    "test_group_data.py": ("分群資料表單",
+                           "五個區段開關逐一單獨驅動，以及全部關閉"
+                           "時它回傳什麼"),
+    "test_pickers.py": ("入仕途徑與社會地位的選擇視窗",
+                        "它們的類型樹：所提供的每個類型底下是否都有"
+                        "代碼，以及所指的每個上層類型是否真的存在"),
     "test_networks_filters.py": ("網絡表單的各項篩選",
                                  "親屬與非親屬開關、性別篩選，"
                                  "以及二十七個「確實有選取作用」的關聯"
