@@ -605,7 +605,9 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Code/associations_form_backend.go:1388",
                 "Code/networks_form_backend.go:2987",
                 "Data/cbdb.db.schema.sql:42"),
-        tests=("test_an_export_produces_a_well_formed_file",
+        tests=("test_the_place_search_helper_finds_the_places_the_"
+               "table_holds",
+               "test_an_export_produces_a_well_formed_file",
                "test_an_export_describes_the_people_the_"
                "grid_did",
                "test_an_export_is_repeatable",
@@ -1173,16 +1175,17 @@ _DEFECTS: tuple[Defect, ...] = (
     Defect(
         key="CBDB-D-011",
         priority="P5", severity="medium", origin="software",
-        title="Five shipped capabilities have no way in: Group Data's KML "
+        title="Six shipped capabilities have no way in: Group Data's KML "
               "exports, Association Pairs' KML writer, two autocomplete "
-              "endpoints, and the Places ASCII encoding",
-        title_zh="有五項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、"
-                 "關聯配對的 KML 輸出程式、兩個自動完成端點，"
-                 "以及地點表單的 ASCII 編碼",
+              "endpoints, the Places ASCII encoding, and the Places BAC "
+              "filter",
+        title_zh="有六項已隨版釋出的功能沒有任何入口：分群資料的 KML 匯出、"
+                 "關聯配對的 KML 輸出程式、兩個自動完成端點、"
+                 "地點表單的 ASCII 編碼，以及地點表單的 BAC 篩選",
         area="Group Data, Association Pairs, Networks, Places: unreachable "
              "features",
         area_zh="分群資料、關聯配對、網絡表單、地點：無法觸及的功能",
-        summary="Five pieces of finished work that no user of this build can "
+        summary="Six pieces of finished work that no user of this build can "
                 "reach.  `groupdata_form_backend.go` has six `req.Format == "
                 "\"kml\"` branches and `Templates/group_data/index.html` "
                 "does not contain the letters `kml` at all.  Association "
@@ -1193,8 +1196,13 @@ _DEFECTS: tuple[Defect, ...] = (
                 "`/api/networks/person-search` are routed, implemented, and "
                 "called by no template.  And `handleExportPajek` accepts "
                 "`encoding: \"ascii\"` while all five of the Places page's "
-                "export calls send the literal `'unicode'`.",
-        summary_zh="這是五項已經完成、但這一版的使用者都到不了的工作。"
+                "export calls send the literal `'unicode'`.  The sixth is not "
+                "an export but a filter: `PlaceQueryParams` "
+                "declares `FilterBAC`, `places_form_backend.go` honours it, "
+                "and `Templates/places/index.html` sends it as the literal "
+                "`filterBac: false` with nothing on the page able to write "
+                "to it.",
+        summary_zh="這是六項已經完成、但這一版的使用者都到不了的工作。"
                    "`groupdata_form_backend.go` 有六處 `req.Format == "
                    "\"kml\"` 分支，而 `Templates/group_data/index.html` "
                    "之中根本沒有出現 `kml` 這三個字母。關聯配對則是有字母"
@@ -1204,7 +1212,11 @@ _DEFECTS: tuple[Defect, ...] = (
                    "`/api/networks/person-search` 都已有路由、已實作，"
                    "卻沒有任何模板呼叫。而 `handleExportPajek` 接受 "
                    "`encoding: \"ascii\"`，但地點頁面五處匯出呼叫送出的"
-                   "都是寫死的 `'unicode'`。",
+                   "都是寫死的 `'unicode'`。第六項則不是匯出而是篩選："
+                   "`PlaceQueryParams` 宣告了 `FilterBAC`，"
+                   "`places_form_backend.go` 也確實依它篩選，而 "
+                   "`Templates/places/index.html` 送出的卻是寫死的 "
+                   "`filterBac: false`，頁面上沒有任何東西能改寫它。",
         evidence="Every backend that branches on `\"kml\"` was checked "
                  "against its own page for any mention of `kml` in any form "
                  "-- a control id, a value, a comment.  Nine backends carry "
@@ -1212,8 +1224,8 @@ _DEFECTS: tuple[Defect, ...] = (
                  "the one that fails it outright, with six branches and no "
                  "mention.  Association Pairs passes it only on the literal "
                  "`chkKML` in its markup, which CBDB-D-010 shows is a "
-                 "mention and not a route: hence five here rather than "
-                 "four.\n\nFor the endpoints, every `/api/` route in "
+                 "mention and not a route: hence six here rather than "
+                 "five.\n\nFor the endpoints, every `/api/` route in "
                  "`Code/*.go` was matched against every live template under "
                  "`Templates/`, **pickers included** -- which matters, since "
                  "both endpoints name a picker as their caller, and a survey "
@@ -1231,14 +1243,25 @@ _DEFECTS: tuple[Defect, ...] = (
                  "unconditionally, so the file it names `network_ascii.net` "
                  "opens with `EF BB BF`.  That last part is a defect in "
                  "unreachable code, recorded here for whoever connects the "
-                 "control rather than filed as something users can see.",
+                 "control rather than filed as something users can see."
+                 "\n\nFor the BAC filter, the page sends `filterBac:` "
+                 "followed by a literal -- currently `false` -- and the "
+                 "comment on that line (\"set to true and populate "
+                 "bacCodes when...\") is addressed to a developer.  Every "
+                 "site in the page that writes `filterBac` was collected "
+                 "and every one of them writes a literal; no "
+                 "`getElementById` names `filterBac` or its companion "
+                 "`bacCodes`.  The distinction from the Networks case "
+                 "(CBDB-D-010) is worth keeping: there the page sends a "
+                 "live value the handler ignores, here the handler honours "
+                 "a value the page can never vary.",
         evidence_zh="所有會依 `\"kml\"` 分支的後端檔案，都與其對應頁面"
                     "比對過「頁面中是否以任何形式出現 `kml`」——控制項 id、"
                     "值、註解皆可。共有九個後端含有這類分支，其中八個通過；"
                     "`group_data` 是徹底沒通過的那一個，有六處分支而頁面中"
                     "完全沒有提及。關聯配對之所以通過，只因為它的標記中有 "
                     "`chkKML` 這個字面；而 CBDB-D-010 已說明那只是「提到」"
-                    "而非「接通」——因此這裡是五項而不是四項。\n\n至於"
+                    "而非「接通」——因此這裡是六項而不是五項。\n\n至於"
                     "端點，則是把 `Code/*.go` 中所有 `/api/` 路由，與 "
                     "`Templates/` 之下所有仍在使用的模板逐一比對，**且包含"
                     "各選擇視窗**——這一點很重要，因為這兩個端點都指名某個"
@@ -1256,14 +1279,25 @@ _DEFECTS: tuple[Defect, ...] = (
                     "`network_ascii.net` 的檔案，開頭是 `EF BB BF`。"
                     "最後這一點是「到不了的程式碼中的缺陷」，記在此處是"
                     "留給日後接上該控制項的人參考，而不是列為使用者看得到"
-                    "的問題。",
+                    "的問題。\n\n至於 BAC 篩選，頁面送出的是 "
+                    "`filterBac:` 後面接一個字面值——目前是 `false`"
+                    "——而該行的註解（「set to true and populate bacCodes "
+                    "when...」）是寫給開發者看的。頁面中所有寫入 "
+                    "`filterBac` 之處都已蒐集，每一處寫的都是字面值；"
+                    "也沒有任何 `getElementById` 取用 `filterBac` 或其"
+                    "搭配欄位 `bacCodes`。這一項與網絡表單那一例"
+                    "（見 CBDB-D-010）的差別值得留意：那邊是頁面送出了"
+                    "真實的值而後端不理會，這邊則是後端確實依值篩選，"
+                    "而頁面永遠只能給同一個值。",
         impact="The GIS output a Group Data user can actually obtain is "
                "tab-separated only, so `groupWriteKMLStatus`, "
                "`groupWriteKMLOffice` and `groupWriteKMLOfficePeople` are "
                "code no user can run, and the mapping workflow the other "
                "forms offer is missing there.  Neither picker has the "
                "autocomplete that was written for it.  The Places export "
-               "offers one encoding of the two it implements.  None of this "
+               "offers one encoding of the two it implements, and the "
+               "Places search offers no way to restrict a biography by "
+               "address type, which is what `FilterBAC` was written to do.  None of this "
                "puts a wrong answer on screen -- it is finished work that "
                "shipped without its last connection.  Whether the "
                "unreachable code is itself correct is a separate question, "
@@ -1276,7 +1310,9 @@ _DEFECTS: tuple[Defect, ...] = (
                   "`groupWriteKMLOfficePeople` 是任何使用者都執行不到的"
                   "程式碼，其他表單所提供的地圖工作流程在該處也付之闕如。"
                   "兩個選擇視窗都沒有原本為它們寫好的自動完成功能。地點的"
-                  "匯出實作了兩種編碼，卻只提供其中一種。這些都不會在畫面上"
+                  "匯出實作了兩種編碼，卻只提供其中一種；地點查詢也沒有"
+                  "任何方式可以依地址類型限制傳記範圍，而那正是 "
+                  "`FilterBAC` 當初寫出來要做的事。這些都不會在畫面上"
                   "產生錯誤的結果——它們是少接了最後一段線路就釋出的成果。"
                   "至於這些到不了的程式碼本身是否正確，是另一個問題；"
                   "而此處有兩個地方答案是否定的：上述的位元組順序記號，"
@@ -1325,6 +1361,8 @@ _DEFECTS: tuple[Defect, ...] = (
                "for",
                "test_every_api_endpoint_the_build_routes_has_a_page_that_"
                "calls_it",
+               "test_a_filter_the_places_handler_offers_has_a_control_that_"
+               "can_set_it",
                "test_an_export_named_ascii_contains_ascii"),
     ),
     Defect(
@@ -2279,6 +2317,430 @@ _DEFECTS: tuple[Defect, ...] = (
         source=("Code/office_form_backend.go:480",
                 "Code/office_form_backend.go:496"),
         tests=("test_use_xy_does_not_treat_the_unmapped_corner_as_a_place",),
+    ),
+    Defect(
+        key="CBDB-D-021",
+        priority="P0", severity="high", origin="software",
+        title="A Query Builder criterion on a group function never "
+              "matches what it says: half the operators return nothing "
+              "and the other half return everything",
+        title_zh="查詢建構器中寫在群組函數上的條件，比對的從來不是它"
+                 "所說的內容：一半的運算子回傳空結果，另一半回傳全部",
+        area="Query Builder: HAVING",
+        area_zh="查詢建構器：HAVING",
+        summary="A criterion typed under a column that also carries a "
+                "group function becomes a `HAVING` clause -- the natural "
+                "way to ask *which dynasties have more than five people*.  "
+                "The clause is built correctly and shown to the user, and "
+                "the comparison inside it is never true or never false, "
+                "depending only on which way the operator points.  The "
+                "operand is bound as a string: it is parsed out of the "
+                "text the user typed and never converted.",
+        summary_zh="若某個欄位同時填了條件與群組函數，這個條件就會變成 "
+                   "`HAVING` 子句——這正是「哪些朝代的人數超過五人」最"
+                   "自然的問法。該子句組得完全正確、也顯示給了使用者，"
+                   "但其中的比較不是恆假就是恆真，取決於運算子的方向。"
+                   "原因是運算元以字串綁定：它是從使用者輸入的文字剖析"
+                   "出來的，之後從未做過型別轉換。",
+        evidence="Driven through the shipped binary, grouping `BIOG_MAIN` "
+                 "by `c_dy` (79 groups) and putting a criterion on the "
+                 "aggregated column:\n\n"
+                 "| criterion | with `Max` | with `Count` |\n"
+                 "|---|---|---|\n"
+                 "| `> 1200` | 0 groups | 0 groups |\n"
+                 "| `= 1284` | 0 groups | 0 groups |\n"
+                 "| `< 1200` | **72 groups** | **79 groups** |\n"
+                 "| `<= 1200` | **72 groups** | **79 groups** |\n"
+                 "| `<> 1200` | **72 groups** | **79 groups** |\n\n"
+                 "The lower half is the worse half.  `Max < 1200` returns "
+                 "groups whose maximum is 1802, 1732 and 1284; `Count < "
+                 "1200` returns a group of 2,649 people and another of "
+                 "237,423.  The number contradicting the filter is "
+                 "displayed in the very next column.\n\n"
+                 "Why: SQLite applies a column's declared affinity to the "
+                 "value it is compared with, so `c_index_year > '1200'` in "
+                 "a WHERE clause converts the string and behaves -- which "
+                 "is why every ungrouped criterion in the grid is fine.  "
+                 "`MAX(...)` and `COUNT(...)` are expressions and have no "
+                 "affinity, so the comparison stays integer-against-text, "
+                 "and SQLite orders every integer before every string.  "
+                 "The condition is therefore false for every group under "
+                 "`>` and `=`, and true for every group under `<`, `<=` "
+                 "and `<>`.\n\n"
+                 "Scope, measured rather than assumed, and pinned by "
+                 "a test so that clearing this registry does not delete "
+                 "it.  Of the 1,386 columns the whitelist offers, exactly "
+                 "three lack a declared type -- "
+                 "`View_BiogSourceData.c_hyperlink`, "
+                 "`View_KinAddr.c_node_index_year_type_desc` and "
+                 "`View_PeopleData.c_index_year_type_desc`, all built from "
+                 "expressions inside their views -- and every value in "
+                 "them is text or null, so a string operand is the right "
+                 "one there and nothing is wrong with them today.  Two "
+                 "footnotes, because a reader recounting will hit both.  "
+                 "`c_hyperlink` holds no values at all (0 non-null of "
+                 "1,253,092 rows), so a comparison there returns nothing "
+                 "however the operand is bound and it cannot show this "
+                 "difference either way; the claim rests on the other "
+                 "two.  And a fourth column looks like a candidate and is "
+                 "not: the whitelist offers "
+                 "`View_KinAddr.c_index_year_type_desc`, the view exposes "
+                 "that column as `c_index_year_type_desc:1`, so the name "
+                 "the grid sends resolves to nothing and the query errors "
+                 "before any comparison happens.  That is the "
+                 "renamed-column defect, and 30 offered columns are in "
+                 "that state.  Every "
+                 "other offered column carries a declared type and is "
+                 "rescued by its affinity.  So the trigger is the missing "
+                 "affinity rather than the aggregate, and an aggregate is "
+                 "simply the only place in this build where a user meets "
+                 "it while comparing numbers.  A view column that started "
+                 "holding numbers would be the second.",
+        evidence_zh="以釋出的執行檔實測，將 `BIOG_MAIN` 依 `c_dy` 分組"
+                    "（79 組），並在被彙總的欄位上加條件：\n\n"
+                    "| 條件 | 搭配 `Max` | 搭配 `Count` |\n"
+                    "|---|---|---|\n"
+                    "| `> 1200` | 0 組 | 0 組 |\n"
+                    "| `= 1284` | 0 組 | 0 組 |\n"
+                    "| `< 1200` | **72 組** | **79 組** |\n"
+                    "| `<= 1200` | **72 組** | **79 組** |\n"
+                    "| `<> 1200` | **72 組** | **79 組** |\n\n"
+                    "下半部才是更糟的一半。`Max < 1200` 回傳的組，其"
+                    "最大值分別是 1802、1732 與 1284；`Count < 1200` "
+                    "回傳一個 2,649 人的組，以及另一個 237,423 人的組。"
+                    "與篩選條件互相矛盾的那個數字，就顯示在緊鄰的下一欄。"
+                    "\n\n"
+                    "原因在於：SQLite 會把欄位所宣告的型別親和性套用到與"
+                    "之比較的值上，因此 WHERE 子句中的 `c_index_year > "
+                    "'1200'` 會先轉換字串再比較，一切正常——這也正是"
+                    "查詢建構器中所有未分組的條件都沒問題的原因。但 "
+                    "`MAX(...)` 與 `COUNT(...)` 是運算式、沒有型別親和性，"
+                    "比較因而維持「整數對字串」，而 SQLite 會把所有整數"
+                    "排在所有字串之前。於是在 `>` 與 `=` 之下，這個條件"
+                    "對每一組都不成立；在 `<`、`<=` 與 `<>` 之下，則對"
+                    "每一組都成立。\n\n"
+                    "影響範圍是實際量測的，而非臆測，並且已由測試釘住，"
+                    "使得清空本登錄表不會把它一併刪去。白名單所提供的 "
+                    "1,386 個欄位之中，恰好有三個沒有宣告型別——"
+                    "`View_BiogSourceData.c_hyperlink`、"
+                    "`View_KinAddr.c_node_index_year_type_desc` 與 "
+                    "`View_PeopleData.c_index_year_type_desc`，三者都是"
+                    "檢視內部由運算式構成的欄位——而它們的值全都是文字或"
+                    "null，因此字串運算元對它們反而是正確的，今天並沒有"
+                    "問題。這裡有兩點附註，因為重新清點的人一定會碰到。"
+                    "其一，`c_hyperlink` 根本沒有任何值（1,253,092 列中"
+                    "有 0 列非 null），無論運算元以何種型別綁定，對它的"
+                    "比較都不會回傳任何東西，因此它兩邊都證明不了；這項"
+                    "論斷實際上是靠另外兩個欄位成立的。其二，有第四個"
+                    "欄位看起來像候選，其實不是：白名單提供 "
+                    "`View_KinAddr.c_index_year_type_desc`，而該檢視實際"
+                    "曝露的欄位名是 `c_index_year_type_desc:1`，因此格線"
+                    "送出的名稱找不到對應欄位，查詢在任何比較發生之前就"
+                    "已出錯。那屬於「欄位改名」的缺陷，目前共有 30 個"
+                    "被提供的欄位處於該狀態。其餘所有被提供的欄位都帶有"
+                    "宣告型別，會被型別親和性所救。可見真正的觸發條件是缺少親和性，而不是"
+                    "彙總本身；只是在這一版中，彙總是使用者唯一會在比較"
+                    "數字時碰上它的地方。若哪一天某個檢視欄位開始存放"
+                    "數字，那就會是第二個。",
+        impact="Every grouped query with a criterion answers the wrong "
+               "question, and the two ways it does so are both bad.  "
+               "Asking for the groups above a threshold gives an empty "
+               "grid, which at least looks like an answer worth "
+               "doubting.  Asking for the groups *below* one gives every "
+               "group in the table, with the contradicting figure printed "
+               "beside each -- a result a reader is far more likely to "
+               "act on.  Counting and totalling and then keeping the "
+               "groups that matter is what the Group row is for, and it "
+               "is the kind of question a query builder exists to answer.  "
+               "The SQL panel makes it worse by showing a statement that "
+               "would be right if its parameter were a number.",
+        impact_zh="所有帶條件的分組查詢，回答的都不是使用者問的問題，"
+                  "而它出錯的兩種方式都很糟。查詢「超過某個門檻的組」"
+                  "會得到一片空白，這至少看起來還像一個值得懷疑的答案。"
+                  "查詢「低於某個門檻的組」則會得到資料表中的每一組，"
+                  "而且每一組旁邊都印著與條件互相矛盾的數字——這種結果"
+                  "讀者更可能信以為真並據以行動。先計數、加總，再留下"
+                  "值得關注的組，正是分組列存在的意義，也正是查詢建構器"
+                  "應該回答的那類問題。SQL 面板還讓情況雪上加霜：它顯示"
+                  "的那個語句，只要參數是數字就會是正確的。",
+        fix="Convert the operand when the criterion is parsed, or bind it "
+            "typed.  A criterion whose text is a number should reach the "
+            "driver as a number; the parser already distinguishes the two "
+            "cases, since it strips quotes from the values that are meant "
+            "to be text.  Casting in the SQL would also work and is "
+            "worse: it would have to be repeated at every comparison and "
+            "would break the text columns.  Worth fixing at the binding "
+            "rather than in `buildHavingClause`, because the cause is the "
+            "operand's type and the aggregate is only where it shows.",
+        fix_zh="請在剖析條件時就完成型別轉換，或以帶型別的方式綁定。"
+               "條件文字若是數字，送到驅動層時就該是數字；剖析器本來就"
+               "分得出這兩種情況，因為它會替真正屬於文字的值去掉引號。"
+               "在 SQL 裡加轉型雖然也能奏效，但比較差：那必須在每一處"
+               "比較都重複一次，而且會弄壞文字欄位。建議從綁定處著手"
+               "修正，而不是改 `buildHavingClause`，因為根因在運算元的"
+               "型別，彙總只是它顯現出來的地方。",
+        steps=(
+            "Open the Query Builder and add BIOG_MAIN.",
+            "Put c_dy in one column with Group by, and c_personid in the "
+            "next with Count.",
+            "Type > 5 in the criteria cell under c_personid and run it: "
+            "the grid is empty.",
+            "Change it to < 5 and run again: every dynasty comes back, "
+            "including ones whose count column reads 237423.",
+        ),
+        steps_zh=(
+            "開啟查詢建構器，加入 BIOG_MAIN。",
+            "在一欄放入 c_dy 並選 Group by，下一欄放入 c_personid "
+            "並選 Count。",
+            "在 c_personid 的條件格中輸入 > 5 後執行：表格是空的。",
+            "改成 < 5 再執行一次：每一個朝代都回來了，包括計數欄顯示 "
+            "237423 的那一個。",
+        ),
+        source=("Code/qbe_criteria.go:125",
+                "Code/qbe_sqlgen.go:buildHavingClause"),
+        tests=("test_a_criterion_under_an_aggregate_filters_the_groups",
+               "test_the_columns_with_no_affinity_are_the_ones_the_entry_"
+               "names"),
+    ),
+    Defect(
+        key="CBDB-D-022",
+        priority="P0", severity="high", origin="software",
+        title="A Query Builder In(...) list splits a quoted value at the "
+              "comma inside it, and silently drops what it broke",
+        title_zh="查詢建構器的 In(...) 清單會在引號內的逗號處把值切開，"
+                 "並默默丟棄被切壞的部分",
+        area="Query Builder: the In operator",
+        area_zh="查詢建構器：In 運算子",
+        summary="The parenthesised list is split on every comma with "
+                "`strings.Split`, ignoring the quotes the tokenizer "
+                "elsewhere in the same file exists to respect.  A value "
+                "containing a comma therefore becomes two operands, "
+                "neither of which matches anything, and the query answers "
+                "without a word about it.",
+        summary_zh="括號內的清單是用 `strings.Split` 依每一個逗號切開的，"
+                   "完全忽略同一個檔案中另有一個專門用來尊重引號的"
+                   "斷詞函式。因此，只要值裡含有逗號，它就會變成兩個"
+                   "運算元，而這兩個都比對不到任何東西——查詢照樣回應，"
+                   "隻字未提。",
+        evidence="Driven through the shipped binary on "
+                 "`BIOG_MAIN.c_name`, using a name the database holds:\n\n"
+                 "* `=\"Chen Shi (Mother, Nominal of Lie)\"` "
+                 "returns **1 row** -- the operator works and the name is "
+                 "there;\n"
+                 "* `In (\"Chen Shi (Mother, Nominal of Lie)\")` "
+                 "returns **0 rows**, and the SQL shows `IN (?,?)` -- one "
+                 "value became two;\n"
+                 "* `In (\"Chen Shi (Mother, Nominal of Lie)\", "
+                 "\"Weixiang\")` returns **1 row**, and it is "
+                 "the Weixiang one.  The other name is gone, the status is "
+                 "ok, and nothing is said.\n\n"
+                 "690 names in `BIOG_MAIN.c_name` contain a comma, and "
+                 "the pattern is normal in this data -- it is how a woman "
+                 "identified by her relationships is recorded.  The same "
+                 "applies to every text column a user can filter.",
+        evidence_zh="以釋出的執行檔在 `BIOG_MAIN.c_name` 上實測，"
+                    "使用資料庫中確實存在的姓名：\n\n"
+                    "* `=\"Chen Shi (Mother, Nominal of Lie)\"` "
+                    "回傳 **1 列**——運算子沒問題，這個名字也確實存在；\n"
+                    "* `In (\"Chen Shi (Mother, Nominal of Lie)\")` "
+                    "回傳 **0 列**，而 SQL 顯示的是 `IN (?,?)`——一個值"
+                    "變成了兩個；\n"
+                    "* `In (\"Chen Shi (Mother, Nominal of Lie)\", "
+                    "\"Weixiang\")` 回傳 **1 列**，而且是 "
+                    "Weixiang 那一筆。另一個名字消失了，狀態仍是 ok，"
+                    "沒有任何提示。\n\n"
+                    "`BIOG_MAIN.c_name` 中有 690 個姓名含有逗號，"
+                    "而這個型態在本資料中是常態——以親屬關係來標識的"
+                    "女性正是這樣記錄的。使用者可以篩選的每一個文字欄位"
+                    "都有同樣的問題。",
+        impact="A scholar pasting a list of names into an In(...) cell "
+               "gets an answer that quietly omits everyone whose name "
+               "contains a comma -- which in this data means the women "
+               "recorded by their relationships.  Nothing marks the "
+               "omission, and the same name typed with `=` works, so "
+               "there is no reason to suspect the list.",
+        impact_zh="研究者若把一串姓名貼進 In(...) 儲存格，得到的答案會"
+                  "悄悄漏掉所有名字裡含有逗號的人——在本資料中，那意味著"
+                  "以親屬關係記錄的女性。沒有任何地方標示這項遺漏，"
+                  "而同一個名字改用 `=` 又是好的，因此使用者完全沒有理由"
+                  "去懷疑那份清單。",
+        fix="Split the list with the tokenizer that already respects "
+            "quotes -- it is in the same file and was written for exactly "
+            "this -- rather than with `strings.Split(raw, \",\")`.",
+        fix_zh="請改用同一個檔案中既有、且本來就是為此而寫的那個會尊重"
+               "引號的斷詞函式來切分清單，而不要使用 "
+               "`strings.Split(raw, \",\")`。",
+        steps=(
+            "In the Query Builder, add BIOG_MAIN and show c_name.",
+            "Type =\"Chen Shi (Mother, Nominal of Lie)\" as the "
+            "criterion and run it: one row.",
+            "Change it to In (\"Chen Shi (Mother, Nominal of Lie)\") "
+            "and run again: no rows, and the SQL panel shows two "
+            "placeholders for one name.",
+        ),
+        steps_zh=(
+            "在查詢建構器中加入 BIOG_MAIN，顯示 c_name。",
+            "條件填入 =\"Chen Shi (Mother, Nominal of Lie)\" 後執行："
+            "一列。",
+            "改成 In (\"Chen Shi (Mother, Nominal of Lie)\") 再執行："
+            "沒有任何列，而 SQL 面板顯示一個名字用了兩個佔位符。",
+        ),
+        source=("Code/qbe_criteria.go:328",
+                "Code/qbe_criteria.go:tokenizeRespectingQuotes"),
+        tests=("test_an_in_list_keeps_a_value_that_contains_a_comma",),
+    ),
+    Defect(
+        key="CBDB-D-023",
+        priority="P0", severity="medium", origin="software",
+        title="Criterion text that names an operator but is not "
+              "spelled like one becomes a search for that text",
+        title_zh="條件文字若寫的是運算子的名稱、格式卻不符，就會變成"
+                 "對那串文字本身的搜尋",
+        area="Query Builder: the criterion parser",
+        area_zh="查詢建構器：條件剖析器",
+        summary="Two places decide whether a cell holds an operator, "
+                "and they disagree by one character.  The dispatcher "
+                "tests `HasPrefix(text, \"BETWEEN\")`; the parser it "
+                "hands off to tests `HasPrefix(text, \"BETWEEN \")`, "
+                "with a trailing space.  Text that satisfies the first "
+                "and not the second falls through to the branch that "
+                "treats a cell as a bare value, so `Between1100And1200` "
+                "-- and `Like` alone, by the same shape -- becomes an "
+                "equality test against the literal text the user typed.  A tab "
+                "instead of a space fails by a different route and with "
+                "the opposite result: the tokenizer splits on the space "
+                "character only, so the rest of the criterion is "
+                "swallowed into the first comparison's operand.  The "
+                "upper bound never reaches the SQL -- but the operand is "
+                "now a string, and against a column with INTEGER "
+                "affinity it will not convert, so the comparison is "
+                "false for every row and the answer comes back empty "
+                "rather than wide.",
+        summary_zh="有兩處在判斷一個儲存格裡是不是運算子，"
+                   "而這兩處差了一個字元：分派處檢查的是 "
+                   "`HasPrefix(text, \"BETWEEN\")`，它所交給的剖析函式"
+                   "檢查的則是 `HasPrefix(text, \"BETWEEN \")`，後面多"
+                   "一個空白。凡是符合前者卻不符合後者的文字，就會落到"
+                   "「把儲存格當成純值」的分支，因此 "
+                   "`Between1100And1200`——以及形狀相同的單獨一個 "
+                   "`Like`——都會變成對使用者所輸入文字本身的等值比對。"
+                   "若以定位字元代替空白，則是另一條出錯路徑，結果恰好"
+                   "相反：斷詞函式只依空白字元切分，於是條件的其餘部分"
+                   "會被吞進第一個比較的運算元裡。上界確實沒有進到 SQL"
+                   "，但此時運算元已是一個字串，對上具有 INTEGER "
+                   "類型親和性的欄位無法轉為數字，因此該比較對每一列"
+                   "都不成立，回傳的是空的結果，而不是更寬的範圍。",
+        evidence="Driven through the shipped binary.  `Like` alone in a "
+                 "criterion cell on a numeric column produces `WHERE "
+                 "c_index_year = ?` bound to the string `Like`, answers "
+                 "200 with zero rows and no message.  `Between1100And1200` "
+                 "likewise.  Both name an operator the grid's own grammar "
+                 "documents, which is what separates them from a value "
+                 "the parser is right to accept: `Not 1200` also becomes "
+                 "an equality, and that is correct, because `Not` is not "
+                 "in the grammar's operator list at all.\n\n"
+                 "The tab case drops the upper bound and then returns "
+                 "nothing at all.  A criterion of `>1434`, tab, `And`, "
+                 "tab, `<1534` keeps only the first comparison, with the "
+                 "rest absorbed into its operand.  Dropping the upper "
+                 "bound on its own would widen the band; what happens "
+                 "instead is that the operand is the string "
+                 "`1434<TAB>And<TAB><1534`, and `c_index_year` is "
+                 "`smallint(6)`, so SQLite tries the column's INTEGER "
+                 "affinity on it, cannot make a number of it, leaves it "
+                 "TEXT, and sorts every integer before every string: the "
+                 "comparison is false for every row.  Measured, the same "
+                 "band written both ways -- 72,975 rows with spaces, "
+                 "none with tabs.  On a column with no "
+                 "declared affinity the widening would be the real "
+                 "outcome, and the grid offers three such columns "
+                 "(CBDB-D-021 names them).  A criterion cell is a plain "
+                 "text input, so a tab arrives by pasting.\n\n"
+                 "Four other malformed criteria are refused properly, "
+                 "with HTTP 400 and a readable message -- `Between 1100`, "
+                 "`In (`, a bare `>`, and `> 1100 And`.  The parser is "
+                 "therefore not missing a validation step in general; "
+                 "these particular shapes reach a branch that treats "
+                 "anything it does not recognise as a value.",
+        evidence_zh="以釋出的執行檔實測。在數值欄位的條件格中單獨填入 "
+                    "`Like`，會產生 `WHERE c_index_year = ?` 並綁定字串 "
+                    "`Like`，回應 200、零列，且沒有任何提示。"
+                    "`Between1100And1200` 亦同。這兩者寫的都是格線自身"
+                    "文法所記載的運算子名稱，而這正是它們與「剖析器本就"
+                    "應當接受的值」之間的分野：`Not 1200` 同樣會變成等值"
+                    "比對，但那是正確的，因為 `Not` 根本不在該文法的"
+                    "運算子清單之中。\n\n"
+                    "定位字元的情況是先丟掉上界，然後什麼也回傳不了。"
+                    "條件若為 `>1434`、定位字元、`And`、定位字元、"
+                    "`<1534`，只會保留第一個比較，其餘全被吸收進它的"
+                    "運算元。單單丟掉上界本應使範圍變寬；但此時運算元"
+                    "是字串 `1434<定位字元>And<定位字元><1534`，而 "
+                    "`c_index_year` 的宣告型別是 `smallint(6)`，"
+                    "SQLite 會先試著以該欄位的 INTEGER 親和性轉換它，"
+                    "轉不成，於是保留為 TEXT；而整數一律排在字串之前，"
+                    "因此該比較對每一列都不成立。實測同一個範圍的兩種"
+                    "寫法：用空白時是 72,975 列，用定位字元時是零列。"
+                    "若欄位沒有宣告任何型別親和性，變寬才會是真正的"
+                    "結果，而格線正好提供了三個這樣的欄位"
+                    "（CBDB-D-021 列出了它們）。條件格是純文字輸入"
+                    "欄位，定位字元會經由貼上而進入。\n\n"
+                    "另有四種格式錯誤的條件是被正確拒絕的，回應 HTTP "
+                    "400 並附上可讀的訊息——`Between 1100`、`In (`、"
+                    "單獨的 `>`，以及 `> 1100 And`。可見剖析器整體並非"
+                    "缺少驗證步驟；是這幾種特定寫法落到了一個「凡是不認得"
+                    "的就當成值」的分支。",
+        impact="A user who mistypes an operator is not told.  They are "
+               "shown an empty result for a query they did not write, "
+               "and it reads as an absence in the data.  There is "
+               "nothing on screen to distinguish it from a correct "
+               "answer.  The tab case is the one that would be worst "
+               "elsewhere: the upper bound really is gone from the SQL, "
+               "so the same paste into a criterion on a column without a "
+               "numeric affinity returns a wider band than was asked "
+               "for -- the direction nobody checks, because a result "
+               "that is too large still looks like a result.",
+        impact_zh="使用者若把運算子打錯，不會得到任何告知。他看到的是"
+                  "一個他並沒有寫過的查詢的空結果，而那讀起來像是"
+                  "資料本身的缺漏。畫面上沒有任何東西能把它與正確答案"
+                  "區分開來。定位字元那一種在別處才會是最糟的：上界"
+                  "確實已從 SQL 中消失，因此同樣的貼上動作若落在一個"
+                  "沒有數值親和性的欄位上，回傳的範圍就會比使用者所"
+                  "要求的更寬——那才是沒有人會去檢查的方向，因為結果"
+                  "過多看起來仍然像是一份結果。",
+        fix="Require the separator in the prefix check as well as in the "
+            "parse, so the two agree, and treat text that matches an "
+            "operator name but not its shape as an error rather than as a "
+            "value.  For the tokenizer, split on whitespace rather than "
+            "on the space character.",
+        fix_zh="請讓前綴檢查與實際剖析採用相同的判準——兩處都要求分隔"
+               "符——並把「符合運算子名稱、但不符合其語法形狀」的文字"
+               "視為錯誤，而不是當成一個值。至於斷詞函式，請依空白類"
+               "字元切分，而不要只依空白字元。",
+        steps=(
+            "In the Query Builder, put Like on its own in a criteria cell "
+            "on a numeric column and run it: 200, no rows, no message, "
+            "and the SQL panel shows an equality.",
+            "Try Between1100And1200 with no spaces: the same.",
+            "Paste >1434<TAB>And<TAB><1534 into the cell: the upper "
+            "bound is gone from the SQL and the grid returns no rows, "
+            "where the same band typed with spaces returns tens of "
+            "thousands.",
+        ),
+        steps_zh=(
+            "在查詢建構器中，於某個數值欄位的條件格內單獨填入 Like "
+            "後執行：回應 200、沒有任何列、沒有提示，而 SQL 面板顯示的"
+            "是一個等值比較。",
+            "改試沒有空白的 Between1100And1200：結果相同。",
+            "把 >1434<定位字元>And<定位字元><1534 貼進該格：SQL 中的"
+            "上界不見了，而且一列也沒有回傳；同樣的範圍改用空白書寫時"
+            "則有數萬列。",
+        ),
+        source=("Code/qbe_criteria.go:195",
+                "Code/qbe_criteria.go:309",
+                "Code/qbe_criteria.go:286",
+                "Code/qbe_criteria.go:344"),
+        tests=("test_a_criterion_the_grid_cannot_parse_is_not_silently_"
+               "reinterpreted",),
     ),
 )
 

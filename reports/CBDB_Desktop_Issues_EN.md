@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-10 07:28 UTC from a run of 1342 tests (407s)._
+_Generated 2026-09-10 11:23 UTC from a run of 1389 tests (417s)._
 
 Dear maintainer,
 
@@ -18,21 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1057 |
-| failed | 100 |
+| passed | 1103 |
+| failed | 101 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 182 |
 
-Of the 100 failures, **96** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **4** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
-
-**4 failure(s) in this run are not yet classified.**  They are not among the issues below and they are not one of our known coverage gaps, which means this run found something nobody has looked at yet.  Each may turn out to be a defect worth filing or a problem with the check itself; please read them rather than trusting this list to be complete.
-
-| Check | What it reported |
-| --- | --- |
-| `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it` | the Places page hard-codes filterBac: false and offers no control that can change it, so the BAC filter PlaceQueryParams declares and places_form_backend.go honours cannot be switched on by any user o |
-| `test_the_place_search_helper_finds_the_places_the_table_holds` | /api/networks/place-search?q=Zhou returned 200 and an empty list; 3692 rows of ADDR_CODES carry that word in their name. c_admin_type is varchar(255) holding text and the handler scans it into an int |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-017.evidence', ' |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-017.evidenc |
+Every one of the 101 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
@@ -44,6 +35,7 @@ Of the 100 failures, **96** are the tests that demonstrate the issues below -- t
 | Passing a result from one form to another | 18 | The stored-person list: what one form stores, another recalls |
 | Each page against its own handler | 13 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
 | The code and address lists | 41 | The dropdowns each form offers before a query is run |
+| The Query Builder's grid, cell by cell | 34 | Its eleven operators, four aggregates, sort row, join kinds and what it does with a cell it cannot parse |
 | The Query Builder | 51 | Its whitelist, the SQL it shows the user, and its guards |
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
 | The forms that remember | 17 | Kinship, networks, association pairs, group data — working lists |
@@ -55,9 +47,9 @@ Of the 100 failures, **96** are the tests that demonstrate the issues below -- t
 | The working tables | 7 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
-| This report's own sources | 61 | That every issue below still cites real code, in both languages |
-| This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1342 |  |
+| This report's own sources | 70 | That every issue below still cites real code, in both languages |
+| This report itself | 27 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
+| every test in this run | 1389 |  |
 
 ## Agreed to leave for now
 
@@ -86,13 +78,16 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-018 | P0 | CONFIRMED | Two dynasties the picker offers cannot be filtered on: one end returns everything, the other returns nothing |
 | CBDB-D-019 | P0 | CONFIRMED | The Places form and the other five disagree about a dynasty that begins in the year the range ends |
 | CBDB-D-020 | P0 | CONFIRMED | Use XY treats the unmapped corner at 0,0 as a place, so it merges hundreds of unrelated addresses |
+| CBDB-D-021 | P0 | CONFIRMED | A Query Builder criterion on a group function never matches what it says: half the operators return nothing and the other half return everything |
+| CBDB-D-022 | P0 | CONFIRMED | A Query Builder In(...) list splits a quoted value at the comma inside it, and silently drops what it broke |
+| CBDB-D-023 | P0 | CONFIRMED | Criterion text that names an operator but is not spelled like one becomes a search for that text |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
 | CBDB-D-009 | P2 | CONFIRMED | Four Association Pairs export buttons report "Unknown error" on exports that succeeded |
 | CBDB-D-007 | P3 | CONFIRMED | The distribution ships ten dated working copies of its own templates |
 | CBDB-D-014 | P3 | CONFIRMED | The front page's Users Guide link is a 404: the PDF is not in the distribution |
-| CBDB-D-011 | P5 | CONFIRMED | Five shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, and the Places ASCII encoding |
+| CBDB-D-011 | P5 | CONFIRMED | Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter |
 
 ## Table of contents
 
@@ -109,13 +104,16 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-018 — Two dynasties the picker offers cannot be filtered on: one end returns everything, the other returns nothing](#cbdb-d-018--two-dynasties-the-picker-offers-cannot-be-filtered-on-one-end-returns-everything-the-other-returns-nothing)
 - [CBDB-D-019 — The Places form and the other five disagree about a dynasty that begins in the year the range ends](#cbdb-d-019--the-places-form-and-the-other-five-disagree-about-a-dynasty-that-begins-in-the-year-the-range-ends)
 - [CBDB-D-020 — Use XY treats the unmapped corner at 0,0 as a place, so it merges hundreds of unrelated addresses](#cbdb-d-020--use-xy-treats-the-unmapped-corner-at-00-as-a-place-so-it-merges-hundreds-of-unrelated-addresses)
+- [CBDB-D-021 — A Query Builder criterion on a group function never matches what it says: half the operators return nothing and the other half return everything](#cbdb-d-021--a-query-builder-criterion-on-a-group-function-never-matches-what-it-says-half-the-operators-return-nothing-and-the-other-half-return-everything)
+- [CBDB-D-022 — A Query Builder In(...) list splits a quoted value at the comma inside it, and silently drops what it broke](#cbdb-d-022--a-query-builder-in-list-splits-a-quoted-value-at-the-comma-inside-it-and-silently-drops-what-it-broke)
+- [CBDB-D-023 — Criterion text that names an operator but is not spelled like one becomes a search for that text](#cbdb-d-023--criterion-text-that-names-an-operator-but-is-not-spelled-like-one-becomes-a-search-for-that-text)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
 - [CBDB-D-009 — Four Association Pairs export buttons report "Unknown error" on exports that succeeded](#cbdb-d-009--four-association-pairs-export-buttons-report-unknown-error-on-exports-that-succeeded)
 - [CBDB-D-007 — The distribution ships ten dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-ten-dated-working-copies-of-its-own-templates)
 - [CBDB-D-014 — The front page's Users Guide link is a 404: the PDF is not in the distribution](#cbdb-d-014--the-front-pages-users-guide-link-is-a-404-the-pdf-is-not-in-the-distribution)
-- [CBDB-D-011 — Five shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, and the Places ASCII encoding](#cbdb-d-011--five-shipped-capabilities-have-no-way-in-group-datas-kml-exports-association-pairs-kml-writer-two-autocomplete-endpoints-and-the-places-ascii-encoding)
+- [CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter](#cbdb-d-011--six-shipped-capabilities-have-no-way-in-group-datas-kml-exports-association-pairs-kml-writer-two-autocomplete-endpoints-the-places-ascii-encoding-and-the-places-bac-filter)
 - [Severity legend](#severity-legend)
 - [Reproducing this report](#reproducing-this-report)
 
@@ -703,6 +701,157 @@ Exclude the sentinel from the widening: require `x_coord <> 0 OR y_coord <> 0` o
 
 - 1 × failed: `test_use_xy_does_not_treat_the_unmapped_corner_as_a_place`
 
+## CBDB-D-021 — A Query Builder criterion on a group function never matches what it says: half the operators return nothing and the other half return everything
+
+**Affected area:** Query Builder: HAVING
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+A criterion typed under a column that also carries a group function becomes a `HAVING` clause -- the natural way to ask *which dynasties have more than five people*.  The clause is built correctly and shown to the user, and the comparison inside it is never true or never false, depending only on which way the operator points.  The operand is bound as a string: it is parsed out of the text the user typed and never converted.
+
+#### Evidence
+
+Driven through the shipped binary, grouping `BIOG_MAIN` by `c_dy` (79 groups) and putting a criterion on the aggregated column:
+
+| criterion | with `Max` | with `Count` |
+|---|---|---|
+| `> 1200` | 0 groups | 0 groups |
+| `= 1284` | 0 groups | 0 groups |
+| `< 1200` | **72 groups** | **79 groups** |
+| `<= 1200` | **72 groups** | **79 groups** |
+| `<> 1200` | **72 groups** | **79 groups** |
+
+The lower half is the worse half.  `Max < 1200` returns groups whose maximum is 1802, 1732 and 1284; `Count < 1200` returns a group of 2,649 people and another of 237,423.  The number contradicting the filter is displayed in the very next column.
+
+Why: SQLite applies a column's declared affinity to the value it is compared with, so `c_index_year > '1200'` in a WHERE clause converts the string and behaves -- which is why every ungrouped criterion in the grid is fine.  `MAX(...)` and `COUNT(...)` are expressions and have no affinity, so the comparison stays integer-against-text, and SQLite orders every integer before every string.  The condition is therefore false for every group under `>` and `=`, and true for every group under `<`, `<=` and `<>`.
+
+Scope, measured rather than assumed, and pinned by a test so that clearing this registry does not delete it.  Of the 1,386 columns the whitelist offers, exactly three lack a declared type -- `View_BiogSourceData.c_hyperlink`, `View_KinAddr.c_node_index_year_type_desc` and `View_PeopleData.c_index_year_type_desc`, all built from expressions inside their views -- and every value in them is text or null, so a string operand is the right one there and nothing is wrong with them today.  Two footnotes, because a reader recounting will hit both.  `c_hyperlink` holds no values at all (0 non-null of 1,253,092 rows), so a comparison there returns nothing however the operand is bound and it cannot show this difference either way; the claim rests on the other two.  And a fourth column looks like a candidate and is not: the whitelist offers `View_KinAddr.c_index_year_type_desc`, the view exposes that column as `c_index_year_type_desc:1`, so the name the grid sends resolves to nothing and the query errors before any comparison happens.  That is the renamed-column defect, and 30 offered columns are in that state.  Every other offered column carries a declared type and is rescued by its affinity.  So the trigger is the missing affinity rather than the aggregate, and an aggregate is simply the only place in this build where a user meets it while comparing numbers.  A view column that started holding numbers would be the second.
+
+#### Impact
+
+Every grouped query with a criterion answers the wrong question, and the two ways it does so are both bad.  Asking for the groups above a threshold gives an empty grid, which at least looks like an answer worth doubting.  Asking for the groups *below* one gives every group in the table, with the contradicting figure printed beside each -- a result a reader is far more likely to act on.  Counting and totalling and then keeping the groups that matter is what the Group row is for, and it is the kind of question a query builder exists to answer.  The SQL panel makes it worse by showing a statement that would be right if its parameter were a number.
+
+#### Steps to reproduce
+
+1. Open the Query Builder and add BIOG_MAIN.
+2. Put c_dy in one column with Group by, and c_personid in the next with Count.
+3. Type > 5 in the criteria cell under c_personid and run it: the grid is empty.
+4. Change it to < 5 and run again: every dynasty comes back, including ones whose count column reads 237423.
+
+#### Suggested fix
+
+Convert the operand when the criterion is parsed, or bind it typed.  A criterion whose text is a number should reach the driver as a number; the parser already distinguishes the two cases, since it strips quotes from the values that are meant to be text.  Casting in the SQL would also work and is worse: it would have to be repeated at every comparison and would break the text columns.  Worth fixing at the binding rather than in `buildHavingClause`, because the cause is the operand's type and the aggregate is only where it shows.
+
+#### Where it lives in the build
+
+- `Code/qbe_criteria.go:125`
+- `Code/qbe_sqlgen.go:buildHavingClause`
+
+#### Demonstrated by
+
+- 1 × failed: `test_a_criterion_under_an_aggregate_filters_the_groups`
+- 1 × passed: `test_the_columns_with_no_affinity_are_the_ones_the_entry_names`
+
+## CBDB-D-022 — A Query Builder In(...) list splits a quoted value at the comma inside it, and silently drops what it broke
+
+**Affected area:** Query Builder: the In operator
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+The parenthesised list is split on every comma with `strings.Split`, ignoring the quotes the tokenizer elsewhere in the same file exists to respect.  A value containing a comma therefore becomes two operands, neither of which matches anything, and the query answers without a word about it.
+
+#### Evidence
+
+Driven through the shipped binary on `BIOG_MAIN.c_name`, using a name the database holds:
+
+* `="Chen Shi (Mother, Nominal of Lie)"` returns **1 row** -- the operator works and the name is there;
+* `In ("Chen Shi (Mother, Nominal of Lie)")` returns **0 rows**, and the SQL shows `IN (?,?)` -- one value became two;
+* `In ("Chen Shi (Mother, Nominal of Lie)", "Weixiang")` returns **1 row**, and it is the Weixiang one.  The other name is gone, the status is ok, and nothing is said.
+
+690 names in `BIOG_MAIN.c_name` contain a comma, and the pattern is normal in this data -- it is how a woman identified by her relationships is recorded.  The same applies to every text column a user can filter.
+
+#### Impact
+
+A scholar pasting a list of names into an In(...) cell gets an answer that quietly omits everyone whose name contains a comma -- which in this data means the women recorded by their relationships.  Nothing marks the omission, and the same name typed with `=` works, so there is no reason to suspect the list.
+
+#### Steps to reproduce
+
+1. In the Query Builder, add BIOG_MAIN and show c_name.
+2. Type ="Chen Shi (Mother, Nominal of Lie)" as the criterion and run it: one row.
+3. Change it to In ("Chen Shi (Mother, Nominal of Lie)") and run again: no rows, and the SQL panel shows two placeholders for one name.
+
+#### Suggested fix
+
+Split the list with the tokenizer that already respects quotes -- it is in the same file and was written for exactly this -- rather than with `strings.Split(raw, ",")`.
+
+#### Where it lives in the build
+
+- `Code/qbe_criteria.go:328`
+- `Code/qbe_criteria.go:tokenizeRespectingQuotes`
+
+#### Demonstrated by
+
+- 1 × failed: `test_an_in_list_keeps_a_value_that_contains_a_comma`
+
+## CBDB-D-023 — Criterion text that names an operator but is not spelled like one becomes a search for that text
+
+**Affected area:** Query Builder: the criterion parser
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+Two places decide whether a cell holds an operator, and they disagree by one character.  The dispatcher tests `HasPrefix(text, "BETWEEN")`; the parser it hands off to tests `HasPrefix(text, "BETWEEN ")`, with a trailing space.  Text that satisfies the first and not the second falls through to the branch that treats a cell as a bare value, so `Between1100And1200` -- and `Like` alone, by the same shape -- becomes an equality test against the literal text the user typed.  A tab instead of a space fails by a different route and with the opposite result: the tokenizer splits on the space character only, so the rest of the criterion is swallowed into the first comparison's operand.  The upper bound never reaches the SQL -- but the operand is now a string, and against a column with INTEGER affinity it will not convert, so the comparison is false for every row and the answer comes back empty rather than wide.
+
+#### Evidence
+
+Driven through the shipped binary.  `Like` alone in a criterion cell on a numeric column produces `WHERE c_index_year = ?` bound to the string `Like`, answers 200 with zero rows and no message.  `Between1100And1200` likewise.  Both name an operator the grid's own grammar documents, which is what separates them from a value the parser is right to accept: `Not 1200` also becomes an equality, and that is correct, because `Not` is not in the grammar's operator list at all.
+
+The tab case drops the upper bound and then returns nothing at all.  A criterion of `>1434`, tab, `And`, tab, `<1534` keeps only the first comparison, with the rest absorbed into its operand.  Dropping the upper bound on its own would widen the band; what happens instead is that the operand is the string `1434<TAB>And<TAB><1534`, and `c_index_year` is `smallint(6)`, so SQLite tries the column's INTEGER affinity on it, cannot make a number of it, leaves it TEXT, and sorts every integer before every string: the comparison is false for every row.  Measured, the same band written both ways -- 72,975 rows with spaces, none with tabs.  On a column with no declared affinity the widening would be the real outcome, and the grid offers three such columns (CBDB-D-021 names them).  A criterion cell is a plain text input, so a tab arrives by pasting.
+
+Four other malformed criteria are refused properly, with HTTP 400 and a readable message -- `Between 1100`, `In (`, a bare `>`, and `> 1100 And`.  The parser is therefore not missing a validation step in general; these particular shapes reach a branch that treats anything it does not recognise as a value.
+
+#### Impact
+
+A user who mistypes an operator is not told.  They are shown an empty result for a query they did not write, and it reads as an absence in the data.  There is nothing on screen to distinguish it from a correct answer.  The tab case is the one that would be worst elsewhere: the upper bound really is gone from the SQL, so the same paste into a criterion on a column without a numeric affinity returns a wider band than was asked for -- the direction nobody checks, because a result that is too large still looks like a result.
+
+#### Steps to reproduce
+
+1. In the Query Builder, put Like on its own in a criteria cell on a numeric column and run it: 200, no rows, no message, and the SQL panel shows an equality.
+2. Try Between1100And1200 with no spaces: the same.
+3. Paste >1434<TAB>And<TAB><1534 into the cell: the upper bound is gone from the SQL and the grid returns no rows, where the same band typed with spaces returns tens of thousands.
+
+#### Suggested fix
+
+Require the separator in the prefix check as well as in the parse, so the two agree, and treat text that matches an operator name but not its shape as an error rather than as a value.  For the tokenizer, split on whitespace rather than on the space character.
+
+#### Where it lives in the build
+
+- `Code/qbe_criteria.go:195`
+- `Code/qbe_criteria.go:309`
+- `Code/qbe_criteria.go:286`
+- `Code/qbe_criteria.go:344`
+
+#### Demonstrated by
+
+- 1 × failed: `test_a_criterion_the_grid_cannot_parse_is_not_silently_reinterpreted`
+
 ## CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have
 
 **Affected area:** Networks form: Pajek, Gephi/GUESS and UCINet exports
@@ -794,7 +943,7 @@ The same mistake is in the build a second time, and it is not in another Neo4j e
 
 #### Demonstrated by
 
-- 34 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+30)
+- 35 × failed: `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[places:kml]`, `test_an_export_produces_a_well_formed_file[associations:neo4j]`, `test_an_export_produces_a_well_formed_file[networks:pajek]` (+31)
 - 279 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]`, `test_an_export_produces_a_well_formed_file[entry:save]` (+275)
 - 109 × skipped: `test_an_export_describes_the_people_the_grid_did[entry:kml]`, `test_an_export_describes_the_people_the_grid_did[entry:save]`, `test_an_export_describes_the_people_the_grid_did[office:gis]`, `test_an_export_describes_the_people_the_grid_did[office:gis-people]` (+105)
 
@@ -980,7 +1129,7 @@ Ship `CBDB_UserGuide.pdf` in `Static/`, which is where the distribution's own la
 
 - 1 × failed: `test_every_link_the_navigation_offers_resolves`
 
-## CBDB-D-011 — Five shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, and the Places ASCII encoding
+## CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter
 
 **Affected area:** Group Data, Association Pairs, Networks, Places: unreachable features
 
@@ -992,19 +1141,21 @@ Ship `CBDB_UserGuide.pdf` in `Static/`, which is where the distribution's own la
 
 #### Description
 
-Five pieces of finished work that no user of this build can reach.  `groupdata_form_backend.go` has six `req.Format == "kml"` branches and `Templates/group_data/index.html` does not contain the letters `kml` at all.  Association Pairs has the letters and not the binding: its checkbox sends a key the handler does not read (CBDB-D-010), so `assocWriteKML` is unreachable too.  `/api/networks/place-search` and `/api/networks/person-search` are routed, implemented, and called by no template.  And `handleExportPajek` accepts `encoding: "ascii"` while all five of the Places page's export calls send the literal `'unicode'`.
+Six pieces of finished work that no user of this build can reach.  `groupdata_form_backend.go` has six `req.Format == "kml"` branches and `Templates/group_data/index.html` does not contain the letters `kml` at all.  Association Pairs has the letters and not the binding: its checkbox sends a key the handler does not read (CBDB-D-010), so `assocWriteKML` is unreachable too.  `/api/networks/place-search` and `/api/networks/person-search` are routed, implemented, and called by no template.  And `handleExportPajek` accepts `encoding: "ascii"` while all five of the Places page's export calls send the literal `'unicode'`.  The sixth is not an export but a filter: `PlaceQueryParams` declares `FilterBAC`, `places_form_backend.go` honours it, and `Templates/places/index.html` sends it as the literal `filterBac: false` with nothing on the page able to write to it.
 
 #### Evidence
 
-Every backend that branches on `"kml"` was checked against its own page for any mention of `kml` in any form -- a control id, a value, a comment.  Nine backends carry such a branch and eight pass that test; `group_data` is the one that fails it outright, with six branches and no mention.  Association Pairs passes it only on the literal `chkKML` in its markup, which CBDB-D-010 shows is a mention and not a route: hence five here rather than four.
+Every backend that branches on `"kml"` was checked against its own page for any mention of `kml` in any form -- a control id, a value, a comment.  Nine backends carry such a branch and eight pass that test; `group_data` is the one that fails it outright, with six branches and no mention.  Association Pairs passes it only on the literal `chkKML` in its markup, which CBDB-D-010 shows is a mention and not a route: hence six here rather than five.
 
 For the endpoints, every `/api/` route in `Code/*.go` was matched against every live template under `Templates/`, **pickers included** -- which matters, since both endpoints name a picker as their caller, and a survey reading only the form pages would have got the right answer for the wrong reason.  Exactly two routes have no caller, and they are those two.
 
 For the encoding, `grep` finds `encoding: 'unicode'` at five call sites in `Templates/places/index.html` (656, 683, 747, 764, 781) and the string `ascii` in no template at all.  Driving the endpoint directly shows the branch works and one thing in it does not: with `encoding="ascii"` the labels do switch to pinyin -- past the mark the file holds 0 byte values above 0x7F against 18 in the unicode one -- yet `handleExportPajek` prepends `utf8BOM` unconditionally, so the file it names `network_ascii.net` opens with `EF BB BF`.  That last part is a defect in unreachable code, recorded here for whoever connects the control rather than filed as something users can see.
 
+For the BAC filter, the page sends `filterBac:` followed by a literal -- currently `false` -- and the comment on that line ("set to true and populate bacCodes when...") is addressed to a developer.  Every site in the page that writes `filterBac` was collected and every one of them writes a literal; no `getElementById` names `filterBac` or its companion `bacCodes`.  The distinction from the Networks case (CBDB-D-010) is worth keeping: there the page sends a live value the handler ignores, here the handler honours a value the page can never vary.
+
 #### Impact
 
-The GIS output a Group Data user can actually obtain is tab-separated only, so `groupWriteKMLStatus`, `groupWriteKMLOffice` and `groupWriteKMLOfficePeople` are code no user can run, and the mapping workflow the other forms offer is missing there.  Neither picker has the autocomplete that was written for it.  The Places export offers one encoding of the two it implements.  None of this puts a wrong answer on screen -- it is finished work that shipped without its last connection.  Whether the unreachable code is itself correct is a separate question, and twice here the answer is no: the BOM above, and the scan bug in `place-search` recorded under CBDB-D-005.  That is the cost of an unreachable feature -- nothing exercises it, so nothing tells anyone it is broken.
+The GIS output a Group Data user can actually obtain is tab-separated only, so `groupWriteKMLStatus`, `groupWriteKMLOffice` and `groupWriteKMLOfficePeople` are code no user can run, and the mapping workflow the other forms offer is missing there.  Neither picker has the autocomplete that was written for it.  The Places export offers one encoding of the two it implements, and the Places search offers no way to restrict a biography by address type, which is what `FilterBAC` was written to do.  None of this puts a wrong answer on screen -- it is finished work that shipped without its last connection.  Whether the unreachable code is itself correct is a separate question, and twice here the answer is no: the BOM above, and the scan bug in `place-search` recorded under CBDB-D-005.  That is the cost of an unreachable feature -- nothing exercises it, so nothing tells anyone it is broken.
 
 #### Steps to reproduce
 
@@ -1027,7 +1178,7 @@ Add the format control to the Group Data GIS exports, matching the other forms; 
 
 #### Demonstrated by
 
-- 3 × failed: `test_an_export_named_ascii_contains_ascii`, `test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for`, `test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`
+- 4 × failed: `test_an_export_named_ascii_contains_ascii`, `test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for`, `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it`, `test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`
 
 ## Severity legend
 
@@ -1046,7 +1197,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1342 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1389 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 
