@@ -37,7 +37,13 @@ from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.subjects import SUBJECT
 
-pytestmark = pytest.mark.app
+# Marked per test rather than for the module.  The sweep gate below
+# reads only the shipped Go, and a module-wide marker meant that
+# ``run_tests.ps1 -Fast`` deselected it along with the tests it
+# guards -- so the check that stops the sweep reporting success over
+# a subset was the first thing dropped whenever the app was not
+# running.  A gate you can skip is the failure mode AGENTS.md's fifth
+# coverage property is about.
 
 #: ``switch in the request`` -> ``the list it fills in the response``.
 #: The names travel together so they cannot drift apart.  ``queryAddr``
@@ -113,6 +119,7 @@ def test_the_sweep_drives_every_switch_the_build_declares(layout):
         f"declared: {sorted(set(_SECTIONS) - declared)}.")
 
 
+@pytest.mark.app
 @pytest.mark.parametrize("switch", sorted(_SECTIONS))
 def test_a_section_is_empty_unless_its_switch_is_on(
         app: CbdbApp, switch: str):
@@ -152,6 +159,7 @@ def test_a_section_is_empty_unless_its_switch_is_on(
         "five sections; check that before reading this as a defect.")
 
 
+@pytest.mark.app
 def test_asking_for_nothing_answers_with_nothing(app: CbdbApp):
     """Every switch off: there is no sixth thing to return.
 

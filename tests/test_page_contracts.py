@@ -421,6 +421,24 @@ def _form_of(source: str) -> str:
     return _FORM_DIRECTORY.get(stem, stem)
 
 
+#: How many ``*_form_backend.go`` files branch on a KML format on
+#: this build.  The denominator of the survey below: without it, a
+#: pattern that stopped matching would make the survey pass having
+#: read nothing.
+#:
+#: Exact, not a floor.  A floor was written here first, reasoning
+#: that a build adding a tenth KML writer should be surveyed rather
+#: than rejected -- which is the argument operating principle 5
+#: exists to refuse, and which the survey forty lines above this one
+#: already refuses in the same words: a floor "would still pass with
+#: an extractor that had quietly stopped seeing half the build".
+#: Concretely, ``>= 9`` passes a build where the pattern stops
+#: matching three backends and catches three others it did not mean
+#: to.  A legitimate tenth writer is expected to fail this and be
+#: read.
+_BACKENDS_THAT_WRITE_KML = 9
+
+
 def test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for(
         go_text: dict[str, str], page_text: dict[str, str]):
     """For each backend that writes KML, can its page select it?
@@ -439,12 +457,14 @@ def test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for(
     ``kml`` at all.  Six branches, and no way in.
     """
     unreachable = []
+    surveyed = 0
     for source, text in sorted(go_text.items()):
         if not source.endswith("_form_backend.go"):
             continue
         branches = len(_SELECTS_KML.findall(text))
         if not branches:
             continue
+        surveyed += 1
         form = _form_of(source)
         page = page_text.get(form)
         assert page is not None, (
@@ -452,6 +472,21 @@ def test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for(
             "answers to it; the directory map above is stale")
         if "kml" not in page.lower():
             unreachable.append((form, source, branches))
+
+    # A denominator, because a survey with none reports "every page
+    # can ask for its KML" just as happily when it examined nothing.
+    # If ``_SELECTS_KML`` stops matching -- the branch is rewritten,
+    # the literal is spelled differently -- every backend would
+    # ``continue`` and this test would pass having checked no page at
+    # all.  Nine backends carry such a branch on this build.
+    assert surveyed == _BACKENDS_THAT_WRITE_KML, (
+        f"{surveyed} backend(s) were found to branch on \"kml\", "
+        f"against {_BACKENDS_THAT_WRITE_KML} on the build this was "
+        "written from.  Fewer means either the KML writers are going "
+        "away or the pattern this survey matches on no longer matches "
+        "them, and in the second case the survey below is examining "
+        "nothing.  More means a writer was added and should be read "
+        "before the number is.")
 
     if unreachable:
         raise KnownShippedDefect(
@@ -628,15 +663,29 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
     assert not missing, (
         f"an endpoint pinned here as uncalled is now called: {missing}")
 
-    if uncalled:
+    # Guarded on the *constant*, not on the discovered set.  The two
+    # assertions above establish that ``uncalled`` equals
+    # ``_ROUTED_AND_UNCALLED`` exactly -- one fails if an endpoint
+    # joined the set, the other if one left it -- so testing
+    # ``if uncalled:`` was testing the pin against itself and read as
+    # though the set were being discovered here.
+    #
+    # But it cannot be unconditional either, which is the case the
+    # first rewrite of this missed: when the build is fixed *and*
+    # somebody correctly empties the pin, both assertions pass and an
+    # unconditional raise reports "0 endpoint(s) are routed and no
+    # page calls them" -- a finding for a defect that is gone, which
+    # the accountability gate then demands an entry for.
+    if _ROUTED_AND_UNCALLED:
         raise KnownShippedDefect(
-            f"{len(uncalled)} endpoint(s) are routed and implemented and no "
-            "page calls them: "
+            f"{len(uncalled)} endpoint(s) are routed and implemented "
+            "and no page calls them: "
             + "; ".join(f"{path} ({uncalled[path]}) -- "
                         f"{_ROUTED_AND_UNCALLED[path]}"
                         for path in sorted(uncalled))
-            + ".  Both are autocomplete helpers written for pickers that do "
-              "not use them, so neither piece of work reaches a user")
+            + ".  Both are autocomplete helpers written for pickers "
+              "that do not use them, so neither piece of work reaches "
+              "a user")
 
 
 # ===========================================================================
@@ -781,12 +830,19 @@ def test_a_query_that_keeps_only_some_rows_says_which_ones(
     # restatement of a constant -- true before the suite started.
     arbitrary = {key: (_ARBITRARY_ROW_CAPS[key], unordered[key])
                  for key in sorted(set(unordered) & set(_ARBITRARY_ROW_CAPS))}
-    if arbitrary:
+    # Guarded on the pin for the reason given at the uncalled-endpoint
+    # raise above: the key set here is the pinned constant
+    # intersected with itself, so ``if arbitrary:`` tested nothing --
+    # but an unconditional raise would report a finding on a build
+    # where the pin had rightly been emptied.  What is measured is
+    # the SQL and the row counts inside the message.
+    if _ARBITRARY_ROW_CAPS:
         raise KnownShippedDefect(
-            "a query returns an arbitrary subset of rows that differ from "
-            "one another: "
+            "a query returns an arbitrary subset of rows that differ "
+            "from one another: "
             + "; ".join(f"{f}:{owner} -- {why} -- {sql}"
-                        for (f, owner), (why, sql) in sorted(arbitrary.items()))
+                        for (f, owner), (why, sql)
+                        in sorted(arbitrary.items()))
             + ".  SQLite is free to return any two rows and to return "
               "different ones after an index changes, so Recall on the "
               "Association Pairs page fills the pair with people the user "

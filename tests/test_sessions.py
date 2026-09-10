@@ -160,7 +160,22 @@ def test_a_second_working_list_replaces_the_first(app: CbdbApp, sqlite_conn):
                               "maxMarr": 1, "mourningCircle": False})
     subjects = {row["personId"] for row in ego_rows["kinRecords"]
                 if isinstance(row.get("personId"), int)}
-    if subjects and subjects <= set(people[2:4]):
+
+    # Liveness first.  Both assertions below are subset tests, and the
+    # empty set is a subset of everything -- so a Kinship query that
+    # returned nothing at all would sail through this test having
+    # shown that tab A's result is about neither tab's people and
+    # also about tab A's people.  Whether the two tabs interfere is
+    # unanswerable without a result to look at, and an unanswerable
+    # question must not read as an answer.
+    assert subjects, (
+        f"the kinship query returned no rows carrying a personId for "
+        f"{people[:2]}, so there is nothing to attribute to either "
+        "tab.  That is a broken query rather than a clean session: "
+        "the two people were just imported and person-count agreed "
+        "there were two of them.")
+
+    if subjects <= set(people[2:4]):
         raise KnownShippedDefect(
             f"the query tab A ran is about tab B's people: asked about "
             f"{people[:2]}, the result is about {sorted(subjects)}")

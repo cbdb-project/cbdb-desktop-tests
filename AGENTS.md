@@ -241,7 +241,7 @@ the inventory does not know about**:
 | `controls.py` | `Templates/*/index.html` buttons and their JS call graphs | `test_zz_controls.py` — every UI-reachable endpoint was **actually requested** in this run |
 | `discovery.py` | the shipped database's own row counts | `test_query_matrix.py::test_the_discovered_matrix_covers_every_form_and_dimension` |
 
-Three properties make these worth more than a checklist:
+Five properties make these worth more than a checklist:
 
 1. **They are extracted, not written.** A new export button, a new
    route, a new page appears in the inventory by itself and fails the
@@ -256,7 +256,44 @@ Three properties make these worth more than a checklist:
    matrix here therefore has a companion test asserting the matrix is
    populated — that is what `test_the_discovered_matrix_covers_every_form
    _and_dimension` is for, and it is not optional decoration.
-4. **A gate that can skip itself is not a gate.** The endpoint-coverage
+4. **A coverage gate drives what it counts, or it counts nothing.** If
+   a gate reads an inventory from the build and then asks whether
+   *something else* exercised each entry, it is making a claim about a
+   request made elsewhere — and a claim about a request is falsified by
+   editing that request. `test_qbe_grid.py`'s vocabulary gate was
+   rewritten until it stopped doing that, and the attempts fall into
+   two kinds, both worth recognising.
+
+   **Searching source text.** Grep the module for the criterion, and
+   the line carrying the pattern matches it. Narrow to one function's
+   source, and its docstring matches. Narrow to a single line of that
+   source, and a comment matches. These fail for one reason: **a text
+   search cannot distinguish a payload from a mention of one**, and any
+   literal written into a search of the file containing the search is
+   in that file by the act of searching. Narrowing the haystack makes a
+   false credit harder to write by accident and no harder to write on
+   purpose.
+
+   **Reading a value the test is supposed to send.** Better, and still
+   two things: the gate credits the constant, the test sends whatever
+   it sends, and an edit can separate them. A `parametrize` list is
+   *sometimes* the exception — but only when the parametrised value is
+   itself the request. `@pytest.mark.parametrize("criterion",
+   _LIKE_CRITERIA)` with `criteria_text=[criterion]` is safe, because
+   there is no state in which the gate credits the value and no test
+   sends it. `@pytest.mark.parametrize("operator", list(_OPERATORS))`
+   is *not*: the decorator supplies a dict key and the payload is built
+   from `_OPERATORS[operator]`, which can be edited away from it. The
+   decorator is not the safety; the value being the payload is.
+
+   So: prefer a gate that issues the requests itself, against a cheap
+   input, and checks the build **honoured** each token rather than
+   merely accepted it — this build answers HTTP 200 to criteria it
+   cannot parse (CBDB-D-023's shape), so "accepted" would have passed a
+   mis-spelled operator. Where a gate genuinely cannot drive what it
+   counts, tie the credit to the object the test *sends*, never to a
+   name it mentions.
+5. **A gate that can skip itself is not a gate.** The endpoint-coverage
    gate refuses to judge a filtered run, and its first version decided
    "filtered" by comparing pytest's path argument against the literal
    `"tests"` — while `run_tests.ps1` passes an *absolute* path. So the

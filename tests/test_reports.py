@@ -353,7 +353,10 @@ def test_the_coverage_table_describes_every_test_file_in_the_suite():
         f"{sorted(set(files) - set(described))}; "
         f"describing files that no longer exist: "
         f"{sorted(set(described) - set(files))}")
-    assert len(described) == len(set(described)), "a file is described twice"
+    # (No duplicate check here.  The comparison above is against a
+    # sorted list of unique filenames, so a repeated description
+    # fails it first; a second assertion on ``len(set(...))`` was
+    # dead and is gone.), "a file is described twice"
 
     missing_zh = [name for name in described if name not in gr.COVERAGE_ZH]
     assert not missing_zh, f"no Chinese description for {missing_zh}"
