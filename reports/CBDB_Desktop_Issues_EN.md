@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260908.7z_
 
-_Generated 2026-09-10 06:16 UTC from a run of 1166 tests (370s)._
+_Generated 2026-09-10 07:28 UTC from a run of 1342 tests (407s)._
 
 Dear maintainer,
 
@@ -18,12 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 944 |
-| failed | 95 |
+| passed | 1057 |
+| failed | 100 |
 | xfailed (a known defect, still present) | 3 |
-| skipped | 124 |
+| skipped | 182 |
 
-Of the 95 failures, **91** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **4** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
+Of the 100 failures, **96** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **4** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
 
 **4 failure(s) in this run are not yet classified.**  They are not among the issues below and they are not one of our known coverage gaps, which means this run found something nobody has looked at yet.  Each may turn out to be a defect worth filing or a problem with the check itself; please read them rather than trusting this list to be complete.
 
@@ -31,8 +31,8 @@ Of the 95 failures, **91** are the tests that demonstrate the issues below -- th
 | --- | --- |
 | `test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it` | the Places page hard-codes filterBac: false and offers no control that can change it, so the BAC filter PlaceQueryParams declares and places_form_backend.go honours cannot be switched on by any user o |
 | `test_the_place_search_helper_finds_the_places_the_table_holds` | /api/networks/place-search?q=Zhou returned 200 and an empty list; 3692 rows of ADDR_CODES carry that word in their name. c_admin_type is varchar(255) holding text and the handler scans it into an int |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', 'CBD |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-015.title', |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-017.evidence', ' |
+| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-017.evidenc |
 
 ## What the suite covers
 
@@ -48,16 +48,16 @@ Of the 95 failures, **91** are the tests that demonstrate the issues below -- th
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
 | The forms that remember | 17 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
-| Every filter, on inputs read from the data | 254 | One query per populated combination the shipped database has, plus every switch turned both ways |
+| Every filter, on inputs read from the data | 418 | One query per populated combination the shipped database has, plus every switch turned both ways |
 | Every export button | 498 | All 45 file-producing endpoints pressed, and the files they return read back |
 | The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
 | The working tables | 7 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
-| This report's own sources | 49 | That every issue below still cites real code, in both languages |
+| This report's own sources | 61 | That every issue below still cites real code, in both languages |
 | This report itself | 23 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1166 |  |
+| every test in this run | 1342 |  |
 
 ## Agreed to leave for now
 
@@ -82,6 +82,10 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-013 | P0 | CONFIRMED | Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list |
 | CBDB-D-015 | P0 | CONFIRMED | A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports |
 | CBDB-D-016 | P0 | CONFIRMED | Association Pairs reports how many ids were in the file, not how many people it loaded |
+| CBDB-D-017 | P0 | CONFIRMED | A year window admits every record whose year was never recorded, because the database writes that as 0 |
+| CBDB-D-018 | P0 | CONFIRMED | Two dynasties the picker offers cannot be filtered on: one end returns everything, the other returns nothing |
+| CBDB-D-019 | P0 | CONFIRMED | The Places form and the other five disagree about a dynasty that begins in the year the range ends |
+| CBDB-D-020 | P0 | CONFIRMED | Use XY treats the unmapped corner at 0,0 as a place, so it merges hundreds of unrelated addresses |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
@@ -101,6 +105,10 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-013 — Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list](#cbdb-d-013--recall-on-the-association-pairs-page-fills-the-pair-with-two-people-nothing-chose-and-says-nothing-about-the-rest-of-the-stored-list)
 - [CBDB-D-015 — A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports](#cbdb-d-015--a-person-imported-twice-is-counted-twice-queried-twice-and-written-twice-into-six-of-the-seven-networks-exports)
 - [CBDB-D-016 — Association Pairs reports how many ids were in the file, not how many people it loaded](#cbdb-d-016--association-pairs-reports-how-many-ids-were-in-the-file-not-how-many-people-it-loaded)
+- [CBDB-D-017 — A year window admits every record whose year was never recorded, because the database writes that as 0](#cbdb-d-017--a-year-window-admits-every-record-whose-year-was-never-recorded-because-the-database-writes-that-as-0)
+- [CBDB-D-018 — Two dynasties the picker offers cannot be filtered on: one end returns everything, the other returns nothing](#cbdb-d-018--two-dynasties-the-picker-offers-cannot-be-filtered-on-one-end-returns-everything-the-other-returns-nothing)
+- [CBDB-D-019 — The Places form and the other five disagree about a dynasty that begins in the year the range ends](#cbdb-d-019--the-places-form-and-the-other-five-disagree-about-a-dynasty-that-begins-in-the-year-the-range-ends)
+- [CBDB-D-020 — Use XY treats the unmapped corner at 0,0 as a place, so it merges hundreds of unrelated addresses](#cbdb-d-020--use-xy-treats-the-unmapped-corner-at-00-as-a-place-so-it-merges-hundreds-of-unrelated-addresses)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
@@ -515,6 +523,186 @@ Report what was inserted, not what was asked for.  The three sibling handlers sh
 
 - 1 × failed: `test_a_list_loader_reports_how_many_people_it_loaded`
 
+## CBDB-D-017 — A year window admits every record whose year was never recorded, because the database writes that as 0
+
+**Affected area:** Entry and Office: the entry-year and office-year filters
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`ENTRY_DATA.c_year` is 0 where the year is unknown, in 164,443 of its 264,775 rows, and `POSTED_TO_OFFICE_DATA` uses 0 the same way.  Both filters compare against the column directly -- entry with `ED.c_year >= ?` / `<= ?`, office with `POD.c_firstyear >= ?` and `POD.c_lastyear <= ?` -- so `0 <= 1100` is true and every undated record satisfies any upper bound.
+
+#### Evidence
+
+Driven against the shipped binary, on the century each code most densely populates -- read from the column being filtered rather than chosen by hand.
+
+**Entry**, entryyear.  A closed window over 1100-1199 is clean: 254 rows, none outside it.  The same query with the From box empty -- *up to 1199* -- returns 303 rows of which **42 are outside**, and every one of those has an entry year of 0.  On a sparser code the effect is total: code 37 filtered to 1100 returns four rows and all four have entryYear 0, so not one dated entry comes back.
+
+**Office**, officeyear.  A closed 1300-1399 window is likewise clean (135 rows, none outside), and *up to 1399* returns 383 rows of which **215 are outside**.  Office fails the closed case too wherever the data allows it, because its lower bound tests `c_firstyear` and its upper tests `c_lastyear`: code 790 over 1000-1100 returns three postings whose (first, last) years are (1135, 0), (1136, 0) and (1166, 0) -- every row returned for a window ending in 1100 began after it, because a posting whose end was never recorded passes the upper bound however late it started.
+
+So a To-only window is wrong on both forms whatever the data holds, and a closed window is wrong on Office wherever an end year is missing.
+
+#### Impact
+
+A historian asking for Northern Song office postings gets a majority of rows from the wrong period, and loses the postings whose only recorded year is the one they asked about.  On Entry, a To-only window returns precisely the records that cannot answer the question.  Neither says anything is wrong, and both look like a finding about the data rather than about the filter.
+
+#### Steps to reproduce
+
+1. Open Look At Entry, choose entry code 37 and set the year type to Entry Year.
+2. Leave the From box empty and put 1100 in the To box.  Run the query.
+3. Every row's Entry Year column reads 0.
+4. For Office: choose office code 790, year type Office Year, 1000 to 1100.  Every posting returned began after 1100.
+
+#### Suggested fix
+
+Exclude the sentinel from the comparison: add `AND ED.c_year <> 0` (and the equivalent on each office bound) wherever a year condition is built, or treat 0 as NULL when the column is read.  Which of the two is right is a question about intent -- should an undated record appear in a dated window at all? -- and it is worth answering once and applying to both forms, since they have made the same choice by accident rather than on purpose.
+
+#### Where it lives in the build
+
+- `Code/entry_form_backend.go:511`
+- `Code/office_form_backend.go:690`
+
+#### Demonstrated by
+
+- 2 × failed: `test_a_year_window_does_not_admit_rows_whose_year_is_unknown[entry]`, `test_a_year_window_does_not_admit_rows_whose_year_is_unknown[office]`
+
+## CBDB-D-018 — Two dynasties the picker offers cannot be filtered on: one end returns everything, the other returns nothing
+
+**Affected area:** All six query forms: the dynasty range
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+Every form resolves a dynasty range through `DYNASTIES.c_start` and `c_end`.  Three rows have both at 0 -- code 0 (*unknown*), 58 (*Korea*) and 67 (*Xinluo (Korea)*) -- and the guard the handlers apply is `> 0` on the dynasty *code*, not on its years.  So 58 and 67 pass the guard and then produce a comparison against zero: `c_end > 0` is true of every dynasty that has a span, and `c_start < 0` is true of none.  The picker lists all eighty-five without filtering, so both are one click away.
+
+#### Evidence
+
+Driven on the Status form, status code 3.  Unfiltered: 34 rows.  With Korea (58) as the *From* dynasty: 33 rows -- the filter removes one row, which is a person the join drops rather than anything the filter chose.  With Korea as the *To* dynasty: 0 rows.  A dynasty with a real span, used as a control in the same test, returns a sensible subset.
+
+The same shape is in every form, in two spellings: office, places and texts prefetch the years in Go with `SELECT COALESCE(c_start, 0) ...`, which turns a missing boundary into 0; entry and status inline the lookup as a subquery, where a code absent from `DYNASTIES` yields NULL and drops the row instead.  No page can reach a code that is absent, so the reachable half of this is the two Korean dynasties.
+
+#### Impact
+
+A user who selects Korea as one end of a dynasty range is shown either the unfiltered result or an empty grid, with nothing to distinguish either from a real answer.  The empty case is the worse of the two: it reads as "CBDB has no Korean records of this kind", which is a conclusion about the data drawn from a filter that never ran.
+
+#### Steps to reproduce
+
+1. Open any query form and choose a code that returns rows.
+2. Set the year type to Dynasty and pick Korea as the From dynasty.  The result is the unfiltered one.
+3. Pick Korea as the To dynasty instead.  The result is empty.
+4. SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES WHERE c_dy IN (0, 58, 67);
+
+#### Suggested fix
+
+Decide what a dynasty with no year span means to a filter written in years, and make the code and the picker agree.  Either the picker should not offer a dynasty whose `c_start`/`c_end` are unset, or the handlers should test the *years* rather than the code before building the condition and say so when they cannot.  Filling in the years for the two Korean dynasties in the source data would also do it, and is the only one of the three that makes them usable rather than merely unavailable.
+
+#### Where it lives in the build
+
+- `Code/status_form_backend.go:511`
+- `Code/places_form_backend.go:250`
+- `Templates/pickers/dynasty_picker.html:66`
+
+#### Demonstrated by
+
+- 1 × failed: `test_a_dynasty_the_picker_offers_is_one_the_filter_can_use`
+
+## CBDB-D-019 — The Places form and the other five disagree about a dynasty that begins in the year the range ends
+
+**Affected area:** Places: the upper bound of a dynasty range
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+Five forms write the upper half of a dynasty range as `D.c_start < ?` and Places writes `D.c_start <= ?`.  On a boundary year the two disagree: the strict form excludes a dynasty that begins exactly where the range ends, and Places includes it.  Thirty-five of the eighty-five dynasties begin in the year another ends, so this is not a corner nobody reaches.
+
+#### Evidence
+
+Driven on the two forms whose rows carry a dynasty code, so that *which* dynasties came back can be compared rather than merely how many.  A range ending at Ming (19), which ends in the year Qing (20) begins: the Entry form's answer contains no Qing rows, and the Places form's does.  Both were given a code covering people of both dynasties, and both returned rows, so neither answer is empty for an unrelated reason.
+
+Which of the two is right is not asserted here.  That is a question about what a historian means by "to the Ming", and the developers should answer it; what can be said from outside is that one dynasty range, asked on two forms, admits different dynasties.
+
+#### Impact
+
+A researcher who runs the same dynasty range on two forms and compares the results -- which is the ordinary way to cross-check a finding -- sees a discrepancy that belongs to the software and reads as one in the data.  Whichever boundary convention is intended, one of the six forms is applying the other.
+
+#### Steps to reproduce
+
+1. On Look At Entry, choose a code covering Ming and Qing people, set the year type to Dynasty, and run a range ending at Ming.  No Qing rows come back.
+2. Run the same range on Look At Places.  Qing rows come back.
+3. SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES WHERE c_dy IN (19, 20);
+
+#### Suggested fix
+
+Pick one convention and use it in all six.  The strict `<` is what five of them already do, so making Places match is the smaller change; but the choice is a historical one -- whether a dynasty that begins in the closing year of the range belongs to it -- and it should be made deliberately rather than by counting call sites.
+
+#### Where it lives in the build
+
+- `Code/places_form_backend.go:298`
+- `Code/office_form_backend.go:720`
+- `Code/entry_form_backend.go:538`
+
+#### Demonstrated by
+
+- 1 × failed: `test_the_forms_agree_where_one_dynasty_ends_and_the_next_begins`
+
+## CBDB-D-020 — Use XY treats the unmapped corner at 0,0 as a place, so it merges hundreds of unrelated addresses
+
+**Affected area:** All six query forms: the Use XY address widening
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+*Use XY* gathers every address within 0.03 degrees of the ones the user chose -- about three kilometres, and the right idea for catching one place recorded under two codes.  `ADDR_CODES` stores 316 addresses at exactly `x_coord = 0, y_coord = 0`, which is how this data records a place whose coordinates were never established.  Nothing else is anywhere near that point, so the box collapses all 316 into a single location.
+
+#### Evidence
+
+Driven on the Places form with a single unmapped address chosen from `ADDR_CODES`.  With Use XY off the query returns nothing -- that address has no rows of its own.  With Use XY on it returns rows drawn from dozens of different addresses, none of which is near the one asked for in any sense except that neither has a coordinate.
+
+The widening itself is correct as written: 0.03 degrees is 2 to 3.5 kilometres anywhere in China, the null-coordinate rows are carried forward by a separate LEFT JOIN rather than dropped, and an address with coordinates always matches itself.  What the code does not do is distinguish "at 0,0" from "not located", and the shipped data uses the first to mean the second.
+
+#### Impact
+
+A user ticks a box that means *catch the same place under a different code* and gets a query about every unmapped garrison in the database.  The addresses it added are not shown anywhere, so the result cannot be recognised as wrong from the screen; and because the switch legitimately widens, nothing about the row count looks out of place.
+
+#### Steps to reproduce
+
+1. SELECT c_addr_id, c_name FROM ADDR_CODES WHERE x_coord = 0 AND y_coord = 0 LIMIT 5;
+2. On Look At Places, filter on one of those addresses with Use XY off: the query returns nothing.
+3. Tick Use XY and run it again: rows come back, from dozens of unrelated garrisons.
+
+#### Suggested fix
+
+Exclude the sentinel from the widening: require `x_coord <> 0 OR y_coord <> 0` on both sides of the join, or treat 0,0 as unlocated the way the null coordinates are already treated -- carried forward as themselves and not matched against anything.  The second is the closer parallel to what the code already does for NULL, and would need no new concept.
+
+#### Where it lives in the build
+
+- `Code/office_form_backend.go:480`
+- `Code/office_form_backend.go:496`
+
+#### Demonstrated by
+
+- 1 × failed: `test_use_xy_does_not_treat_the_unmapped_corner_as_a_place`
+
 ## CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have
 
 **Affected area:** Networks form: Pajek, Gephi/GUESS and UCINet exports
@@ -858,7 +1046,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1166 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1342 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

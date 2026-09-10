@@ -65,6 +65,13 @@ class FormSpec:
     #: rather than "indexyear".
     year_filter_field: str = "yearFilterType"
     index_year_mode: str = "indexyear"
+    #: The *other* year the form can filter on, where it has one.  Entry
+    #: and Office each offer a second column -- the year of the entry
+    #: itself, the year of the posting -- and the suite drove only
+    #: ``index_year_mode`` until 2026-09-10, so half of each form's year
+    #: filter had never been requested.  Empty where the form has one
+    #: mode; the sweep skips those rather than inventing a second.
+    other_year_mode: str = ""
     dynasty_mode: str = "dynasty"
     #: Which field carries the address ids, and its sub-unit flag.
     addr_field: str = "addrIds"
@@ -124,6 +131,7 @@ FORMS: tuple[FormSpec, ...] = (
         export_path="/api/entry/export-results",
         code_table="ENTRY_DATA",
         code_column="c_entry_code",
+        other_year_mode="entryyear",
         body=lambda codes: {"entryCodes": codes, "addrIds": [],
                             "addrSubUnits": False, "addressFrame": 1,
                             "yearFilterType": "none"},
@@ -140,6 +148,7 @@ FORMS: tuple[FormSpec, ...] = (
         export_path="/api/office/export-results",
         code_table="POSTED_TO_OFFICE_DATA",
         code_column="c_office_id",
+        other_year_mode="officeyear",
         body=lambda codes: {"officeCodes": codes, "peopleAddrIds": [],
                             "peopleAddrSubUnits": False, "officeAddrIds": [],
                             "officeAddrSubUnits": False,
@@ -242,6 +251,17 @@ FORMS_BY_NAME = {form.name: form for form in FORMS}
 # changes which *columns* come back, or which of two modes runs -- the
 # direction is "differs", and only the "it did something" half applies.
 
+#: Shared note for the seven *Use XY* switches.  Written once because
+#: the mechanism is one function -- ``populateScratchAddr`` in
+#: ``office_form_backend.go`` -- that every form's address filter calls.
+_USE_XY = (
+    "Use XY widens the chosen addresses to every address within 0.03 "
+    "degrees of one of them, so it can only add rows.  It reaches the "
+    "query only when an address filter is set, which is why `needs` "
+    "names one: with no address chosen, populateScratchAddr is never "
+    "called and the switch is inert for a reason that is not a defect."
+)
+
 WIDENS = "widens"        #: turning it on can only add rows
 NARROWS = "narrows"      #: turning it on can only remove rows
 DIFFERS = "differs"      #: it changes the result, in no fixed direction
@@ -279,6 +299,9 @@ TOGGLES: tuple[Toggle, ...] = (
            needs={"addrIds": "@address"},
            notes="an address plus its sub-units is a superset of the "
                  "address alone"),
+    Toggle(form="entry", option="addrUseXY", direction=WIDENS,
+           needs={"addrIds": "@address_with_neighbours"},
+           notes=_USE_XY),
     # addressFrame picks *which* address a row is filtered on -- the
     # person's index address (1) or the entry's own (2) -- so neither
     # result contains the other.
@@ -291,14 +314,24 @@ TOGGLES: tuple[Toggle, ...] = (
     Toggle(form="office", option="officeAddrSubUnits", direction=WIDENS,
            needs={"officeAddrIds": "@address"},
            notes="the office's own location, not the person's"),
+    Toggle(form="office", option="peopleAddrUseXY", direction=WIDENS,
+           needs={"peopleAddrIds": "@address_with_neighbours"}, notes=_USE_XY),
+    Toggle(form="office", option="officeAddrUseXY", direction=WIDENS,
+           needs={"officeAddrIds": "@address_with_neighbours"},
+           notes=_USE_XY + "  Office is the only form with two address "
+                 "filters, and therefore two of these."),
 
     # -- status -----------------------------------------------------------
     Toggle(form="status", option="includeSubUnits", direction=WIDENS,
            needs={"addrIds": "@address"}),
+    Toggle(form="status", option="addrUseXY", direction=WIDENS,
+           needs={"addrIds": "@address_with_neighbours"}, notes=_USE_XY),
 
     # -- texts ------------------------------------------------------------
     Toggle(form="texts", option="includeSubUnits", direction=WIDENS,
            needs={"addrIds": "@address"}),
+    Toggle(form="texts", option="addrUseXY", direction=WIDENS,
+           needs={"addrIds": "@address_with_neighbours"}, notes=_USE_XY),
     Toggle(form="texts", option="mainSourceOnly", direction=NARROWS),
     Toggle(form="texts", option="selfBioOnly", direction=NARROWS),
     # "both" runs the source query and the role query; "source" runs only
@@ -309,9 +342,13 @@ TOGGLES: tuple[Toggle, ...] = (
     # -- associations -----------------------------------------------------
     Toggle(form="associations", option="includeSubUnits", direction=WIDENS,
            needs={"addrIds": "@address"}),
+    Toggle(form="associations", option="addrUseXY", direction=WIDENS,
+           needs={"addrIds": "@address_with_neighbours"}, notes=_USE_XY),
 
     # -- places -----------------------------------------------------------
     Toggle(form="places", option="includeSubUnits", direction=WIDENS),
+    Toggle(form="places", option="addrUseXY", direction=WIDENS,
+           needs={"addrIds": "@address_with_neighbours"}, notes=_USE_XY),
     # The Places form's seven branch switches: each adds a category of
     # person to the result, so each can only widen it.
     Toggle(form="places", option="includeBiog", direction=WIDENS),
