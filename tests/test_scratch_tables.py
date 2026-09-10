@@ -564,3 +564,120 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
         f"{_KNOWN_MISSING_COLUMN_READS}.  A new one is a new finding; a "
         "missing one is a fix, and either way this needs reading rather "
         "than tolerating")
+
+
+# ---------------------------------------------------------------------------
+# the other half of a declaration: its constraints
+# ---------------------------------------------------------------------------
+
+#: Scratch tables the Go declares ``UNIQUE`` on a column, and which
+#: column.  Read off the source below rather than listed here; this is
+#: only the count, pinned so that a declaration losing its constraint
+#: is read rather than silently reducing what this file checks.
+EXPECTED_UNIQUE_DECLARATIONS = 5
+
+#: Tables whose shipped definition has no such constraint even though a
+#: form declares one, with what it costs.  Exact, and empty is the goal.
+_UNIQUE_DECLARED_BUT_NOT_SHIPPED = {
+    "ZZ_SIP_NETWORK":
+        "the Networks working list.  Driven: importing one person twice "
+        "leaves person-count reporting 2, and the query then returns that "
+        "person twice in nodeRecords and in every export taken from them",
+    "ZZ_SP_KINSHIP":
+        "the Kinship result table.  No user-visible consequence found: "
+        "importing a duplicate inflates Kinship's person-count (which "
+        "reads ZZ_SIP_KINSHIP, a table that declares no constraint at "
+        "all) but the query deduplicates downstream and peopleRecords "
+        "stays correct.  Recorded because the declaration is still "
+        "untrue, and because the next query written against this table "
+        "would inherit the assumption",
+}
+
+
+def test_a_uniqueness_a_form_declares_is_one_the_table_enforces(
+        layout, sqlite_conn):
+    """``UNIQUE`` in the declaration, against the shipped table.
+
+    The column check above asks whether a declared *column* exists.
+    This asks the same question of a declared *constraint*, and it is
+    the sharper of the two: a missing column makes a query fail loudly,
+    while a missing ``UNIQUE`` makes ``INSERT OR IGNORE`` quietly stop
+    ignoring anything.  The code goes on saying "or ignore" at every
+    insert and the reader goes on believing it.
+
+    Same root cause as the column mismatch -- ``CREATE TABLE IF NOT
+    EXISTS`` against a table that already exists is a no-op, and these
+    tables ship in the database, so the Go declaration never runs.  The
+    database builder is where the real definition comes from, and for
+    three of these it disagrees with the form that uses them.
+
+    The comparison is ``sqlite_master`` and ``PRAGMA index_list``, which
+    is how SQLite itself decides whether a row is a duplicate.  Nothing
+    is re-implemented: the question is only whether the constraint is
+    there.
+    """
+    declared = {}
+    for source in layout.go_sources():
+        text = source.read_text(encoding="utf-8", errors="replace")
+        for match in _CREATE_TABLE.finditer(text):
+            name = match.group("name").upper()
+            for column in re.findall(r"UNIQUE\s*\(\s*([A-Za-z0-9_]+)\s*\)",
+                                     match.group("body"), re.IGNORECASE):
+                declared.setdefault(name, set()).add(column.lower())
+
+    total = sum(len(columns) for columns in declared.values())
+    assert total == EXPECTED_UNIQUE_DECLARATIONS, (
+        f"{total} UNIQUE constraints are declared in the Go, not "
+        f"{EXPECTED_UNIQUE_DECLARATIONS}: {declared}.  Update the number "
+        "in the same commit as the reason")
+
+    missing = {}
+    for name, columns in sorted(declared.items()):
+        row = sqlite_conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+            (name,)).fetchone()
+        if row is None:
+            continue                       # a table that does not ship
+        # Per column, not per table.  Reading the declared columns and
+        # then asking only "does this table have any uniqueness at all"
+        # would pass a build that enforced UNIQUE on some other column
+        # while the declared one stayed unconstrained -- which is the
+        # same not-quite-the-right-question mistake this whole file
+        # exists to catch.
+        unique_columns = set()
+        for index in sqlite_conn.execute(f'PRAGMA index_list("{name}")'):
+            if not index[2]:               # the "unique" flag
+                continue
+            unique_columns |= {
+                info[2].lower()
+                for info in sqlite_conn.execute(f'PRAGMA index_info("{index[1]}")')
+                if info[2]}
+
+        absent = sorted(column for column in columns
+                        if column not in unique_columns)
+        if absent:
+            missing[name] = absent
+
+    unexpected = sorted(set(missing) - set(_UNIQUE_DECLARED_BUT_NOT_SHIPPED))
+    assert not unexpected, (
+        "a form declares a uniqueness the shipped table does not have, "
+        f"and this file has not judged it: {unexpected}")
+
+    stale = sorted(set(_UNIQUE_DECLARED_BUT_NOT_SHIPPED) - set(missing))
+    assert not stale, (
+        f"the shipped table now enforces a constraint recorded here as "
+        f"missing: {stale}.  Delete the row and the finding with it")
+
+    if missing:
+        raise KnownShippedDefect(
+            "a form declares UNIQUE on a column and the shipped table "
+            "does not have it, so every INSERT OR IGNORE into it ignores "
+            "nothing: "
+            + "; ".join(f"{name} {columns} -- "
+                        f"{_UNIQUE_DECLARED_BUT_NOT_SHIPPED[name]}"
+                        for name, columns in sorted(missing.items()))
+            + ".  The constraint is in the Go and not in "
+              "CBDB_AdditionalTablesViewsIndices.sql, which is what "
+              "actually creates these tables; ZZ_SCRATCH_ADDR is declared "
+              "the same way in the same file and does ship with it, so "
+              "this is an omission rather than a policy")

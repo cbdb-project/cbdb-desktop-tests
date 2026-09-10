@@ -1,5 +1,4 @@
-"""The registry the report is written from -- and nothing else.
-
+"""The registry the report is written from -- and nothing else.\n\n"
 This module holds one round's findings **for as long as it takes to
 write that round's report**.  It is not a record of what this project
 has ever found, it is not consulted to decide whether a test may fail,
@@ -50,7 +49,6 @@ class KnownShippedDefect(AssertionError):
     Subclasses AssertionError so the message reads like a normal test
     failure when it does escape (for instance under ``--runxfail``).
     """
-
 
 #: Priority bands, in the shape the CBDB team already receives them from
 #: the .mdb suite, adapted to a web application.  Ordered: P0 first.
@@ -1638,6 +1636,242 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Code/cbdb_navigation_backend.go:62",
                 "Static/"),
         tests=("test_every_link_the_navigation_offers_resolves",),
+    ),
+    Defect(
+        key="CBDB-D-015",
+        priority="P0", severity="high", origin="software",
+        title="A person imported twice is counted twice, queried twice, "
+              "and written twice into six of the seven Networks exports",
+        title_zh="同一個人若被匯入兩次，就會被計數兩次、查詢兩次，"
+                 "並在社會網絡七種匯出中的六種裡被寫出兩次",
+        area="Networks: the imported working list",
+        area_zh="社會網絡：匯入的工作清單",
+        summary="`networks_form_backend.go` declares its working list as "
+                "`CREATE TABLE IF NOT EXISTS ZZ_SIP_NETWORK (... UNIQUE "
+                "(c_person_id))` and inserts into it with `INSERT OR "
+                "IGNORE` in all four places that fill it.  The table ships "
+                "in the database without that constraint, and `CREATE "
+                "TABLE IF NOT EXISTS` against a table that already exists "
+                "is a no-op -- so the guard never runs, and the `OR IGNORE` "
+                "has nothing to ignore.  A repeated id is ordinary input: "
+                "the page builds its list from a file one line at a time "
+                "and does not deduplicate.",
+        summary_zh="`networks_form_backend.go` 把它的工作清單宣告為 "
+                   "`CREATE TABLE IF NOT EXISTS ZZ_SIP_NETWORK (... UNIQUE "
+                   "(c_person_id))`，並且在四處填入資料的地方全都使用 "
+                   "`INSERT OR IGNORE`。但這張表在釋出的資料庫中並沒有這個"
+                   "約束，而 `CREATE TABLE IF NOT EXISTS` 對一張已經存在的"
+                   "表而言是空操作——因此這道防護從未生效，`OR IGNORE` 也"
+                   "沒有東西可以忽略。重複的 id 是很平常的輸入：頁面是逐行"
+                   "從檔案讀出清單的，並不會去除重複。",
+        evidence="Driven through the shipped binary.  Importing person 0 "
+                 "once: `/api/networks/person-count` says 1, and the "
+                 "smallest query returns 19 rows for 19 distinct people.  "
+                 "Importing the same person *twice*: person-count says **2 "
+                 "for one person**, and the same query returns **20 rows "
+                 "for 19 distinct people**, person 0 appearing twice.  The "
+                 "duplicate is not confined to the working list: "
+                 "`networks_form_query.go` seeds `ZZ_SP_NETWORK` from it "
+                 "with no `DISTINCT`, and the result rows and six of the "
+                 "seven export writers read `ZZ_SP_NETWORK` with no "
+                 "`DISTINCT` either -- Export Results, GIS, KML, "
+                 "Gephi/GUESS, UCINet and Pajek.  The seventh, Neo4j, is "
+                 "unaffected, and how it escapes is the fix in miniature: "
+                 "it collects its people into `ZZ_SCRATCH_P_TEXT` with "
+                 "`INSERT OR IGNORE ... SELECT DISTINCT`, and that table "
+                 "*does* ship with the unique constraint its declaration "
+                 "asks for.\n\nThe constraint is missing in the shipped "
+                 "table and not in the Go: `PRAGMA index_list` finds no "
+                 "unique index on `ZZ_SIP_NETWORK`, `ZZ_SIP_KINSHIP` or "
+                 "`ZZ_SIP_ASSOC_PAIR`, while `ZZ_SCRATCH_ADDR` -- declared "
+                 "the same way, in the same file -- does have one.  So this "
+                 "is an omission in the database builder rather than a "
+                 "decision.  Kinship and Association Pairs escape the "
+                 "visible half by luck: their working lists duplicate too, "
+                 "and their person-counts are wrong in the same way, but "
+                 "their queries deduplicate downstream.",
+        evidence_zh="以釋出的執行檔實測。將人物 0 匯入一次："
+                    "`/api/networks/person-count` 回報 1，最小查詢回傳 19 "
+                    "列、19 個不重複人物。將同一個人匯入**兩次**："
+                    "person-count 回報 **一個人卻是 2**，同一個查詢回傳 "
+                    "**20 列、19 個不重複人物**，人物 0 出現了兩次。這個"
+                    "重複並不止於工作清單：`networks_form_query.go` 由它"
+                    "填入 `ZZ_SP_NETWORK` 時沒有 `DISTINCT`，而結果列與"
+                    "七個匯出程式中的六個在讀取 `ZZ_SP_NETWORK` 時同樣"
+                    "沒有 `DISTINCT`——分別是 Export Results、GIS、KML、"
+                    "Gephi/GUESS、UCINet 與 Pajek。第七個 Neo4j 不受影響，"
+                    "而它之所以能倖免，正是這個修正的縮影：它以 "
+                    "`INSERT OR IGNORE ... SELECT DISTINCT` 把人物收進 "
+                    "`ZZ_SCRATCH_P_TEXT`，而那張表確實依其宣告帶有唯一"
+                    "約束。\n\n缺少約束的是釋出的資料表而不是 Go："
+                    "`PRAGMA index_list` 在 `ZZ_SIP_NETWORK`、"
+                    "`ZZ_SIP_KINSHIP` 與 `ZZ_SIP_ASSOC_PAIR` 上都找不到"
+                    "唯一索引，而以同樣方式、在同一個檔案中宣告的 "
+                    "`ZZ_SCRATCH_ADDR` 卻有。可見這是資料庫建置程式的疏漏，"
+                    "而不是刻意的決定。親屬關係與關聯配對只是僥倖避開了"
+                    "可見的那一半：它們的工作清單同樣會重複、person-count "
+                    "也同樣錯誤，只是它們的查詢在後續步驟中去除了重複。",
+        impact="A network is a count of people and a set of relationships, "
+               "and both are wrong.  The person appears twice in the "
+               "result grid, twice in Export Results, twice in the GIS "
+               "table, twice in the KML, and twice in the Gephi, UCINet "
+               "and Pajek files -- where a duplicated vertex is not "
+               "merely cosmetic, since the network measures those tools "
+               "compute are defined over the vertex set.  Only the Neo4j "
+               "bundle comes out right.  The points-per-coordinate "
+               "figure the GIS and "
+               "KML exports carry counts rows, so it inflates too.  "
+               "Nothing on screen marks any of it, and the input that "
+               "causes it -- a list file with a repeated id -- is one a "
+               "historian would have no reason to think twice about.",
+        impact_zh="一個網絡就是一組人數與一組關係，而這兩者都錯了。這個人"
+                  "會在結果表格中出現兩次、在 Export Results 中兩次、在 "
+                  "GIS 表中兩次、在 KML 中兩次，在 Gephi、UCINet 與 Pajek "
+                  "檔案中也各出現兩次——在那些工具裡，重複的節點並不只是"
+                  "外觀問題，因為它們計算的網絡指標正是定義在節點集合"
+                  "之上的。只有 Neo4j 匯出是正確的。GIS 與 KML 匯出所帶的"
+                  "「每個座標點的人數」是以列數計算的，因此也會膨脹。"
+                  "畫面上沒有任何地方標示這件事，而造成它的輸入——一個"
+                  "帶有重複 id 的清單檔——正是歷史學者不會多想一秒的東西。",
+        fix="Add `UNIQUE (c_person_id)` to `ZZ_SIP_NETWORK` in "
+            "`CBDB_AdditionalTablesViewsIndices.sql`, which is what "
+            "actually creates it; the Go already declares the constraint "
+            "and every insert into that table is already `INSERT OR "
+            "IGNORE`, so nothing else has to change.\n\n**Only that "
+            "table.**  `ZZ_SIP_KINSHIP` and `ZZ_SIP_ASSOC_PAIR` duplicate "
+            "in the same way and their person-counts are wrong in the same "
+            "way, but neither declares the constraint and neither inserts "
+            "with `OR IGNORE` -- so adding `UNIQUE` to them would turn a "
+            "silent duplicate into a failed insert, which is a worse "
+            "outcome and a decision for whoever owns those forms.  If "
+            "their counts are to be fixed, `SELECT DISTINCT` at the point "
+            "of insert is the safe way.  Worth a look in the other "
+            "direction too: every `CREATE TABLE IF NOT EXISTS` in the Go "
+            "describes a table that already ships, so any constraint "
+            "declared there and missing from the builder is inert in "
+            "exactly this way.",
+        fix_zh="請在實際負責建立資料表的 "
+               "`CBDB_AdditionalTablesViewsIndices.sql` 中，為 "
+               "`ZZ_SIP_NETWORK` 加上 `UNIQUE (c_person_id)`；Go 端本來就"
+               "宣告了這個約束，對該表的所有插入也早已是 `INSERT OR "
+               "IGNORE`，因此不需要再改動其他地方。\n\n**僅限這一張表。**"
+               "`ZZ_SIP_KINSHIP` 與 `ZZ_SIP_ASSOC_PAIR` 同樣會重複、"
+               "person-count 也同樣錯誤，但這兩張表既沒有宣告該約束，"
+               "插入時也沒有使用 `OR IGNORE`——因此若替它們加上 `UNIQUE`，"
+               "只會把「靜默的重複」變成「插入失敗」，那是更糟的結果，"
+               "也應由這兩個表單的負責人自行決定。若要修正它們的計數，"
+               "在插入處加上 `SELECT DISTINCT` 才是安全的作法。另外也"
+               "值得往反方向檢查一遍：Go 中每一處 `CREATE TABLE IF NOT "
+               "EXISTS` 所描述的資料表都已隨版釋出，因此凡是宣告於該處、"
+               "卻不存在於建置程式中的約束，都會以完全相同的方式失效。",
+        steps=(
+            "Open Networks and import a list file with the same person id "
+            "on two lines (or POST /api/networks/import-people with "
+            "{\"personIds\": [1, 1]}).",
+            "Read the count under the list: it says 2 for one person.",
+            "Run the query and look for that person in the results grid: "
+            "two rows.",
+            "Save to GIS and count the person's rows in the file: two.  "
+            "Save to Neo4j and count them there: one.",
+        ),
+        steps_zh=(
+            "開啟社會網絡頁面，匯入一個同一個人物 id 出現在兩行的清單檔"
+            "（或以 {\"personIds\": [1, 1]} 呼叫 POST "
+            "/api/networks/import-people）。",
+            "看清單下方的人數：一個人卻顯示 2。",
+            "執行查詢，在結果表格中找這個人：有兩列。",
+            "執行 Save to GIS，數一數檔案中這個人的列數：兩列。"
+            "再執行 Save to Neo4j，在那裡數一數：一列。",
+        ),
+        source=("Code/networks_form_backend.go:384",
+                "Code/networks_form_backend.go:handleExportNeo4j",
+                "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql",
+                "Code/networks_form_query.go"),
+        tests=("test_importing_the_same_person_twice_imports_one_person",
+               "test_a_uniqueness_a_form_declares_is_one_the_table_enforces"),
+    ),
+    Defect(
+        key="CBDB-D-016",
+        priority="P0", severity="medium", origin="software",
+        title="Association Pairs reports how many ids were in the file, not "
+              "how many people it loaded",
+        title_zh="關聯配對回報的是檔案裡有多少個 id，而不是實際載入了"
+                 "多少人",
+        area="Association Pairs: import-list",
+        area_zh="關聯配對：import-list",
+        summary="`handleImportList` inserts by joining `BIOG_MAIN`, so an "
+                "id the database does not have inserts nothing -- and then "
+                "answers `\"count\": len(req.PersonIDs)`, the request "
+                "handed back.  The page prints that number: *\"Imported N "
+                "person IDs\"*, *\"N people loaded\"*.",
+        summary_zh="`handleImportList` 是以連接 `BIOG_MAIN` 的方式插入的，"
+                   "因此資料庫中沒有的 id 什麼也不會插入——然後它卻回應 "
+                   "`\"count\": len(req.PersonIDs)`，也就是把請求原樣送回。"
+                   "頁面直接把這個數字顯示出來：「Imported N person IDs」、"
+                   "「N people loaded」。",
+        evidence="Three ids sent, of which two exist in `BIOG_MAIN` and one "
+                 "is past the largest id the table holds.  Association "
+                 "Pairs answers `{\"count\": 3}` and the following query "
+                 "returns exactly what sending only the two real ids "
+                 "returns.\n\nThe oracle is the three sibling endpoints "
+                 "that load the same kind of list, because they disagree "
+                 "with it and with nothing else: Kinship answers "
+                 "`{\"count\": 2, \"errorCount\": 1}`, Networks reads "
+                 "`COUNT(*)` back out of its own table and answers "
+                 "`{\"count\": 2}`, and Group Data answers `{\"count\": 2}` "
+                 "with the rows it found.  Three of the four report what "
+                 "happened; the fourth reports what it was asked to do.",
+        evidence_zh="送出三個 id，其中兩個存在於 `BIOG_MAIN`，另一個大於"
+                    "該表中最大的 id。關聯配對回應 `{\"count\": 3}`，"
+                    "而隨後的查詢所回傳的結果，與只送出那兩個真實 id 時"
+                    "完全相同。\n\n判準來自另外三個載入同類清單的端點，"
+                    "因為不一致的只有這一個：親屬關係回應 `{\"count\": 2, "
+                    "\"errorCount\": 1}`，社會網絡從自己的資料表把 "
+                    "`COUNT(*)` 讀回來、回應 `{\"count\": 2}`，分群資料"
+                    "回應 `{\"count\": 2}` 並附上實際找到的資料列。"
+                    "四者之中有三個回報的是實際發生的事，第四個回報的則是"
+                    "它被要求做的事。",
+        impact="A historian importing an id list from an older CBDB "
+               "release, or from a colleague's spreadsheet, is told the "
+               "whole list loaded and then queries a subset.  Nothing "
+               "later contradicts it: the result simply has fewer people "
+               "in it than the source list had, which looks like a finding "
+               "about the data rather than about the import.",
+        impact_zh="歷史學者若從舊版 CBDB、或從同事的試算表匯入一份 id "
+                  "清單，系統會告訴他整份清單都載入了，實際上查詢的卻只是"
+                  "其中一部分。後續也沒有任何地方會推翻這個說法：結果裡的"
+                  "人數就是比來源清單少，看起來像是關於資料本身的發現，"
+                  "而不是匯入出了問題。",
+        fix="Report what was inserted, not what was asked for.  The three "
+            "sibling handlers show two ways: count `RowsAffected` as "
+            "Kinship does and return an `errorCount` beside it, or read "
+            "`COUNT(*)` back as Networks does.  Kinship's shape is the "
+            "more useful of the two, because a user who is told one id "
+            "failed can go and look for it.",
+        fix_zh="請回報實際插入的筆數，而不是被要求的筆數。另外三個同類的"
+               "處理常式示範了兩種作法：像親屬關係那樣統計 `RowsAffected` "
+               "並附上 `errorCount`，或像社會網絡那樣把 `COUNT(*)` 讀回來。"
+               "其中親屬關係的形式較為實用，因為使用者一旦被告知有一個 id "
+               "載入失敗，就能自己去找出是哪一個。",
+        steps=(
+            "On Look At Association Pairs, import a list containing two "
+            "real person ids and one that does not exist.",
+            "The page says three people were loaded.",
+            "Run the query: the answer is the one for two people.",
+            "Send the same three ids to /api/kinship/import-people for "
+            "comparison: it answers count 2, errorCount 1.",
+        ),
+        steps_zh=(
+            "在關聯配對頁面上，匯入一份含有兩個真實人物 id 與一個不存在 "
+            "id 的清單。",
+            "頁面顯示載入了三個人。",
+            "執行查詢：得到的是兩個人的結果。",
+            "把同樣這三個 id 送到 /api/kinship/import-people 作為對照："
+            "它回應 count 2、errorCount 1。",
+        ),
+        source=("Code/assocpairs_form_backend.go:handleImportList",
+                "Templates/association_pairs/index.html:513"),
+        tests=("test_a_list_loader_reports_how_many_people_it_loaded",),
     ),
 )
 

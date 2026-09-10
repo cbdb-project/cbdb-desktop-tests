@@ -302,6 +302,9 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_routes.py",
      "Every registered route",
      "All 141 routes read out of the shipped Go source, driven for real"),
+    ("test_cross_form_channel.py",
+     "Passing a result from one form to another",
+     "The stored-person list: what one form stores, another recalls"),
     ("test_page_contracts.py",
      "Each page against its own handler",
      "Whether the two halves of a form agree about the request and the "
@@ -363,6 +366,9 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                            "釋出的執行檔能啟動、能服務、並能釋放資料庫"),
     "test_routes.py": ("所有已註冊的路由",
                        "從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測"),
+    "test_cross_form_channel.py": ("在表單之間傳遞查詢結果",
+                                  "已儲存人物清單：一個表單存入的，"
+                                  "另一個表單取回的"),
     "test_page_contracts.py": ("各頁面與其後端的對照",
                                "表單的前後兩半對於請求與回應是否一致——"
                                "後端從不讀取的控制項、頁面讀不懂的回應、"

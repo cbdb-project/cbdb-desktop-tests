@@ -41,7 +41,7 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1135 tests collected, and the defect registry
+**Current state: 1155 tests collected, and the defect registry
 holds this round's findings.**  It was cleared on 2026-09-08, together
 with the previous round's reports and every run artefact, so that this
 distribution was assessed with no carried-over knowledge of what an
@@ -76,9 +76,21 @@ Of those tests, 254 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep) and 247 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; last measured, on the 2026-09-07
+`artifacts/endpoint_coverage.json`; last measured, on the 2026-09-08
 build, **105 of 105** endpoints reachable from the user interface were
 actually requested, with nothing excused.
+
+That number was not always earned.  It read 105 of 105 for a while
+because the denominator was built from what the suite happened to
+request; once the gate was made to derive the reachable set from the
+shipped pages instead, the same suite measured 91 of 105.  The fourteen
+it was missing are driven by `test_cross_form_channel.py` and by the
+dependent-picker tests in `test_lookups.py`, and ten of them were one
+feature -- the stored-person list, the only channel by which a result
+travels from one form to another.  Read that file before adding to it:
+the endpoints are individually trivial and collectively are the
+feature, which is why driving them one at a time proves almost
+nothing.
 Enable-state coverage is the honest counterpart: 14 of the 106 controls
 that ship `disabled` have a declared precondition, and the other 92 are
 pinned in `test_ui_pages.UNDECLARED`, which may only shrink.

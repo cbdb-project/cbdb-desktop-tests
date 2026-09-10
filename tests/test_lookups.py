@@ -542,3 +542,181 @@ def test_a_person_who_does_not_exist_is_a_404(app: CbdbApp, sqlite_conn):
     assert response.status_code == 404, response.status_code
 
     assert app.get("/api/browser/person/not-a-number").status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# the dependent dropdowns: a code list narrowed by the type above it
+# ---------------------------------------------------------------------------
+
+#: The two pickers that narrow one list by a selection in another, and
+#: what each calls things.  Both are POST, which is unusual for a
+#: lookup and is what put them outside the reach of any sweep over GET
+#: endpoints.
+#:
+#: ``(endpoint, request key, reply key, the table the type codes live
+#: in, that table's type column)``.  The type codes are read out of the
+#: data rather than written down here: they are a hierarchy whose shape
+#: belongs to CBDB, and a refresh that retires one should choose another
+#: rather than leave this testing a code that no longer exists.
+DEPENDENT_PICKERS = {
+    "entry": ("/api/entry-codes-for-type", "entryTypeCode", "entryCode",
+              "ENTRY_CODE_TYPE_REL", "c_entry_type"),
+    "status": ("/api/status-codes-for-type", "statusTypeCode", "statusCode",
+               "STATUS_CODE_TYPE_REL", "c_status_type_code"),
+}
+
+
+def _codes_for(app: CbdbApp, picker: str, type_code: str) -> set[int]:
+    """The set of codes the picker offers under ``type_code``."""
+    endpoint, request_key, reply_key, _table, _column = DEPENDENT_PICKERS[picker]
+    rows = app.json("POST", endpoint, json={request_key: type_code})
+    assert isinstance(rows, list), (
+        f"{endpoint} now answers with {type(rows).__name__} rather than a "
+        "bare array; both handlers encoded an array when this was written")
+    return {row[reply_key] for row in rows}
+
+
+@pytest.fixture(scope="module", params=sorted(DEPENDENT_PICKERS))
+def picker_types(request, sqlite_conn):
+    """``(picker, [type codes], [child code])`` chosen from the data.
+
+    Two kinds of type code are wanted: the ones with the most rows
+    behind them, because a filter that returns nothing proves nothing;
+    and a *longer* code sharing a prefix with one of them, because the
+    containment property below is only interesting where the hierarchy
+    actually has two levels.
+    """
+    picker = request.param
+    _endpoint, _req, _reply, table, column = DEPENDENT_PICKERS[picker]
+
+    busiest = [row[0] for row in sqlite_conn.execute(
+        f"SELECT {column} FROM {table} "
+        f"WHERE {column} IS NOT NULL AND {column} <> '' "
+        f"GROUP BY {column} ORDER BY COUNT(*) DESC, {column} LIMIT 3")]
+    assert busiest, f"{table} offers no type codes to test with"
+
+    # Any parent/child pair in the hierarchy, not merely one under the
+    # busiest code.  The first version asked only about `busiest[0]`,
+    # which has no children in this data, so the containment test below
+    # skipped on both pickers -- reporting "nothing to judge" about a
+    # hierarchy that has 7 two-level and 3 three-level Entry codes.
+    pair = sqlite_conn.execute(
+        f"SELECT parent.{column}, child.{column} "
+        f"FROM (SELECT DISTINCT {column} FROM {table}) parent "
+        f"JOIN (SELECT DISTINCT {column} FROM {table}) child "
+        f"  ON LENGTH(child.{column}) > LENGTH(parent.{column}) "
+        f" AND SUBSTR(child.{column}, 1, LENGTH(parent.{column})) "
+        f"     = parent.{column} "
+        f"ORDER BY LENGTH(parent.{column}), parent.{column}, child.{column} "
+        f"LIMIT 1").fetchone()
+    return picker, busiest, pair
+
+
+def test_a_dependent_picker_offers_only_codes_the_whole_list_has(
+        app: CbdbApp, picker_types):
+    """Narrowing by type may remove codes; it may not invent them.
+
+    The unfiltered call -- an empty type -- is the picker's own answer
+    to "everything", so it is the right thing to compare against: no
+    count is predicted here and no join is re-run, only the application
+    compared with itself under two requests.
+
+    This is the whole of what the Entry and Status type dropdowns do,
+    and neither endpoint had been requested by any test before.
+    """
+    picker, busiest, _deeper = picker_types
+    everything = _codes_for(app, picker, "")
+    assert everything, f"the {picker} picker offers no codes at all"
+
+    narrowed_by = {}
+    for type_code in busiest:
+        narrowed = _codes_for(app, picker, type_code)
+        assert narrowed, (
+            f"{picker} type {type_code!r} is one of the three commonest in "
+            f"the data and the picker offers nothing under it")
+        stray = sorted(narrowed - everything)
+        assert not stray, (
+            f"{picker} type {type_code!r} offers {len(stray)} code(s) the "
+            f"unfiltered list does not have: {stray[:5]}.  A filtered "
+            "dropdown that adds options is offering the user something "
+            "the form cannot then act on")
+        narrowed_by[type_code] = narrowed
+
+    # Containment on its own is the third true-by-construction shape
+    # AGENTS.md names: a handler that ignored the type entirely and
+    # always answered with the whole list would satisfy every subset
+    # assertion above.  So the filter is also required to *filter*.
+    #
+    # Neither of these predicts a count.  The first compares the
+    # picker's answer with the picker's own answer to "everything"; the
+    # second compares two of its answers with each other.  A handler
+    # rewritten from scratch to the same specification passes both; one
+    # that dropped its WHERE clause fails both.
+    assert any(codes < everything for codes in narrowed_by.values()), (
+        f"every {picker} type returned all {len(everything)} codes, so "
+        "choosing a type changes nothing.  The narrowing branch is not "
+        "running, and the dropdown below the type selector is showing "
+        "the user the unfiltered list whatever they pick")
+
+    distinct = {frozenset(codes) for codes in narrowed_by.values()}
+    assert len(distinct) > 1, (
+        f"the {len(busiest)} commonest {picker} types all return the same "
+        f"{len(everything)} codes; the type selector is inert")
+
+
+def test_a_deeper_type_offers_a_subset_of_the_one_above_it(
+        app: CbdbApp, picker_types):
+    """The hierarchy the prefix match implies, asserted as containment.
+
+    These codes are a tree flattened into a string: ``01`` is the parent
+    of ``0102``, and the handler selects children by comparing the first
+    *n* characters.  The property that makes it a tree -- a child's
+    codes are among its parent's -- is what a user relies on when they
+    narrow a dropdown twice, and it is checkable without knowing how the
+    handler does the comparison.
+
+    Skipped rather than failed when the shipped data has no two-level
+    code for this picker: the claim would then be about nothing, and a
+    test that quietly passes in that state is worse than one that says
+    it could not judge.
+    """
+    picker, _busiest, pair = picker_types
+    if not pair:
+        pytest.skip(f"the {picker} type codes are a single level in this "
+                    "data, so there is no containment to check")
+    parent, child = pair
+    below = _codes_for(app, picker, child)
+    above = _codes_for(app, picker, parent)
+
+    assert below, f"{picker} type {child!r} exists in the data and offers nothing"
+    outside = sorted(below - above)
+    assert not outside, (
+        f"{picker} type {child!r} sits under {parent!r} in "
+        f"{DEPENDENT_PICKERS[picker][3]}, and offers {len(outside)} code(s) "
+        f"its parent does not: {outside[:5]}.  Narrowing a dropdown twice "
+        "would then show the user options that disappear when they go back "
+        "one level")
+
+
+def test_the_two_dependent_pickers_agree_about_what_no_type_means(
+        app: CbdbApp, picker_types):
+    """Both take ``""`` and both take ``"Root"``, and both mean everything.
+
+    ``Root`` is what a tree picker sends when the user selects the top
+    node, and both handlers test for it -- Entry after a
+    ``strings.TrimSpace``, Status on the raw field, but both with the
+    same ``== "" || == "Root"`` shape.  Pinned because the
+    consequence of one of them dropping that second clause is not an
+    error: the prefix branch would compare the first four characters of
+    each type code against ``Root``, match nothing, and hand the user an
+    empty dropdown.  That is reported as "the form is broken", and it
+    would be a one-word change that no other test here would see.
+    """
+    picker, _busiest, _pair = picker_types
+    everything = _codes_for(app, picker, "")
+    assert everything, f"the {picker} picker offers no codes at all"
+
+    assert _codes_for(app, picker, "Root") == everything, (
+        f"the {picker} picker no longer treats 'Root' as the whole list, "
+        "so selecting the top node of the tree empties the dropdown "
+        "instead of filling it")
