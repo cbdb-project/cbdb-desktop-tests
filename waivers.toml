@@ -56,3 +56,38 @@ reason    = "The same agreement, at the process level: main.go takes no single-i
 reason_zh = "同一項協商，發生在行程層級：main.go 沒有取得單一實例鎖，通訊埠也是隨機選取，因此 cbdb.exe 可以對同一個資料庫啟動兩次。加一個鎖檔是這個問題最便宜的一半修法，經協商同樣留待日後的版本處理。"
 agreed_by = "maintainer"
 agreed_on = 2026-09-09
+
+
+# --- Select All Filtered on a filter wider than the picker renders -------
+#
+# Raised as a finding against the 20260909 build and withdrawn after the
+# maintainer pointed out what the picker already does: when a filter
+# matches more than MAX_RENDER rows the count line reads "Showing first
+# 100 of N -- refine your search", so the truncation is announced rather
+# than hidden, and no realistic address filter needs a hundred rows.
+#
+# The measurement itself is not in dispute and is worth keeping written
+# down, because the day the prompt is removed this test is what notices:
+# selectAllFiltered() and sendResult() both build their answer from
+# sel.options, which holds only the rendered slice, while the whole match
+# set sits in filteredAddresses.  So a user who reads the prompt and
+# presses the button anyway hands back a hundred addresses marked
+# isSelectAllFiltered = true, and the host page renders that as
+# "[[filterText]]" -- the whole filter.
+#
+# Tolerated, not denied: the prompt is the mitigation, and it is the
+# maintainer's call that a filter this wide is a mistake the user has
+# already been warned about.
+#
+# The prompt is therefore asserted, in the same test, as a plain
+# AssertionError.  This entry narrows to KnownShippedDefect, so that
+# assertion is outside the tolerance: remove the prompt and the test
+# goes red rather than staying quietly waived.  Without it the one
+# thing this agreement rests on was the one thing nothing measured.
+
+[test_select_all_filtered_selects_every_address_the_filter_matched]
+raises    = "KnownShippedDefect"
+reason    = "Tolerated rather than denied.  The maintainer's position is that this is not a defect: the address picker already answers a filter matching more than 100 rows with \"Showing first 100 of N -- refine your search\", so the truncation is announced, and no realistic address filter needs more than a hundred records.  What the test measures still holds -- Select All Filtered ticks the rendered options only, and pressing Select then sends those first hundred with isSelectAllFiltered = true, which the host page renders as the whole filter -- so the test stays rather than being deleted.  The prompt is the whole of the mitigation, and it is now asserted separately in the same test: if it is ever removed, that assertion fails as an ordinary AssertionError, which this waiver does not cover."
+reason_zh = "此處是「容忍」而非「否認」。維護者的立場是這並不算缺陷：當篩選結果超過 100 筆時，地址選擇視窗本來就會顯示「Showing first 100 of N -- refine your search」，截斷是有明確提示的，而實際使用上不會有哪個地址篩選需要超過一百筆。測試所量到的事實依然成立——Select All Filtered 只會勾選已渲染的選項，接著按下 Select 才會把那前一百筆連同 isSelectAllFiltered = true 一起送出，而宿主頁面會把它呈現為整個篩選結果——因此這個測試保留而不刪除。那個提示就是這項緩解措施的全部，現在已在同一個測試中另行斷言：若它日後被移除，該斷言會以一般的 AssertionError 失敗，而本豁免並不涵蓋那種失敗。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-11

@@ -47,11 +47,19 @@ import re
 import pytest
 
 from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.gosource import SHARED, form_of, strip_comments
 from cbdb_desktop.staging import AppLayout
 
 # ---------------------------------------------------------------------------
 # reading the Go source as data
 # ---------------------------------------------------------------------------
+#
+# ``form_of`` says which form a source file belongs to -- a file per
+# form, plus the three in ``SHARED_FILES`` whose contents belong to
+# no single one -- and ``strip_comments`` keeps a name mentioned in
+# prose from counting as a use.  Both live in
+# ``cbdb_desktop.gosource``, because ``test_cross_form_channel.py``
+# asks the same two questions of the same files.
 
 _CREATE_TABLE = re.compile(
     r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
@@ -65,20 +73,6 @@ _CREATE_TABLE = re.compile(
 #: this file exists to catch; a mention that turns out to be inert costs
 #: one line in the pinned map below and nothing else.
 _TABLE_MENTION = re.compile(r"\bZZ_[A-Z0-9_]+\b")
-
-#: Which form each backend file belongs to.  A file per form plus two
-#: shared ones, whose contents belong to no single form.
-_SHARED_FILES = {"main.go", "cbdb_shared_utils.go",
-                 "cbdb_navigation_backend.go"}
-
-
-def _form_of(filename: str) -> str:
-    if filename in _SHARED_FILES:
-        return "<shared>"
-    return (filename.removesuffix("_form_backend.go")
-            .removesuffix("_form_query.go")
-            .removesuffix(".go"))
-
 
 #: The start of a top-level Go declaration, so a finding can be reported
 #: by the function it sits in rather than by a line number that the next
@@ -98,18 +92,12 @@ _GO_FUNC = re.compile(r"^func\s+(?:\([^)]*\)\s*)?(\w+)\s*[(\[]",
                       re.MULTILINE)
 
 
-def _strip_comments(source: str) -> str:
-    """Blank line and block comments, preserving offsets is not needed here."""
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    return re.sub(r"//[^\n]*", " ", source)
-
-
 @pytest.fixture(scope="module")
 def go_declarations(layout: AppLayout) -> dict[str, dict[str, set[str]]]:
     """``{table: {file: {declared columns}}}`` from every CREATE TABLE."""
     out: dict[str, dict[str, set[str]]] = {}
     for path in layout.go_sources():
-        text = _strip_comments(path.read_text(encoding="utf-8",
+        text = strip_comments(path.read_text(encoding="utf-8",
                                               errors="replace"))
         for match in _CREATE_TABLE.finditer(text):
             name = match.group("name").upper()
@@ -137,12 +125,12 @@ def table_users(layout: AppLayout, db_columns) -> dict[str, set[str]]:
     """
     out: dict[str, set[str]] = {}
     for path in layout.go_sources():
-        text = _strip_comments(path.read_text(encoding="utf-8",
+        text = strip_comments(path.read_text(encoding="utf-8",
                                               errors="replace"))
         for name in {m.group(0).upper()
                      for m in _TABLE_MENTION.finditer(text)}:
             if name in db_columns:
-                out.setdefault(name, set()).add(_form_of(path.name))
+                out.setdefault(name, set()).add(form_of(path.name))
     assert out, "no ZZ_ table is named anywhere in the Go source"
     return out
 
@@ -176,9 +164,12 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
     # travels from one form to another and, since the working lists were
     # split, the only such channel.  Every form names it; that is the
     # feature, and test_stateful_forms.py pins the behaviour.
-    "ZZ_STORE_PERSON_ID": {"<shared>", "associations", "assocpairs", "entry",
-                           "groupdata", "kinship", "networks", "office",
-                           "places", "status", "texts"},
+    # ``browser`` joined in the 20260910 build, with Save Person ID.
+    # Eleven forms now, and the channel test drives its half.
+    "ZZ_STORE_PERSON_ID": {SHARED, "associations", "assocpairs",
+                           "browser", "entry", "groupdata", "kinship",
+                           "networks", "office", "places", "status",
+                           "texts"},
     # Filled and consumed inside one request by a common helper that
     # clears before each use, so shared by name and never across
     # requests -- the developers' own conclusion during the per-form
@@ -519,7 +510,7 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
     """
     problems: dict[str, list[str]] = {}
     for path in layout.go_sources():
-        text = _strip_comments(path.read_text(encoding="utf-8",
+        text = strip_comments(path.read_text(encoding="utf-8",
                                               errors="replace"))
         boundaries = [(m.start(), m.group(1))
                       for m in _GO_FUNC.finditer(text)]

@@ -14,7 +14,7 @@ Three checks, in order of how much they buy:
    Cheap, and it covers all thirteen pages.
 
 2. **Every control that ships disabled is enabled by its precondition.**
-   106 controls across the build ship ``disabled``; ``PRECONDITIONS``
+   109 controls across the build ship ``disabled``; ``PRECONDITIONS``
    says, per page, what a user does and which controls that must
    un-grey.  It is a table rather than a script so that it reads as a
    claim about the application, and
@@ -163,6 +163,20 @@ PRECONDITIONS: tuple[Precondition, ...] = (
               "is the export buttons after a result exists, and the "
               "Kinship form's own enable path is a separate question",
     ),
+    # The Browser page, new in the 20260910 build: looking a person up
+    # is what un-greys the two buttons that act on them.
+    Precondition(
+        page="browser",
+        path="/CBDB_Browser",
+        interact="""() => { loadPerson(%d); }""" % SUBJECT,
+        must_enable=("btn-store-person-id", "btn-export-profile"),
+        notes="Both arrived with the 20260910 build -- Save Person ID "
+              "hands the person to the cross-form channel, Export "
+              "Profile writes their record to an HTML file -- and both "
+              "ship disabled.  loadPerson() is the page's own entry "
+              "point and enables them once the person's detail has "
+              "come back, so this is the user looking somebody up.",
+    ),
 )
 
 #: Controls that ship disabled and that no ``Precondition`` above
@@ -283,7 +297,7 @@ def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
 def test_every_disabled_control_has_a_declared_precondition(layout):
     """The coverage gate for this file: count what is not covered.
 
-    106 controls ship disabled.  This file declares a precondition for
+    109 controls ship disabled.  This file declares a precondition for
     some of them; the rest are listed in ``UNDECLARED``, pinned, and
     that list may only shrink.  Without this the file would look like
     full coverage of enable state while checking four pages' worth.

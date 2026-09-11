@@ -49,7 +49,7 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     them must not slip through because a floor was set low enough to
     accommodate it.
     """
-    assert len(routes) == 141, "\n".join(_ids(routes))
+    assert len(routes) == 142, "\n".join(_ids(routes))
 
     methods = sorted({m for r in routes for m in r.methods})
     assert methods == ["GET", "POST"], methods
@@ -58,7 +58,7 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     for route in routes:
         per_form[route.form] = per_form.get(route.form, 0) + 1
     assert per_form == {
-        "associations": 8, "assocpairs": 10, "browser": 13,
+        "associations": 8, "assocpairs": 10, "browser": 14,
         "cbdb_navigation_backend": 5, "entry": 10, "groupdata": 8,
         "indexaddr": 5, "kinship": 15, "main": 8, "networks": 20,
         "office": 8, "places": 9, "qbe_handlers": 3, "status": 11,

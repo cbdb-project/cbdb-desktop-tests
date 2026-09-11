@@ -557,7 +557,7 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 #: fills in, not in a name a test author happened to think of.
 #: How many ``/api/`` routes the shipped Go registers.  The denominator
 #: of the survey below, pinned for the reason recorded in that test.
-EXPECTED_API_ROUTES = 116
+EXPECTED_API_ROUTES = 117
 
 _ROUTED_AND_UNCALLED = {
     "/api/networks/place-search":
@@ -929,6 +929,63 @@ def _picker_sources(layout: AppLayout) -> dict[str, str]:
             if not re.search(r"\.\d{8}\.html$", p.name)}
 
 
+def _governing_condition(body: str, pos: int) -> str:
+    """The condition of the innermost ``if`` still open at ``pos``.
+
+    Walks forward keeping a stack of the braces that are open, so the
+    answer is the ``if`` whose block actually contains ``pos`` rather
+    than whichever one is nearest in the text.  A fixed-width lookback
+    gets this wrong in both directions -- see the caller.
+
+    Returns ``""`` when nothing governs the position, which a caller
+    reads as *unguarded*, the strictest reading.
+    """
+    opener = re.compile(r"if\s*\((?P<cond>[^{;]*?)\)\s*\{")
+    stack: list[str] = []
+    i = 0
+    while i < pos:
+        match = opener.match(body, i)
+        if match:
+            stack.append(match.group("cond").strip())
+            i = match.end()
+            continue
+        if body[i] == "{":
+            stack.append("")
+        elif body[i] == "}":
+            if stack:
+                stack.pop()
+        i += 1
+    for cond in reversed(stack):
+        if cond:
+            return cond
+    return ""
+
+
+def _without_js_comments(source: str) -> str:
+    """JavaScript with ``//`` and ``/* */`` blanked.
+
+    Used before asking whether a body *does* something: a call that has
+    been commented out is not a call, and a substring search cannot
+    tell the difference.
+    """
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", " ", source)
+
+
+def _regex_literals(source: str) -> list[str]:
+    """The ``= /.../flags`` literals in some JavaScript, if any.
+
+    Strings first, then comments, so that a slash inside either is not
+    read as the start of a pattern.  Only the assignment form is
+    matched, which is what ``_function_body`` can be tripped by and is
+    narrow enough not to mistake division for a pattern.
+    """
+    stripped = re.sub(r"""(["'`])(?:\\.|(?!\1).)*\1""", "", source,
+                      flags=re.DOTALL)
+    stripped = _without_js_comments(stripped)
+    return re.findall(r"=\s*(/(?:[^/\n\\]|\\.)+/[gimsuy]*)", stripped)
+
+
 def test_the_function_body_reader_stops_at_the_function(layout: AppLayout):
     """The reader above, against the file it is used on.
 
@@ -955,13 +1012,34 @@ def test_the_function_body_reader_stops_at_the_function(layout: AppLayout):
     # containing a brace or a quote would send the reader past the close.
     # None of the pickers has one, and this is what says so.
     for name, page in _picker_sources(layout).items():
-        stripped = re.sub(r"""(["'`])(?:\\.|(?!\1).)*\1""", "", page,
-                          flags=re.DOTALL)
-        stripped = re.sub(r"//[^\n]*|/\*.*?\*/", "", stripped, flags=re.DOTALL)
-        assert not re.search(r"=\s*/(?:[^/\n\\]|\\.)+/[gimsuy]*", stripped), (
+        assert not _regex_literals(page), (
             f"{name} now contains a regex literal; _function_body does not "
             "parse those, so any judgement it makes about that file may be "
             "reading the wrong function")
+
+    # The Browser page cannot be held to that.  It has seven regex
+    # literals, one of them ``/"/g``, and asking the reader for a body
+    # that contains one really does fail -- ``_function_body(text,
+    # "esc")`` raises "does not close".  A whole-file ban would be a
+    # rule the build has already broken, so the invariant is narrowed to
+    # what is actually relied on: the bodies this suite reads out of
+    # that page must themselves be free of regex literals.  Today they
+    # are, and today that is true by position rather than by design,
+    # which is exactly why it is asserted.
+    browser = (layout.templates_dir / "browser" / "index.html").read_text(
+        encoding="utf-8", errors="replace")
+    for name in ("exportProfile", "loadTabKinship"):
+        body = _function_body(browser, name)
+        assert body, (
+            f"{name} is no longer in the Browser page; "
+            "test_export_profile_loads_the_kinship_tab_it_lists reads it")
+        found = _regex_literals(body)
+        assert not found, (
+            f"{name} now contains a regex literal ({found[0]!r}).  "
+            "_function_body does not parse those: it treats a quote or a "
+            "brace inside one as real, so the body it returned may stop "
+            "early or run into the next function, and the test that reads "
+            "this body would be judging the wrong code")
 
 
 def test_select_all_filtered_selects_every_address_the_filter_matched(
@@ -993,8 +1071,14 @@ def test_select_all_filtered_selects_every_address_the_filter_matched(
 
     cap = re.search(r"const\s+MAX_RENDER\s*=\s*(\d+)", text)
     assert cap, "the address picker no longer caps its rendering; this test is stale"
+    render = _function_body(text, "renderList")
+    assert render, (
+        "_function_body found no renderList in the address picker, so "
+        "neither the slice nor the prompt below is being read out of "
+        "the function that draws the list.  The cap itself is declared "
+        "outside it and is still matched against the whole file.")
     assert re.search(r"renderedAddresses\s*=\s*filteredAddresses\.slice\(0,\s*MAX_RENDER\)",
-                     text), \
+                     render), \
         "the rendered slice is no longer taken from the filtered set"
 
     # Each function's own body, brace-matched.  A regex of the shape
@@ -1018,6 +1102,34 @@ def test_select_all_filtered_selects_every_address_the_filter_matched(
         "reader does not match, and nothing below would be judging them")
     walkers = {name: "sel.options" in body for name, body in bodies.items()}
 
+    # The truncation prompt, asserted rather than assumed.  This
+    # finding is waived, and the waiver rests entirely on the picker
+    # telling the user it showed only the first hundred -- so the
+    # prompt is the one thing that must not disappear quietly.  It
+    # would have: everything above reads the slice and the two
+    # functions, and nothing in the suite looked at the count line.
+    # Read out of ``renderList`` rather than the file, for the reason
+    # the comment above ``bodies`` gives: a whole-file search is
+    # satisfied by any surviving mention -- a comment, a dead branch --
+    # and would stay green after the line itself had gone.  The
+    # condition and the string are matched together, because either one
+    # alone can outlive the other.
+    #
+    # A plain AssertionError is deliberate.  The waiver narrows to
+    # ``raises = "KnownShippedDefect"``, so this failure is *not*
+    # tolerated: losing the mitigation reopens the finding instead of
+    # being absorbed by the agreement that was made because of it.
+    warns = re.search(
+        r"filteredAddresses\.length\s*>\s*MAX_RENDER\s*\?\s*`Showing first ",
+        render)
+    assert warns, (
+        "the address picker no longer tells the user it truncated the "
+        "filter -- the count line that reads \"Showing first N of M -- "
+        "refine your search\" is gone from "
+        "Templates/pickers/address_picker.html.  The waiver on this "
+        "test was agreed on that prompt being there, so it no longer "
+        "applies and the finding below is live again.")
+
     if all(walkers.values()):
         raise KnownShippedDefect(
             f"Select All Filtered selects the rendered options only, and "
@@ -1029,6 +1141,119 @@ def test_select_all_filtered_selects_every_address_the_filter_matched(
             f"{' and '.join(sorted(walkers))} build their answer from "
             "sel.options rather than from filteredAddresses, which is the "
             "list that holds the whole match set")
+
+
+def test_export_profile_loads_the_kinship_tab_it_lists(layout: AppLayout):
+    """One button press reaches the endpoint that clears the Kinship form.
+
+    This is the second half of the Kinship-discard finding, and the
+    half no request can demonstrate: the damage is done by
+    ``GET /api/browser/person/{id}/kinship``, and what makes it likely
+    rather than merely possible is that the *Export Profile* button
+    added in this build issues that request on behalf of a user who
+    never asked to see kinship at all.
+
+    Three links in that chain, each read out of the page that makes
+    it and each asserted separately, so a build that breaks the chain
+    anywhere says which part it broke:
+
+    1. ``EXPORT_TABS`` lists a kinship tab with a loader;
+    2. ``exportProfile`` calls that loader for a tab it has not cached;
+    3. that loader fetches the kinship endpoint.
+
+    Source read as data -- no claim is made here about what the
+    request *does*, which is
+    ``test_looking_a_person_up_does_not_discard_a_kinship_result``'s
+    job, driven against the running binary.
+    """
+    page = layout.templates_dir / "browser" / "index.html"
+    text = page.read_text(encoding="utf-8", errors="replace")
+
+    listing = re.search(r"const\s+EXPORT_TABS\s*=\s*\[(.*?)\];",
+                        text, re.DOTALL)
+    assert listing, (
+        "the Browser page no longer declares EXPORT_TABS, so nothing "
+        "below is reading the list Export Profile walks")
+
+    row = re.search(r"id:\s*'tab-kinship'[^}]*loader:\s*(\w+)",
+                    listing.group(1))
+    assert row, (
+        "EXPORT_TABS has no kinship entry with a loader.  If the tab "
+        "was dropped from the export, Export Profile no longer reaches "
+        "the kinship handler and the second half of this finding is "
+        f"fixed; the list is:\n{listing.group(1).strip()[:600]}")
+    loader = row.group(1)
+
+    body = _function_body(text, "exportProfile")
+    assert body, (
+        "_function_body found no exportProfile in the Browser page, so "
+        "the call below would be searched for in the whole file")
+    body = _without_js_comments(body)
+    assert "tab.loader()" in body, (
+        "exportProfile no longer calls each tab's loader, so it may no "
+        "longer fetch a tab the user never opened -- which is the whole "
+        f"of this finding's reach.  Its body is:\n{body[:600]}")
+
+    # The link that matters, and the one three true facts do not add up
+    # to.  The cheapest fix for this defect is one line inside the loop
+    # --  ``if (tab.id === 'tab-kinship') continue;``  -- and it leaves
+    # the kinship row, the loader call and the loader's own fetch all
+    # exactly as they are.  Asserting only that the parts exist would
+    # report the defect against a build that had fixed it, which is the
+    # failure the comment above ``bodies`` in the picker test describes
+    # in its own terms.
+    #
+    # So: the loop must walk the whole list, and the only tab it may
+    # skip is the one with nothing to fetch.
+    assert re.search(r"for\s*\(\s*const\s+tab\s+of\s+EXPORT_TABS\s*\)",
+                     body), (
+        "exportProfile no longer walks EXPORT_TABS directly -- it may be "
+        "filtering the list, in which case kinship could have been "
+        f"excluded from it.  Its body is:\n{body[:600]}")
+
+    # Two ways a tab can be passed over: skipped before the call, or
+    # the call guarded out from under it.  Rejecting only the first
+    # leaves ``if (tab.id !== 'tab-kinship' && !_tabCache[k]) await
+    # tab.loader()`` -- a real fix -- looking untouched to this test.
+    skips = [_governing_condition(body, m.start())
+             for m in re.finditer(r"\bcontinue\b", body)]
+    loads = [_governing_condition(body, m.start())
+             for m in re.finditer(r"tab\.loader\(\)", body)]
+
+    stale = ([f"skips when {cond or '<always>'}" for cond in skips
+              if "!tab.cacheKey" not in cond]
+             + [f"loads only when {cond or '<always>'}" for cond in loads
+                if "_tabCache" not in cond or "tab.id" in cond])
+    assert not stale, (
+        "exportProfile now passes over a tab for some reason other "
+        "than it already being cached.  If what it passes over is "
+        "kinship, pressing Export Profile no longer reaches the "
+        "handler that clears the Kinship form, and the second half "
+        "of this finding is fixed -- confirm and retire it.  "
+        f"Found: {stale}")
+
+    # A third way, which the two checks above cannot see: seeding
+    # the cache for kinship just before the check leaves the
+    # governing condition exactly as it is and still stops the
+    # fetch.  In this build exportProfile only ever *reads* that
+    # cache -- the loaders fill it -- so the claim is simply that
+    # it still writes nothing to it.
+    assert not re.search(r"_tabCache\[[^\]]*\]\s*=[^=]", body), (
+        "exportProfile now writes to _tabCache.  If it is seeding "
+        "the kinship entry so the loader is skipped, Export "
+        "Profile no longer reaches the handler that clears the "
+        "Kinship form, and the second half of this finding is "
+        f"fixed -- confirm and retire it.  Its body is:\n{body[:900]}")
+
+    fetches = _function_body(text, loader)
+    assert fetches, (
+        f"_function_body found no {loader}, the loader EXPORT_TABS "
+        "names for the kinship tab")
+    assert re.search(r"/api/browser/person/\$\{[^}]+\}/kinship", fetches), (
+        f"{loader} no longer fetches /api/browser/person/<id>/kinship.  "
+        "If it reads from somewhere that does not clear the Kinship "
+        "form's tables, Export Profile is no longer a way into "
+        f"CBDB-D-028.  Its body is:\n{fetches[:600]}")
 
 
 def test_every_link_the_navigation_offers_resolves(app: CbdbApp, layout: AppLayout):

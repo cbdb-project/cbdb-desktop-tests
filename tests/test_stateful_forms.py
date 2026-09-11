@@ -37,6 +37,7 @@ effectively unbounded.
 """
 from __future__ import annotations
 
+import base64
 import re
 
 import pytest
@@ -326,6 +327,12 @@ def test_the_forms_disagree_about_overwriting_a_stored_list(
 # the queries
 # ---------------------------------------------------------------------------
 
+#: A kinship traversal small enough to run several times in one test
+#: and wide enough to produce an export worth comparing.
+_KINSHIP_QUERY = {"maxUp": 2, "maxDown": 2, "maxCol": 2, "maxMarr": 2,
+                  "mourningCircle": False}
+
+
 def test_a_kinship_query_returns_a_network_around_its_person(
         app: CbdbApp, egos, clean_lists, sqlite_conn):
     """The real kinship traversal, at its smallest useful depth."""
@@ -384,6 +391,125 @@ def test_a_deeper_kinship_query_reaches_at_least_as_far(
         f"searching further reached nobody new ({len(near)} then {len(far)})"
     assert near <= far, \
         f"searching further lost {len(near - far)} relatives"
+
+
+def _kinship_export_files(app: CbdbApp) -> dict[str, str]:
+    """``{filename: contents}`` from one *Export Query Results*.
+
+    The handler answers a JSON envelope of ``{Name, URL}`` where each
+    URL is a base64 ``data:`` payload -- three files, one per table it
+    reads.  Unpacked here so a caller can say *which* file changed
+    rather than only that the bundle did.
+    """
+    got = app.json("POST", "/api/kinship/export-results", json={})
+    files = got.get("files") or got.get("Files") or []
+    assert files, (
+        f"the Kinship export returned no files: {str(got)[:200]}")
+    out = {}
+    for entry in files:
+        name = entry.get("Name") or entry.get("name")
+        url = entry.get("URL") or entry.get("url") or ""
+        head, _, payload = url.partition(",")
+        assert head.endswith(";base64"), (
+            f"the Kinship export no longer base64-encodes {name}: its "
+            f"URL begins {head!r}.  Decoding it as base64 anyway would "
+            "compare two pieces of garbage, which can differ or agree "
+            "for reasons that have nothing to do with this test")
+        out[name] = base64.b64decode(payload).decode("utf-8", "replace")
+    return out
+
+
+def test_looking_a_person_up_does_not_discard_a_kinship_result(
+        app: CbdbApp, egos, clean_lists):
+    """Reading somebody's kinship in the Browser is not a read.
+
+    ``GET /api/browser/person/{id}/kinship`` begins by deleting
+    ``ZZ_KIN_LIST``, ``ZZ_KIN_LIST_TMP``, ``ZZ_SCRATCH_KIN`` and
+    ``ZZ_SCRATCH_KINNET``.  Two of those are where the Kinship form's
+    own query puts its answer, and ``handleExportResults`` is the one
+    export that reads them back out of the database rather than from
+    what the page sends it.  So a researcher who has a Kinship result
+    on screen and then looks somebody up in the Browser exports a
+    different network from the one they are looking at, and nothing
+    says so.
+
+    Note which file is *not* in that list.  The export is three files:
+    ``KinshipNetwork`` from ``ZZ_SCRATCH_KINNET``, ``EgoRelativeKinship``
+    from ``ZZ_SCRATCH_KIN``, and ``KinshipPeople`` from
+    ``ZZ_SP_KINSHIP`` -- which the browser handler never touches.  The
+    bundle therefore comes back describing two different people, which
+    is why this test compares the files one at a time.
+
+    The new *Export Profile* button makes all of this reachable without
+    visiting a kinship tab at all; that half is checked from the page
+    source by ``test_export_profile_loads_the_kinship_tab_it_lists``,
+    because no test here presses a button.
+
+    Judged by the application's own two answers to the same request,
+    with no prediction of what a Kinship export should contain.  The
+    re-query at the end separates *replaced* from *corrupted*: if the
+    result comes back on a fresh query, the tables were emptied and
+    refilled by somebody else's traversal rather than damaged.
+    """
+    app.post("/api/kinship/set-person", json={"personId": egos[0]})
+    result = app.json("POST", "/api/kinship/query", json=_KINSHIP_QUERY)
+    assert result.get("kinRecords"), (
+        f"person {egos[0]} has no kin at this depth, so there is no "
+        "result for a browser lookup to discard and this test would "
+        "pass without checking anything")
+
+    before = _kinship_export_files(app)
+
+    # The user looks somebody else up -- or presses Export Profile,
+    # which does this for them.
+    other = next(p for p in egos[1:] if p != egos[0])
+    looked = app.get(f"/api/browser/person/{other}/kinship")
+    assert looked.status_code == 200, (
+        f"the Browser could not show person {other}'s kinship (HTTP "
+        f"{looked.status_code}), so this test cannot say what such a "
+        "lookup does to the Kinship form")
+
+    after = _kinship_export_files(app)
+
+    changed = sorted(name for name in set(before) | set(after)
+                     if before.get(name) != after.get(name))
+    if changed:
+        kept = sorted((set(before) & set(after)) - set(changed))
+        restored = app.json("POST", "/api/kinship/query", json=_KINSHIP_QUERY)
+        # Characters of the decoded file, not bytes: the names are
+        # Chinese and the files carry a BOM, so the two differ and
+        # only one of them is what this test actually measured.
+        sizes = ", ".join(
+            f"{name} {len(before.get(name, '')):,}->{len(after.get(name, '')):,}"
+            for name in changed)
+        raise KnownShippedDefect(
+            f"a Kinship result is discarded by looking someone up in "
+            f"the Browser.  The form had a result for person "
+            f"{egos[0]}; after GET /api/browser/person/{other}/kinship "
+            f"its Export Query Results answers HTTP 200 with different "
+            f"content in {changed} ({sizes} characters), and nothing on "
+            f"either page says the result changed.  handleGetKinship "
+            f"opens by deleting ZZ_KIN_LIST, ZZ_KIN_LIST_TMP, "
+            f"ZZ_SCRATCH_KIN and ZZ_SCRATCH_KINNET, which is where the "
+            f"Kinship form's query put its answer.  "
+            + (f"{kept} came back unchanged, because it is read from "
+               f"ZZ_SP_KINSHIP, which that handler does not delete -- "
+               f"so the bundle the user downloads describes two "
+               f"different people at once.  "
+               if kept else
+               "Every file in the bundle changed.  ")
+            + f"Re-running the Kinship query returns "
+            f"{len(restored.get('kinRecords') or []):,} kinRecords, so "
+            f"the result was replaced rather than damaged: the user is "
+            f"exporting somebody else's traversal.  The five other "
+            f"Kinship exports build their rows from the records the "
+            f"page posts to them and read no scratch table, so they "
+            f"are unaffected; this is Export Query Results alone.")
+
+    assert after == before, (
+        "unreachable: the KnownShippedDefect above covers every "
+        "difference, and this is here so that a build which stops "
+        "discarding the result passes rather than merely not raising")
 
 
 def test_group_data_asks_only_for_the_sections_that_were_requested(
