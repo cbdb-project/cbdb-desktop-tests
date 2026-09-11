@@ -185,6 +185,24 @@ STRINGS: dict[str, dict] = {
         "en": "(no description yet -- add one to reports/generate_report.py)",
         "zh": "（尚無說明——請在 reports/generate_report.py 中補上）",
     },
+    "coverage_gaps_head": {"en": "What this round did not reach",
+                           "zh": "本次執行尚未涵蓋的部分"},
+    "coverage_gaps": {
+        "en": ("The table above counts what was checked; it is not a list "
+               "of what the application does.  A feature can appear in it "
+               "because one narrow thing about it is checked -- that a "
+               "button un-greys when it should, say -- while what the "
+               "button produces is never read.  Where that is true of "
+               "something this build added, the issue below says so in "
+               "its own words.  Read a row as *this much was checked*, "
+               "and an absent row as nothing at all."),
+        "zh": ("上表統計的是「已檢查的項目」，並不是應用程式功能的清單。"
+               "某項功能可能只因為其中一個狹窄的面向受到檢查而列於表中"
+               "——例如某個按鈕是否在該解除停用時解除停用——而該按鈕實際"
+               "產生的內容卻從未被讀取。若這一版新增的功能有這種情形，"
+               "下方對應的問題條目會自行說明。請把表中的每一列讀作"
+               "「檢查到這個程度」，而未列出的項目則代表完全未檢查。"),
+    },
     "waived": {"en": "Agreed to leave for now",
                "zh": "已協商暫時擱置的項目"},
     "waived_intro": {
@@ -874,6 +892,10 @@ def render_markdown(run: dict, lang: str, build: str,
     for area, count, what in coverage_rows(run, lang):
         out.append(f"| {area} | {count} | {what} |")
     out.append("")
+    out.append(f"### {S('coverage_gaps_head')}")
+    out.append("")
+    out.append(S("coverage_gaps"))
+    out.append("")
 
     if waivers is not None:
         out.append(f"## {S('waived')}")
@@ -1131,6 +1153,8 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
 
     document.add_heading(S("coverage"), level=1)
     table_of(S("coverage_head"), coverage_rows(run, lang))
+    document.add_heading(S("coverage_gaps_head"), level=2)
+    _rich_runs(document.add_paragraph(), S("coverage_gaps"), lang)
 
     if waivers is not None:
         document.add_heading(S("waived"), level=1)

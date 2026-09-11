@@ -41,15 +41,15 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1423 tests collected against
-`CBDB-Desktop_20260909.7z`, and the defect registry holds this round's
-findings.**  It was cleared on 2026-09-10, together with the previous
+**Current state: 1429 tests collected against
+`CBDB-Desktop_20260910.7z`, and the defect registry holds this round's
+findings.**  It was cleared on 2026-09-11, together with the previous
 round's reports and every run artefact, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
 one.  Do not read it as an inventory of what CBDB-Desktop does wrong --
 § *Every run is a fresh assessment*, taken to its limit at the
-maintainer's request.  What was removed is the *expectation*: the nine
+maintainer's request.  What was removed is the *expectation*: the previous round's
 registry entries and every `xfail` marker that quoted them.  What was
 kept is the *detection*: the tests still raise `KnownShippedDefect` on
 the exact signatures they check for, so a defect that is still there
@@ -78,7 +78,10 @@ build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
 `artifacts/endpoint_coverage.json`; last measured, on the 2026-09-08
 build, **105 of 105** endpoints reachable from the user interface were
-actually requested, with nothing excused.
+actually requested, with nothing excused.  The denominator has since
+moved with the build -- `EXPECTED_REACHABLE_ENDPOINTS` is 106 on
+20260910 -- so read the artefact rather than this paragraph for the
+current run.
 
 That number was not always earned.  It read 105 of 105 for a while
 because the denominator was built from what the suite happened to
@@ -91,8 +94,8 @@ travels from one form to another.  Read that file before adding to it:
 the endpoints are individually trivial and collectively are the
 feature, which is why driving them one at a time proves almost
 nothing.
-Enable-state coverage is the honest counterpart: 14 of the 106 controls
-that ship `disabled` have a declared precondition, and the other 92 are
+Enable-state coverage is the honest counterpart: 16 of the 109 controls
+that ship `disabled` have a declared precondition, and the other 93 are
 pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
 
 New here?  `README.md` has the three-line setup (install, copy
@@ -349,7 +352,7 @@ data, classify it by density, sample the populated combinations, drive
 each one, and check the properties that must hold (every row satisfies
 the filter, narrowing never adds, adjacent windows stay disjoint).
 
-**Filters with a switch** — 21 booleans and modes across the six forms
+**Filters with a switch** — 26 booleans and modes across the six forms
 — are covered by `forms.TOGGLES` feeding
 `test_a_switch_changes_the_result_in_the_direction_it_claims`. Each
 switch is declared with a **direction** read off the request struct's
@@ -410,7 +413,7 @@ logged, what it downloaded, and which of its controls are disabled.
    test still passes. Thirteen page loads, and the page list is read
    out of the routing table.
 2. **Is every control that ships disabled enabled by its
-   precondition?** 106 controls ship `disabled`. `PRECONDITIONS`
+   precondition?** 109 controls ship `disabled`. `PRECONDITIONS`
    declares what a user does and what that must un-grey;
    `UNDECLARED` pins the rest, may only shrink, and is the honest count
    of what this file does *not* check.
@@ -645,8 +648,12 @@ tests/cbdb_desktop/     infrastructure only — no *oracle* SQL lives here
   app.py                launches and drives the real cbdb.exe; records
                         every (method, path) for the coverage gate
   routes.py             reads the routing table out of Code/*.go as DATA
+  gosource.py           the two readers of Code/*.go shared by more than
+                        one gate: which form a file belongs to, and
+                        blanking comments so prose is not read as a use
   forms.py              how to phrase each form's query, export and filters
-  exports.py            the 45-endpoint export inventory (envelope, files)
+  exports.py            the export inventory: 54 specs over 42 endpoints
+                        (envelope, files)
   controls.py           every button in Templates/, and what it calls
   discovery.py          picks populated inputs out of the shipped database
   defects.py            this round's findings, in English and Chinese --
@@ -701,9 +708,9 @@ after extraction is restaged, not served.
 ## Confirmed defects in the shipped build
 
 **Not listed here, deliberately.**  The registry
-(`tests/cbdb_desktop/defects.py`) was emptied on 2026-09-08 for a
-stateless assessment of this distribution, and now holds that
-assessment's findings.  Read it there, or read the generated reports;
+(`tests/cbdb_desktop/defects.py`) is emptied before each round -- most
+recently on 2026-09-11, for a stateless assessment of this
+distribution -- and now holds that assessment's findings.  Read it there, or read the generated reports;
 copying the list into this file is what would turn one round's findings
 into an expectation the next round starts from.
 
@@ -1003,16 +1010,19 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 .\run_tests.ps1
 
 # 3. Read the failures, in this order:
-#    - XPASS  → a defect was fixed.  Confirm, then remove its marker and
-#               its registry entry.
-#    - FAILED on a pinned count (141 routes, 1350 QBE columns, 37,118
+#    - A test that raised KnownShippedDefect last round and passes now
+#               → a defect was fixed.  Confirm, then retire its registry
+#               entry.  (XPASS means a waiver outlived what it waived.)
+#    - FAILED on a pinned count (142 routes, 1386 QBE columns, 37,118
 #               addresses, the form-template set) → the build changed
 #               shape.  Decide whether that is intended, then update the
 #               pin in the same commit as the reason.
 #    - FAILED anywhere else → a new regression, or a new defect.
 
 # 4. New defect?  Verify it end to end BEFORE filing (see the skill),
-#    add it to defects.py in both languages, wire the xfail, rerun.
+#    add it to defects.py in both languages, rerun.  Do NOT mark it
+#    xfail -- see § the ban on any other way to tolerate a failure; a
+#    filed defect stays a red FAILED until it is fixed or waived.
 
 # 5. Commit the regenerated reports/*.md alongside the code.
 ```

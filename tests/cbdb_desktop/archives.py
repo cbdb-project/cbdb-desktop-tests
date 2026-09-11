@@ -58,27 +58,66 @@ def _unsafe(name: str) -> bool:
             or (len(name) > 1 and name[1] == ":"))
 
 
-def common_root(names: list[str]) -> str | None:
+def root_level_files(names: list[str]) -> list[str]:
+    """Members that sit at the archive root rather than in a directory."""
+    return sorted(name for name in names if "/" not in name)
+
+
+def common_root(names: list[str], stem: str | None = None) -> str | None:
     """The single directory every member sits inside, if there is one.
 
     Returns ``None`` when members live at the archive root, when they
     are spread across more than one top-level directory, or when a
     *file* sits at the root next to the candidate directory -- stripping
     then would silently drop that file.
+
+    ``stem`` is the archive's own filename without its suffix, and it
+    buys the one exception to that last rule.  A distribution that
+    wraps its tree names the wrapper after itself:
+    ``CBDB-Desktop_20260910.7z`` holds ``CBDB-Desktop/``.  When the
+    archive is named after the single top-level directory, a loose file
+    beside it is an *extra* -- the 20260910 build shipped its release
+    notes that way -- and the wrapper is stripped while
+    :meth:`Archive.extract_to` carries the loose files into the staged
+    tree, so nothing is dropped.
+
+    The name is what separates the two shapes, because the structure
+    does not: a flat build with one ``Data/`` directory and some files
+    at the root looks exactly like a wrapped build with one loose file.
+    An earlier attempt keyed on structure alone and would have stripped
+    ``Data/`` out of every zip build; the test below caught it.
     """
     if not names:
         return None
-    roots = {name.split("/", 1)[0] for name in names}
-    if len(roots) != 1:
+    dirs = {name.split("/", 1)[0] for name in names if "/" in name}
+    if len(dirs) != 1:
         return None
-    root = roots.pop()
+    root = dirs.pop()
     if root in ("", ".", "..") or _unsafe(root):
         # Not a directory that can be stripped.  Stripping ".." would
         # also turn a traversal member into an innocent-looking one --
         # safety is enforced on the raw names either way, but the two
         # views of the archive must not disagree about a member's name.
         return None
-    if any(name == root for name in names):   # a root-level file, not a directory
+
+    loose = root_level_files(names)
+    if not loose:
+        return root
+    if root in loose:          # a file carrying the directory's own name
+        return None
+    named_after_it = stem is not None and (
+        stem == root or stem.startswith(f"{root}_"))
+    if not named_after_it:
+        return None
+    # Top-level entries inside the wrapper, not full paths: a loose
+    # file named ``Data`` beside a ``Data/`` directory collides just as
+    # surely as one named ``Data/x``, and ``shutil.move`` would answer
+    # it by putting the file *inside* the directory as ``Data/Data``.
+    inside = {name[len(root) + 1:].split("/", 1)[0] for name in names
+              if name.startswith(f"{root}/")}
+    if set(loose) & inside:
+        # Flattening would put two shipped members at one path and
+        # have to choose between them.
         return None
     return root
 
@@ -123,6 +162,7 @@ class Archive:
         self.path = Path(path)
         self.members: list[Member] = []
         self.root: str | None = None
+        self._loose: list[str] = []
         self._handle = None
 
     # -- construction ------------------------------------------------------
@@ -143,10 +183,23 @@ class Archive:
         self._open()
         try:
             raw = list(self._raw_members())
-            self.root = common_root([name for name, _, _ in raw])
+            self.root = common_root([name for name, _, _ in raw],
+                                    stem=self.path.stem)
+            # Kept from the one reading of the archive that is
+            # guaranteed to work.  py7zr consumes the stream on
+            # extraction -- ``_extractall`` says so -- and asking again
+            # afterwards can return an empty list, which would move no
+            # loose file, raise nothing, and leave the staged tree
+            # short of a member the manifest declares.
+            self._loose = root_level_files([name for name, _, _ in raw])
             prefix = f"{self.root}/" if self.root else ""
+            # A member inside the wrapper is named relative to it.  A
+            # loose file beside the wrapper keeps its own name, which is
+            # where extract_to puts it in the staged tree.
             self.members = [
-                Member(name=name[len(prefix):], size=size, crc=crc)
+                Member(
+                    name=name[len(prefix):] if name.startswith(prefix) else name,
+                    size=size, crc=crc)
                 for name, size, crc in raw
                 if name != self.root
             ]
@@ -225,6 +278,25 @@ class Archive:
             # written 30 MB executables, an antivirus scan mid-sweep.
             self.close()
             _replace_with_retry(inner, dest)
+            # Whatever shipped beside the wrapper comes too, by the
+            # names read when the archive was opened rather than by
+            # scanning the scratch directory -- so a staged tree can
+            # hold nothing the member list does not account for, and
+            # cannot be short of anything it does.
+            #
+            # ``dest`` here is the caller's ``.partial-`` directory,
+            # not the staged tree, so a failure part way through is
+            # cleaned up whole and never becomes a cache hit.
+            for loose in self._loose:
+                source = scratch / loose
+                if not source.exists():
+                    raise ArchiveError(
+                        f"{self.path.name}: {loose!r} is in the archive's "
+                        "member list and did not appear on extraction.  "
+                        "A staged tree missing a member its manifest "
+                        "declares would fail its own integrity check on "
+                        "every later run, with nothing naming the cause.")
+                _replace_with_retry(source, dest / loose)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 

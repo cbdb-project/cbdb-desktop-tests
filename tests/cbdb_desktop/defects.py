@@ -762,12 +762,12 @@ _DEFECTS: tuple[Defect, ...] = (
     Defect(
         key="CBDB-D-007",
         priority="P3", severity="low", origin="release",
-        title="The distribution ships nine dated working copies of its "
+        title="The distribution ships eight dated working copies of its "
               "own templates",
-        title_zh="發行檔中一併附上了九份帶日期的模板工作副本",
+        title_zh="發行檔中一併附上了八份帶日期的模板工作副本",
         area="Packaging: Templates/",
         area_zh="封裝內容：Templates/",
-        summary="Nine of the archive's 84 members are dated backups of "
+        summary="Eight of the archive's 85 members are dated backups of "
                 "templates that ship alongside the live file -- "
                 "`entry/entry.index.20260906.html` next to "
                 "`entry/index.html`, `qbe/qbe.20260827.html` next to "
@@ -775,7 +775,7 @@ _DEFECTS: tuple[Defect, ...] = (
                 "`Static/` is file-served, so they are not reachable pages; "
                 "they are a working directory that was packaged as it "
                 "stood.",
-        summary_zh="壓縮檔 84 個成員中有 9 個，是與正式檔案並存的帶日期模板"
+        summary_zh="壓縮檔 85 個成員中有 8 個，是與正式檔案並存的帶日期模板"
                    "備份——例如 `entry/entry.index.20260906.html` 與 "
                    "`entry/index.html` 並列、`qbe/qbe.20260827.html` 與 "
                    "`qbe/qbe.html` 並列等。沒有任何路由會提供這些檔案，且"
@@ -786,14 +786,16 @@ _DEFECTS: tuple[Defect, ...] = (
                  "20260906.html`, `associations.index.20260908.html`, "
                  "`entry/entry.index.20260906.html`, "
                  "`office/office.index.20260815.html`, "
-                 "`pickers/address_picker.20260729.html`, `places/places."
-                 "index.20260906.html`, `qbe/qbe.20260827.html`, "
+                 "`places/places.index.20260906.html`, "
+                 "`qbe/qbe.20260827.html`, "
                  "`status/status.index.20260816.html` and `texts/texts."
-                 "index.20260815.html`.  The build before this one "
-                 "shipped a tenth, `networks/networks.index.20260813."
-                 "html`, and it is gone -- the only file this release "
-                 "removed.  Nine remain, so the packaging step still "
-                 "takes the working directory as it stands.  "
+                 "index.20260815.html`.  Two releases running have each "
+                 "dropped one: 20260909 removed `networks/networks."
+                 "index.20260813.html` and this one removed "
+                 "`pickers/address_picker.20260729.html`, which was the "
+                 "last dated copy of a picker.  Eight remain, so the "
+                 "count is falling one at a time while the packaging "
+                 "step that collects them is unchanged.  "
                  "Diffing one against its live "
                  "sibling shows it is genuinely older: the 20260906 copy of "
                  "the Entry page has no `chkUseXY` control, which the "
@@ -803,11 +805,9 @@ _DEFECTS: tuple[Defect, ...] = (
                     "html`、`associations.index.20260908.html`、"
                     "`entry/entry.index.20260906.html`、"
                     "`office/office.index.20260815.html`、"
-                    "`pickers/address_picker.20260729.html`、"
                     "`places/places.index.20260906.html`、"
                     "`qbe/qbe.20260827.html`、`status/status.index.20260816."
-                    "html`、`texts/texts.index.20260815.html`。上一版還多"
-                    "附了第十份 `networks/networks.index.20260813.html`，這一版已經移除——那也是這次唯一被刪掉的檔案。其餘九份仍在，可見打包步驟依然是把工作目錄照原樣收進去。把其中一份與"
+                    "html`、`texts/texts.index.20260815.html`。連續兩次釋出各移除了一份：20260909 移除了 `networks/networks.index.20260813.html`，這一版移除了 `pickers/address_picker.20260729.html`——那是最後一份選擇視窗的帶日期副本。其餘八份仍在，可見數量雖然一次減一，收集這些檔案的打包步驟本身並沒有改變。把其中一份與"
                     "其正式版本相比，可確認確實較舊：20260906 版的入仕頁面"
                     "沒有 `chkUseXY` 這個控制項，而釋出的頁面有。",
         impact="Small but not nil.  It makes the released tree ambiguous "
@@ -830,18 +830,18 @@ _DEFECTS: tuple[Defect, ...] = (
                "或在封裝時排除 `*.<日期>.html`。這些備份本身有其用處，只是"
                "它們該放在版本控制中，而不是發行檔裡。",
         steps=(
-            "List the archive's contents: 7z l CBDB-Desktop_20260909.7z",
-            "Note the nine Templates/ members whose names carry a date.",
+            "List the archive's contents: 7z l CBDB-Desktop_20260910.7z",
+            "Note the eight Templates/ members whose names carry a date.",
             "Diff any one of them against index.html in the same directory.",
         ),
         steps_zh=(
-            "列出壓縮檔內容：7z l CBDB-Desktop_20260908.7z",
-            "留意 Templates/ 之下十個名稱帶日期的成員。",
+            "列出壓縮檔內容：7z l CBDB-Desktop_20260910.7z",
+            "留意 Templates/ 之下八個名稱帶日期的成員。",
             "任選其中一個，與同目錄下的 index.html 進行比對。",
         ),
-        source=("Templates/pickers/address_picker.20260729.html",
-                "Templates/qbe/qbe.20260827.html",
-                "Templates/entry/entry.index.20260906.html"),
+        source=("Templates/qbe/qbe.20260827.html",
+                "Templates/entry/entry.index.20260906.html",
+                "Templates/associations/associations.index.20260908.html"),
         tests=("test_the_distribution_ships_no_dated_working_copies",
                "test_distribution_ships_the_expected_pieces",
                "test_every_page_has_the_buttons_it_"
@@ -1372,116 +1372,6 @@ _DEFECTS: tuple[Defect, ...] = (
                "test_an_export_named_ascii_contains_ascii"),
     ),
     Defect(
-        key="CBDB-D-012",
-        priority="P0", severity="high", origin="software",
-        title="\"Select All Filtered\" returns the first hundred addresses "
-              "and reports them as the whole filter",
-        title_zh="「Select All Filtered」只回傳前一百筆地址，卻宣稱那是整個"
-                 "篩選結果",
-        area="Address picker",
-        area_zh="地址選擇視窗",
-        summary="The picker keeps `filteredAddresses` (its own comment: "
-                "*\"full match set (all rows matching the filter)\"*) and "
-                "`renderedAddresses = filteredAddresses.slice(0, "
-                "MAX_RENDER)` with `MAX_RENDER = 100`.  Only the rendered "
-                "slice becomes `<option>` elements.  `selectAllFiltered()` "
-                "walks `sel.options`, and `sendResult` walks `sel.options` "
-                "again to build what it hands back -- so on a filter "
-                "matching more than a hundred addresses the button returns "
-                "the first hundred, and returns them with "
-                "`isSelectAllFiltered: true` plus the filter text, which "
-                "every host page reads as \"the user chose the whole "
-                "filter\".",
-        summary_zh="這個選擇視窗同時維護 `filteredAddresses`（其註解自述為"
-                   "「完整的比對結果集（所有符合篩選條件的列）」）與 "
-                   "`renderedAddresses = filteredAddresses.slice(0, "
-                   "MAX_RENDER)`，其中 `MAX_RENDER = 100`。只有被繪出的這"
-                   "一段會變成 `<option>` 元素。`selectAllFiltered()` 走訪"
-                   "的是 `sel.options`，而 `sendResult` 也再一次走訪 "
-                   "`sel.options` 來組出要回傳的內容——因此，當篩選結果超過"
-                   "一百筆時，這個按鈕回傳的是前一百筆，而且回傳時帶著 "
-                   "`isSelectAllFiltered: true` 與篩選文字，所有呼叫端頁面"
-                   "都會把它解讀為「使用者選擇了整個篩選結果」。",
-        evidence="Read from `Templates/pickers/address_picker.html`, with "
-                 "each function's body taken by brace matching rather than "
-                 "by pattern, so that what is attributed to "
-                 "`selectAllFiltered` is what that function does: the cap "
-                 "(`const MAX_RENDER = 100`), the slice that applies it, and "
-                 "both functions walking `sel.options`.  The button's own "
-                 "comment says it *\"selects every visible (filtered) "
-                 "item\"*.  The status bar does say *\"Showing first 100 of "
-                 "N -- refine your search\"*, but the button is not disabled "
-                 "in that state and nothing in the result it sends records "
-                 "the truncation.  The scale is measurable, and has to "
-                 "be measured against the right population: the picker "
-                 "does not filter `ADDR_CODES`.  It filters "
-                 "`allAddresses`, loaded once from `/api/addresses` -- "
-                 "37,118 rows, because that endpoint joins "
-                 "`ADDR_BELONGS_DATA` and each row carries its own year "
-                 "range -- and it matches case-insensitively on the pinyin "
-                 "name.  Filtered the way the page filters, \"Zhou\" gives "
-                 "5,373 rows, \"Xian\" 7,166 and \"Fu\" 2,007, so the "
-                 "button returns 1.9%, 1.4% and 5.0% of what the user "
-                 "asked for.",
-        evidence_zh="讀自 `Templates/pickers/address_picker.html`；每個函式"
-                    "的主體是以大括號配對取出，而非以樣式比對，因此歸給 "
-                    "`selectAllFiltered` 的內容確實是該函式所做的事：上限"
-                    "（`const MAX_RENDER = 100`）、套用該上限的切片，以及"
-                    "兩個函式都在走訪 `sel.options`。按鈕自身的註解寫著它"
-                    "「選取所有可見（已篩選）的項目」。狀態列確實會顯示"
-                    "「Showing first 100 of N — refine your search」，但在"
-                    "該狀態下按鈕並未停用，而且它送出的結果裡沒有任何地方"
-                    "記錄了這次截斷。其規模可以量化，但必須對著正確的母體來量："
-                    "這個選擇視窗篩選的並不是 `ADDR_CODES`，而是 "
-                    "`allAddresses`——它一次性載自 `/api/addresses`，"
-                    "共 37,118 列（因為該端點會連接 `ADDR_BELONGS_DATA`，"
-                    "每一列各自帶有年份範圍），而且比對的是拼音名稱、"
-                    "不分大小寫。依照頁面實際的篩選方式：「Zhou」得到 "
-                    "5,373 列，「Xian」7,166 列，「Fu」2,007 列。這個按鈕"
-                    "各自只回傳其中 100 列，也就是使用者所要求的 1.9%、"
-                    "1.4% 與 5.0%。",
-        impact="The query then runs on a hundred addresses while the page "
-               "displays the filter text, so the result looks like an answer "
-               "about the whole filter and is an answer about a small "
-               "fraction of it.  Which hundred depends on the order the list "
-               "arrived in, which is not the user's choice and is not shown.",
-        impact_zh="接下來的查詢是在一百筆地址上執行，而頁面顯示的卻是篩選"
-                  "文字，於是結果看起來像是針對整個篩選範圍的答案，實際上"
-                  "只是其中一小部分的答案。至於是哪一百筆，取決於清單送達"
-                  "時的順序——那既不是使用者的選擇，也不會顯示出來。",
-        fix="Build the result from `filteredAddresses` rather than from "
-            "`sel.options`; the full set is already in memory and the render "
-            "cap exists only to keep the `<select>` manageable.  If sending "
-            "thousands of ids is not wanted, send the filter itself and let "
-            "the host page resolve it -- but do not send a hundred rows "
-            "labelled as the filter.",
-        fix_zh="請改以 `filteredAddresses` 而非 `sel.options` 來組出結果；"
-               "完整集合本來就已在記憶體中，繪製上限的存在只是為了讓 "
-               "`<select>` 不至於過大。若不希望送出數千個 id，可以改送"
-               "篩選條件本身、由呼叫端頁面自行解析——但請不要送出一百列"
-               "卻標示成整個篩選結果。",
-        steps=(
-            "Open any form that offers an address picker and open it.",
-            "Filter on \"Zhou\" so the status bar reads \"Showing first 100 "
-            "of 5373\".",
-            "Press Select All Filtered, and count the addresses the host "
-            "page received: 100.",
-        ),
-        steps_zh=(
-            "開啟任一提供地址選擇視窗的表單，並打開該視窗。",
-            "以「Zhou」進行篩選，使狀態列顯示「Showing first 100 of 5373」。",
-            "按下 Select All Filtered，再清點呼叫端頁面實際收到的地址筆數："
-            "100 筆。",
-        ),
-        source=("Templates/pickers/address_picker.html:118",
-                "Templates/pickers/address_picker.html:223",
-                "Templates/pickers/address_picker.html:344",
-                "Templates/pickers/address_picker.html:381"),
-        tests=("test_select_all_filtered_selects_every_address_the_filter_"
-               "matched",
-               "test_the_function_body_reader_stops_at_the_function"),
-    ),
-    Defect(
         key="CBDB-D-013",
         priority="P0", severity="medium", origin="software",
         title="Recall on the Association Pairs page fills the pair with "
@@ -1605,81 +1495,6 @@ _DEFECTS: tuple[Defect, ...] = (
         ),
         source=("Code/assocpairs_form_backend.go:handleRecallIDs",),
         tests=("test_a_query_that_keeps_only_some_rows_says_which_ones",),
-    ),
-    Defect(
-        key="CBDB-D-014",
-        priority="P3", severity="low", origin="release",
-        title="The front page's Users Guide link is a 404: the PDF is not in "
-              "the distribution",
-        title_zh="首頁的 Users Guide 連結是 404：該 PDF 並不在發行檔中",
-        area="Packaging: Static/",
-        area_zh="封裝內容：Static/",
-        summary="`Templates/navigation/index.html` offers a *Users Guide* "
-                "link pointing at `../../static/CBDB_UserGuide.pdf`.  "
-                "`Static/` ships one file, `cbdb_styles.css`.",
-        summary_zh="`Templates/navigation/index.html` 提供了一個 *Users "
-                   "Guide* 連結，指向 `../../static/CBDB_UserGuide.pdf`；"
-                   "然而 `Static/` 只釋出了一個檔案，就是 "
-                   "`cbdb_styles.css`。",
-        evidence="Every same-origin link on the navigation page was "
-                 "followed.  All resolve except this one, which answers HTTP "
-                 "404.  `Static/` is the only file-served directory in the "
-                 "build, so there is nowhere else the file could be reached "
-                 "from.\n\nThe distribution settles for itself which side "
-                 "this belongs on.  `The directory structure for "
-                 "CBDB-Desktop.txt`, shipped at the root of the archive, "
-                 "lists `PDF files: "
-                 "CBDB-Desktop\\Static\\xxx.pdf` at its last line, and "
-                 "`cbdb_navigation_backend.go:62` describes the directory it "
-                 "serves as \"Static files (PDF user guide, images, "
-                 "etc.)\".  So the layout expects PDFs in `Static/`, the "
-                 "code that serves it expects the guide among them, the "
-                 "template links to it accordingly, and what is missing is "
-                 "the file: this is the packaging step, not a template "
-                 "pointing somewhere it never should have.",
-        evidence_zh="已逐一走訪首頁上所有同源連結。除了這一個回傳 HTTP 404 "
-                    "之外，其餘皆可正常解析。`Static/` 是整個建置中唯一以"
-                    "檔案方式對外提供的目錄，因此這個檔案也不可能從別處"
-                    "取得。\n\n這個問題該歸屬哪一邊，發行檔自己就給了答案。"
-                    "隨壓縮檔根目錄一併釋出的 `The directory structure for "
-                    "CBDB-Desktop.txt`，在最後一行列有 `PDF files: "
-                    "CBDB-Desktop\\Static\\xxx.pdf`；而 "
-                    "`cbdb_navigation_backend.go:62` 也把它所提供的這個"
-                    "目錄描述為「Static files (PDF user guide, images, "
-                    "etc.)」。可見依照既定的目錄結構，PDF 本就該放在 "
-                    "`Static/`，負責提供該目錄的程式也預期使用手冊在其中，"
-                    "模板同樣是照著這個結構去連結的，缺的是檔案本身："
-                    "問題出在封裝這一步，而不是模板指向了一個它本來就"
-                    "不該指向的位置。",
-        impact="The documentation the application points its users at is not "
-               "there.  This is a desktop distribution aimed at researchers "
-               "rather than developers, and the guide is one of only two "
-               "links the front page offers outside the forms themselves.",
-        impact_zh="程式指引使用者前往的說明文件並不存在。這是一套以研究者"
-                  "而非開發者為對象的桌面發行版，而在各表單之外，首頁總共"
-                  "也只提供兩個連結，這是其中之一。",
-        fix="Ship `CBDB_UserGuide.pdf` in `Static/`, which is where the "
-            "distribution's own layout document says PDFs go.  If the guide "
-            "lives elsewhere -- a project website -- make the link point "
-            "there and say so.",
-        fix_zh="請把 `CBDB_UserGuide.pdf` 一併放進 `Static/`，這也正是發行檔"
-               "自身的目錄結構文件所指定的 PDF 存放位置。若這份指南另有存放"
-               "之處（例如專案網站），請將連結改指向該處並加以說明。",
-        steps=(
-            "Start the application and open the front page.",
-            "Press Users Guide.",
-            "Or: 7z l CBDB-Desktop_20260908.7z | findstr Static",
-        ),
-        steps_zh=(
-            "啟動程式並開啟首頁。",
-            "按下 Users Guide。",
-            "或執行：7z l CBDB-Desktop_20260908.7z | findstr Static",
-        ),
-        source=("Templates/navigation/index.html:75",
-                "The directory structure for CBDB-Desktop.txt:82",
-                "Code/cbdb_navigation_backend.go:62",
-                "Static/"),
-        tests=("test_every_link_the_navigation_offers_resolves",),
     ),
     Defect(
         key="CBDB-D-015",
@@ -3231,6 +3046,175 @@ _DEFECTS: tuple[Defect, ...] = (
                 "Code/networks_form_query.go:235",
                 "Code/networks_form_backend.go:1048"),
         tests=("test_no_two_categories_return_the_same_association",),
+    ),
+    Defect(
+        key="CBDB-D-028",
+        priority="P0", severity="high", origin="software",
+        title="Looking a person up in the Browser throws away the "
+              "Kinship form's result, and the new Export Profile "
+              "button does it without being asked",
+        title_zh="在瀏覽器中查閱一個人，會丟棄親屬表單既有的查詢結果；"
+                 "而這一版新增的 Export Profile 按鈕會在使用者毫無察覺"
+                 "的情況下觸發它",
+        area="Browser and Kinship: shared scratch tables",
+        area_zh="瀏覽器與親屬表單：共用的暫存表",
+        summary="`GET /api/browser/person/{id}/kinship` opens by "
+                "deleting `ZZ_KIN_LIST`, `ZZ_KIN_LIST_TMP`, "
+                "`ZZ_SCRATCH_KIN` and `ZZ_SCRATCH_KINNET` -- two of "
+                "which are where the Kinship form's own query puts its "
+                "answer, and where its *Export Query Results* button "
+                "reads that answer back from.  A researcher with a "
+                "Kinship result on screen who then looks somebody up in "
+                "the Browser exports a different network from the one "
+                "they are looking at, with HTTP 200 throughout and "
+                "nothing on either page saying so.  The *Export Profile* button added in this "
+                "build reaches the same handler for a user who never "
+                "opens a kinship tab: `exportProfile()` loads every "
+                "uncached tab in `EXPORT_TABS`, and kinship is one of "
+                "them, with its own \"Generating kinship data…\" "
+                "overlay.",
+        summary_zh="`GET /api/browser/person/{id}/kinship` 一開始就會刪除 "
+                   "`ZZ_KIN_LIST`、`ZZ_KIN_LIST_TMP`、`ZZ_SCRATCH_KIN` 與 "
+                   "`ZZ_SCRATCH_KINNET`。其中兩張，正是親屬表單自己的查詢"
+                   "所填入、而其 *Export Query Results* 按鈕所讀回的表。"
+                   "因此，螢幕上還留著親屬查詢結果的研究者，只要在瀏覽器裡"
+                   "查閱另一個人，接著匯出的就會是另一張與他眼前所見不同的"
+                   "網絡；全程 HTTP 200，兩個頁面上都沒有任何提示。這一版新增的 "
+                   "*Export Profile* 按鈕，讓從未點開親屬分頁的使用者也會"
+                   "碰到同一個處理常式：`exportProfile()` 會載入 "
+                   "`EXPORT_TABS` 中每一個尚未快取的分頁，親屬正是其中"
+                   "之一，還有專屬的「Generating kinship data…」提示。",
+        evidence="Driven through the shipped binary.  A Kinship query "
+                 "on one person is run, its *Export Query Results* "
+                 "taken and unpacked into its three files, a single "
+                 "`GET /api/browser/person/<other>/kinship` issued, "
+                 "and the same export taken again.  Both answer HTTP "
+                 "200, and the test names which files changed and "
+                 "which did not -- the point being that not all of "
+                 "them do.  The direction of the change is not the "
+                 "point either: the two that change are simply "
+                 "somebody else's traversal.\n\nRe-running the Kinship query "
+                 "afterwards returns its rows again, so the tables "
+                 "were emptied and refilled rather than damaged.  That "
+                 "is what separates this from corruption, and it is "
+                 "also why it is easy to miss: the form looks fine the "
+                 "moment anyone checks it.\n\nThe deletes are at the "
+                 "top of `handleGetKinship`, before any read, and are "
+                 "not conditional.  Note the shape rather than only "
+                 "the case: AGENTS.md already records this endpoint as "
+                 "the one read-looking request that writes, and the "
+                 "20260907 build split the per-form working lists to "
+                 "stop exactly this kind of interference.  This is a "
+                 "new door into the same room.\n\nOne limit, stated "
+                 "plainly: the *Export Profile* half is established "
+                 "from the page's own source rather than by pressing "
+                 "the button.  `test_export_profile_loads_the_kinship_tab_it_lists` "
+                 "checks the three links in the chain -- that "
+                 "`EXPORT_TABS` lists a kinship tab with a loader, "
+                 "that `exportProfile` calls the loader of any tab it "
+                 "has not cached, and that the loader fetches this "
+                 "endpoint.  Nothing reads the document the button "
+                 "produces, so this report says nothing about whether "
+                 "that document is otherwise complete or correct.",
+        evidence_zh="以釋出的執行檔實測：先對某個人執行親屬查詢，取得其 "
+                    "*Export Query Results* 並拆成三個檔案，接著發出一次 "
+                    "`GET /api/browser/person/<另一人>/kinship`，再取一次"
+                    "同樣的匯出。兩次都回應 HTTP 200；測試會逐一指出哪些"
+                    "檔案變了、哪些沒變——重點正在於「並非全部都變」。"
+                    "變大或變小同樣不是重點：那兩個變動的檔案，內容根本是"
+                    "別人的走訪結果。\n\n事後重新執行親屬"
+                    "查詢，資料列會再度出現，可見那幾張表是被清空後重填，"
+                    "而不是損壞。這既是它與「資料毀損」的分野，也正是它"
+                    "容易被忽略的原因：任何人回頭檢查時，表單看起來都"
+                    "正常。\n\n那幾個 DELETE 位於 `handleGetKinship` 的"
+                    "最開頭，在任何讀取之前，而且沒有任何條件。這裡要留意"
+                    "的是它的「形狀」而不只是這一個案例：AGENTS.md 早已把"
+                    "這個端點記為「唯一一個看起來像讀取、實際會寫入」的"
+                    "請求，而 20260907 版把各表單的工作清單拆開，正是為了"
+                    "阻止這一類干擾。這是通往同一個房間的一扇新門。\n\n有一項限制必須說明：*Export Profile* 的這一半，是從頁面本身的原始碼確認的，而不是實際按下按鈕測得。`test_export_profile_loads_the_kinship_tab_it_lists` 檢查了這條鏈上的三個環節——`EXPORT_TABS` 中列有帶 loader 的親屬分頁、`exportProfile` 會對任何尚未快取的分頁呼叫其 loader、而該 loader 會請求這個端點。測試套件並未讀取該按鈕所產生的文件，因此本報告無法說明那份文件在其他方面是否完整、是否正確。",
+        impact="The user is shown one network and hands out another.  "
+               "This is *Export Query Results* alone: it is the one "
+               "Kinship export that reads the scratch tables.  The "
+               "other five -- GIS, Neo4j, UCINet, Pajek, Gephi -- "
+               "build their rows from the records the page posts to "
+               "them, so they keep exporting what is on screen.  "
+               "(Neo4j also queries `KINSHIP_CODES` to label its kin "
+               "codes, which is a reference table and not part of "
+               "anybody's result.)  Nothing fails and nothing warns.\n\nWorse, the bundle is not "
+               "even wrong consistently.  *Export Query Results* "
+               "produces three files, and the browser handler deletes "
+               "the tables behind only two of them: `KinshipNetwork` "
+               "and `EgoRelativeKinship` describe the person who was "
+               "looked up, while `KinshipPeople` still comes from "
+               "`ZZ_SP_KINSHIP`, which that handler never touches, and "
+               "still describes the original working list.  One "
+               "download, two different people.\n\nThe *Export "
+               "Profile* button makes it "
+               "likelier rather than merely possible: a user who "
+               "presses it has not chosen to look at kinship at all.  "
+               "This is related to the session-scope agreement "
+               "recorded in the waiver table -- one result per "
+               "database, not per tab -- but it is not the same "
+               "thing, and the difference is worth a decision: there "
+               "the user ran a second query, here they read a page.",
+        impact_zh="使用者看到的是一張網絡，交出去的卻是另一張。這只涉及 "
+                  "*Export Query Results*：它是親屬表單唯一會讀取那幾張"
+                  "暫存表的匯出功能。其餘五種（GIS、Neo4j、UCINet、Pajek、"
+                  "Gephi）都是以頁面傳送過去的記錄組出資料列，因此匯出的仍"
+                  "是螢幕上所見的內容。（Neo4j 另外會查詢 `KINSHIP_CODES` "
+                  "以標示親屬關係代碼，那是一張參照表，不屬於任何人的查詢"
+                  "結果。）沒有任何失敗，也沒有任何警告。\n\n更麻煩的"
+                  "是，這份匯出連「錯得一致」都談不上。*Export Query "
+                  "Results* 會產生三個檔案，而瀏覽器的處理常式只刪除了其中"
+                  "兩個所依據的表：`KinshipNetwork` 與 `EgoRelativeKinship` "
+                  "描述的是被查閱的那個人，`KinshipPeople` 卻仍然來自"
+                  "`ZZ_SP_KINSHIP`——那張表該處理常式從未碰過——描述的依舊是"
+                  "原本的工作清單。一次下載，兩個不同的人。\n\n*Export "
+                  "Profile* 按鈕讓這件事從「有可能」變成「更容易發生」："
+                  "按下它的使用者根本沒有選擇要看親屬資料。這與豁免表中"
+                  "已記錄的「工作階段範圍」協議有關——結果是每個資料庫"
+                  "一份，而不是每個分頁一份——但兩者並不相同，這個差別"
+                  "值得另行判斷：那邊是使用者又跑了一次查詢，這邊他只是"
+                  "讀了一個頁面。",
+        fix="Give the Browser's kinship lookup its own scratch tables "
+            "-- all of them, including `ZZ_SP_KINSHIP`, whose absence "
+            "from the four it clears is what makes the export "
+            "self-contradictory rather than merely stale -- "
+            "as the 20260907 build did for the forms, or have it build "
+            "its answer without clearing anything.  If sharing has to "
+            "stay, the Kinship page should at least be able to tell "
+            "that its result is no longer the one it is showing.",
+        fix_zh="請讓瀏覽器的親屬查閱使用自己的暫存表——而且要涵蓋全部，"
+               "包含 `ZZ_SP_KINSHIP`：它沒有被列入那四張清空的表，正是"
+               "匯出內容自相矛盾（而不只是過期）的原因——一如 20260907 版"
+               "為各表單所做的；或者讓它在不清空任何東西的前提下組出"
+               "答案。若共用的設計必須保留，至少要讓親屬頁面能夠得知"
+               "「目前顯示的結果已經不是表裡的那一份」。",
+        steps=(
+            "On the Kinship form, choose a person and run a query.",
+            "Press *Export Query Results* and keep the three files.",
+            "Open the Browser, look up a different person, and open "
+            "their Kinship tab -- or simply press Export Profile.",
+            "Return to the Kinship form, which still shows the first "
+            "result, and export again: KinshipNetwork and "
+            "EgoRelativeKinship now describe the person who was looked "
+            "up, while KinshipPeople still describes the first one.",
+        ),
+        steps_zh=(
+            "在親屬表單上選定一個人並執行查詢。",
+            "按下 *Export Query Results*，保留產生的三個檔案。",
+            "開啟瀏覽器，查閱另一個人，點開他的 Kinship 分頁"
+            "——或者直接按下 Export Profile。",
+            "回到親屬表單（畫面上仍是第一次的結果），再匯出一次："
+            "KinshipNetwork 與 EgoRelativeKinship 描述的已是被查閱的"
+            "那個人，KinshipPeople 描述的卻仍是最初那一位。",
+        ),
+        source=("Code/browser_form_backend.go:2116",
+                "Code/kinship_form_backend.go:2006",
+                "Templates/browser/index.html:182",
+                "Templates/browser/index.html:261"),
+        tests=("test_looking_a_person_up_does_not_discard_a_kinship_result",
+               "test_export_profile_loads_the_kinship_tab_it_lists"),
     ),
 )
 

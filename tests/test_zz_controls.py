@@ -36,11 +36,11 @@ from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import REPO_ROOT
 from cbdb_desktop.routes import all_routes
 
-#: Buttons per page in the shipped build, pinned exactly -- 243 of them.
+#: Buttons per page in the shipped build, pinned exactly -- 248 of them.
 #: A build that adds a control has to be looked at: either the endpoint
 #: it reaches is already driven, or something has to start driving it.
 #:
-#: 243 is more than it sounds. It counts the three language buttons and
+#: 248 is more than it sounds. It counts the three language buttons and
 #: the result-tab buttons on every page, which change no state on the
 #: server at all. The endpoint gate below is what carries the real
 #: weight; this is here so that "a page grew a button" cannot pass
@@ -49,14 +49,26 @@ from cbdb_desktop.routes import all_routes
 EXPECTED_BUTTONS = {
     "association_pairs": 21,
     "associations": 18,
-    # 13 on the 20260908 build.  The 20260909 build reworked this page:
-    # its eleven tab buttons gained `id` attributes, so they are keyed
-    # by name here instead of by their inline handler, and three new
-    # ones appeared -- btnEnglish, btnSimplified and btnTraditional, a
-    # language switcher.  All three are wired: each reloads the person
-    # and the open tab through the /api/browser/person/{id}* endpoints.
+    # The Browser page has grown twice: 13 on the 20260908 build, 16 on
+    # the 20260909 one, 18 here.
+    #
+    # 20260909 reworked it.  Its eleven tab buttons gained `id`
+    # attributes, so they are keyed by name here instead of by their
+    # inline handler, and three new ones appeared -- btnEnglish,
+    # btnSimplified and btnTraditional, a language switcher.  All three
+    # are wired: each reloads the person and the open tab through the
+    # /api/browser/person/{id}* endpoints.
+    #
+    # 20260910 added two: Save Person ID, which hands the person being
+    # browsed to the cross-form channel (driven in
+    # test_cross_form_channel.py), and Export Profile, which writes the
+    # person's whole record to an HTML file from the same endpoints --
+    # and, by loading every tab it has not cached, reaches the kinship
+    # handler for a user who never opened that tab (CBDB-D-028).  Both
+    # are wired.
+    #
     # Read and moved deliberately, which is what this pin is for.
-    "browser": 16,
+    "browser": 18,
     "entry": 19,
     "group_data": 16,
     "index_addr": 3,
@@ -83,7 +95,7 @@ EXPECTED_BUTTONS = {
 #: set that has quietly shrunk: it is the denominator of the only
 #: coverage number this suite reports, and a denominator nobody checks
 #: is how "105 of 105" came to mean nothing.
-EXPECTED_REACHABLE_ENDPOINTS = 105
+EXPECTED_REACHABLE_ENDPOINTS = 106
 
 #: Endpoints the pages can reach that this suite deliberately does not
 #: request, with the reason.  Every entry is a decision; the gate

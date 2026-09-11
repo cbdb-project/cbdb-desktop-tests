@@ -2,9 +2,9 @@
 
 _A respectful summary of issues uncovered during automated regression testing._
 
-_Build under test: CBDB-Desktop_20260909.7z_
+_Build under test: CBDB-Desktop_20260910.7z_
 
-_Generated 2026-09-10 15:00 UTC from a run of 1423 tests (426s)._
+_Generated 2026-09-11 10:21 UTC from a run of 1429 tests (445s)._
 
 Dear maintainer,
 
@@ -18,22 +18,22 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1132 |
-| failed | 106 |
-| xfailed (a known defect, still present) | 3 |
-| skipped | 182 |
+| passed | 1140 |
+| failed | 102 |
+| xfailed (a known defect, still present) | 4 |
+| skipped | 183 |
 
-Every one of the 106 failures is a test that demonstrates an issue below.
+Every one of the 102 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
 | Area | Tests | What it checks |
 | --- | --- | --- |
-| The distribution itself | 59 | That the tree under test really is the shipped archive, file by file |
+| The distribution itself | 61 | That the tree under test really is the shipped archive, file by file |
 | The application process | 13 | That the shipped binary starts, serves, and releases its database |
 | Every registered route | 17 | All 141 routes read out of the shipped Go source, driven for real |
-| Passing a result from one form to another | 18 | The stored-person list: what one form stores, another recalls |
-| Each page against its own handler | 13 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
+| Passing a result from one form to another | 22 | The stored-person list: what one form stores, another recalls |
+| Each page against its own handler | 14 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
 | The code and address lists | 41 | The dropdowns each form offers before a query is run |
 | The Group Data form | 7 | Its five section switches driven one at a time, and what it answers when every one of them is off |
 | The Entry and Status pickers | 4 | Their type trees: that every type offered has codes somewhere beneath it, and that every parent named is a type that exists |
@@ -41,18 +41,22 @@ Every one of the 106 failures is a test that demonstrates an issue below.
 | The Query Builder's grid, cell by cell | 34 | Its eleven operators, four aggregates, sort row, join kinds and what it does with a cell it cannot parse |
 | The Query Builder | 51 | Its whitelist, the SQL it shows the user, and its guards |
 | The six single-query forms | 51 | Entry, office, status, texts, associations, places — queries and exports |
-| The forms that remember | 17 | Kinship, networks, association pairs, group data — working lists |
+| The forms that remember | 18 | Kinship, networks, association pairs, group data — working lists |
 | Index-address rankings | 12 | The only endpoints that rewrite CBDB data rather than scratch |
 | Every filter, on inputs read from the data | 418 | One query per populated combination the shipped database has, plus every switch turned both ways |
 | Every export button | 498 | All 45 file-producing endpoints pressed, and the files they return read back |
-| The pages in a real browser | 7 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
+| The pages in a real browser | 8 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
 | The working tables | 7 | Which form owns which scratch table, read out of the shipped Go |
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
-| This report's own sources | 82 | That every issue below still cites real code, in both languages |
+| This report's own sources | 79 | That every issue below still cites real code, in both languages |
 | This report itself | 27 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
-| every test in this run | 1423 |  |
+| every test in this run | 1429 |  |
+
+### What this round did not reach
+
+The table above counts what was checked; it is not a list of what the application does.  A feature can appear in it because one narrow thing about it is checked -- that a button un-greys when it should, say -- while what the button produces is never read.  Where that is true of something this build added, the issue below says so in its own words.  Read a row as *this much was checked*, and an absent row as nothing at all.
 
 ## Agreed to leave for now
 
@@ -63,6 +67,7 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | test_a_second_query_replaces_what_the_first_would_export | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | Agreed to leave as it is: the scratch tables are one set per database, so a query in a second tab replaces what the first tab would export.  Namespacing them per session is a redesign of every form's working state, and this build's users work in one window at a time. |
 | test_a_second_working_list_replaces_the_first | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | The same agreement, one step earlier: two tabs of one form share a single working list, so the second import replaces the first and the query that follows is about the wrong people.  Left alone for the same reason. |
 | test_nothing_stops_a_second_instance_opening_the_database | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | The same agreement, at the process level: main.go takes no single-instance lock and chooses its port at random, so cbdb.exe can be launched twice against one database.  A lock file would be the cheap half of a fix, and it was agreed to leave that for a later build too. |
+| test_select_all_filtered_selects_every_address_the_filter_matched | all cases | still checked, failure tolerated | 2026-09-11 (maintainer) | no end date | Tolerated rather than denied.  The maintainer's position is that this is not a defect: the address picker already answers a filter matching more than 100 rows with "Showing first 100 of N -- refine your search", so the truncation is announced, and no realistic address filter needs more than a hundred records.  What the test measures still holds -- Select All Filtered ticks the rendered options only, and pressing Select then sends those first hundred with isSelectAllFiltered = true, which the host page renders as the whole filter -- so the test stays rather than being deleted.  The prompt is the whole of the mitigation, and it is now asserted separately in the same test: if it is ever removed, that assertion fails as an ordinary AssertionError, which this waiver does not cover. |
 
 ## Summary
 
@@ -73,7 +78,6 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-003 | P0 | CONFIRMED | Twenty-two export buttons ask the browser to save several files at once, and twenty-one of them report every file as saved when only the first arrived |
 | CBDB-D-008 | P0 | CONFIRMED | The Networks page drops the four year fields its dynasty filter is built on, and a two-dynasty span collapses to a single person |
 | CBDB-D-010 | P0 | CONFIRMED | Three controls the user can set change nothing: the Association Pairs KML checkbox, and Networks' Max Loops and Include ID |
-| CBDB-D-012 | P0 | CONFIRMED | "Select All Filtered" returns the first hundred addresses and reports them as the whole filter |
 | CBDB-D-013 | P0 | CONFIRMED | Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list |
 | CBDB-D-015 | P0 | CONFIRMED | A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports |
 | CBDB-D-016 | P0 | CONFIRMED | Association Pairs reports how many ids were in the file, not how many people it loaded |
@@ -87,13 +91,13 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | CBDB-D-025 | P0 | CONFIRMED | The two Military association categories select nothing: the form offers them and no branch inserts them |
 | CBDB-D-026 | P0 | CONFIRMED | Unticking every association category returns every association, because the filter is skipped when nothing is selected |
 | CBDB-D-027 | P0 | CONFIRMED | An association category returns ties of the categories the user did not pick: the last loop of the walk joins no filter |
+| CBDB-D-028 | P0 | CONFIRMED | Looking a person up in the Browser throws away the Kinship form's result, and the new Export Profile button does it without being asked |
 | CBDB-D-004 | P2 | CONFIRMED | Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have |
 | CBDB-D-005 | P2 | CONFIRMED | The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer |
 | CBDB-D-006 | P2 | CONFIRMED | The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error |
 | CBDB-D-009 | P2 | CONFIRMED | Four Association Pairs export buttons report "Unknown error" on exports that succeeded |
 | CBDB-D-024 | P2 | CONFIRMED | The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address |
-| CBDB-D-007 | P3 | CONFIRMED | The distribution ships nine dated working copies of its own templates |
-| CBDB-D-014 | P3 | CONFIRMED | The front page's Users Guide link is a 404: the PDF is not in the distribution |
+| CBDB-D-007 | P3 | CONFIRMED | The distribution ships eight dated working copies of its own templates |
 | CBDB-D-011 | P5 | CONFIRMED | Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter |
 
 ## Table of contents
@@ -103,7 +107,6 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-003 — Twenty-two export buttons ask the browser to save several files at once, and twenty-one of them report every file as saved when only the first arrived](#cbdb-d-003--twenty-two-export-buttons-ask-the-browser-to-save-several-files-at-once-and-twenty-one-of-them-report-every-file-as-saved-when-only-the-first-arrived)
 - [CBDB-D-008 — The Networks page drops the four year fields its dynasty filter is built on, and a two-dynasty span collapses to a single person](#cbdb-d-008--the-networks-page-drops-the-four-year-fields-its-dynasty-filter-is-built-on-and-a-two-dynasty-span-collapses-to-a-single-person)
 - [CBDB-D-010 — Three controls the user can set change nothing: the Association Pairs KML checkbox, and Networks' Max Loops and Include ID](#cbdb-d-010--three-controls-the-user-can-set-change-nothing-the-association-pairs-kml-checkbox-and-networks-max-loops-and-include-id)
-- [CBDB-D-012 — "Select All Filtered" returns the first hundred addresses and reports them as the whole filter](#cbdb-d-012--select-all-filtered-returns-the-first-hundred-addresses-and-reports-them-as-the-whole-filter)
 - [CBDB-D-013 — Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list](#cbdb-d-013--recall-on-the-association-pairs-page-fills-the-pair-with-two-people-nothing-chose-and-says-nothing-about-the-rest-of-the-stored-list)
 - [CBDB-D-015 — A person imported twice is counted twice, queried twice, and written twice into six of the seven Networks exports](#cbdb-d-015--a-person-imported-twice-is-counted-twice-queried-twice-and-written-twice-into-six-of-the-seven-networks-exports)
 - [CBDB-D-016 — Association Pairs reports how many ids were in the file, not how many people it loaded](#cbdb-d-016--association-pairs-reports-how-many-ids-were-in-the-file-not-how-many-people-it-loaded)
@@ -117,13 +120,13 @@ These outcomes are known and were agreed to be left as they are for the time bei
 - [CBDB-D-025 — The two Military association categories select nothing: the form offers them and no branch inserts them](#cbdb-d-025--the-two-military-association-categories-select-nothing-the-form-offers-them-and-no-branch-inserts-them)
 - [CBDB-D-026 — Unticking every association category returns every association, because the filter is skipped when nothing is selected](#cbdb-d-026--unticking-every-association-category-returns-every-association-because-the-filter-is-skipped-when-nothing-is-selected)
 - [CBDB-D-027 — An association category returns ties of the categories the user did not pick: the last loop of the walk joins no filter](#cbdb-d-027--an-association-category-returns-ties-of-the-categories-the-user-did-not-pick-the-last-loop-of-the-walk-joins-no-filter)
+- [CBDB-D-028 — Looking a person up in the Browser throws away the Kinship form's result, and the new Export Profile button does it without being asked](#cbdb-d-028--looking-a-person-up-in-the-browser-throws-away-the-kinship-forms-result-and-the-new-export-profile-button-does-it-without-being-asked)
 - [CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have](#cbdb-d-004--three-of-the-networks-forms-four-network-exports-answer-http-500-for-every-input-they-select-a-column-their-own-scratch-table-does-not-have)
 - [CBDB-D-005 — The Associations form's Neo4j export answers HTTP 500 whenever the result has an address: a text column is scanned into an integer](#cbdb-d-005--the-associations-forms-neo4j-export-answers-http-500-whenever-the-result-has-an-address-a-text-column-is-scanned-into-an-integer)
 - [CBDB-D-006 — The Query Builder offers 30 columns that the shipped views expose under a different name, and every one of them gives the user a server error](#cbdb-d-006--the-query-builder-offers-30-columns-that-the-shipped-views-expose-under-a-different-name-and-every-one-of-them-gives-the-user-a-server-error)
 - [CBDB-D-009 — Four Association Pairs export buttons report "Unknown error" on exports that succeeded](#cbdb-d-009--four-association-pairs-export-buttons-report-unknown-error-on-exports-that-succeeded)
 - [CBDB-D-024 — The Networks sex filter answers HTTP 500 unless the user is also filtering by dynasty or address](#cbdb-d-024--the-networks-sex-filter-answers-http-500-unless-the-user-is-also-filtering-by-dynasty-or-address)
-- [CBDB-D-007 — The distribution ships nine dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-nine-dated-working-copies-of-its-own-templates)
-- [CBDB-D-014 — The front page's Users Guide link is a 404: the PDF is not in the distribution](#cbdb-d-014--the-front-pages-users-guide-link-is-a-404-the-pdf-is-not-in-the-distribution)
+- [CBDB-D-007 — The distribution ships eight dated working copies of its own templates](#cbdb-d-007--the-distribution-ships-eight-dated-working-copies-of-its-own-templates)
 - [CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter](#cbdb-d-011--six-shipped-capabilities-have-no-way-in-group-datas-kml-exports-association-pairs-kml-writer-two-autocomplete-endpoints-the-places-ascii-encoding-and-the-places-bac-filter)
 - [Severity legend](#severity-legend)
 - [Reproducing this report](#reproducing-this-report)
@@ -353,50 +356,6 @@ For KML: send `format` from this page as its siblings do, or have the handler re
 #### Demonstrated by
 
 - 2 × failed: `test_the_assocpairs_kml_checkbox_changes_what_comes_back`, `test_a_field_the_json_declares_is_a_field_the_program_uses`
-
-## CBDB-D-012 — "Select All Filtered" returns the first hundred addresses and reports them as the whole filter
-
-**Affected area:** Address picker
-
-**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
-
-**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-The picker keeps `filteredAddresses` (its own comment: *"full match set (all rows matching the filter)"*) and `renderedAddresses = filteredAddresses.slice(0, MAX_RENDER)` with `MAX_RENDER = 100`.  Only the rendered slice becomes `<option>` elements.  `selectAllFiltered()` walks `sel.options`, and `sendResult` walks `sel.options` again to build what it hands back -- so on a filter matching more than a hundred addresses the button returns the first hundred, and returns them with `isSelectAllFiltered: true` plus the filter text, which every host page reads as "the user chose the whole filter".
-
-#### Evidence
-
-Read from `Templates/pickers/address_picker.html`, with each function's body taken by brace matching rather than by pattern, so that what is attributed to `selectAllFiltered` is what that function does: the cap (`const MAX_RENDER = 100`), the slice that applies it, and both functions walking `sel.options`.  The button's own comment says it *"selects every visible (filtered) item"*.  The status bar does say *"Showing first 100 of N -- refine your search"*, but the button is not disabled in that state and nothing in the result it sends records the truncation.  The scale is measurable, and has to be measured against the right population: the picker does not filter `ADDR_CODES`.  It filters `allAddresses`, loaded once from `/api/addresses` -- 37,118 rows, because that endpoint joins `ADDR_BELONGS_DATA` and each row carries its own year range -- and it matches case-insensitively on the pinyin name.  Filtered the way the page filters, "Zhou" gives 5,373 rows, "Xian" 7,166 and "Fu" 2,007, so the button returns 1.9%, 1.4% and 5.0% of what the user asked for.
-
-#### Impact
-
-The query then runs on a hundred addresses while the page displays the filter text, so the result looks like an answer about the whole filter and is an answer about a small fraction of it.  Which hundred depends on the order the list arrived in, which is not the user's choice and is not shown.
-
-#### Steps to reproduce
-
-1. Open any form that offers an address picker and open it.
-2. Filter on "Zhou" so the status bar reads "Showing first 100 of 5373".
-3. Press Select All Filtered, and count the addresses the host page received: 100.
-
-#### Suggested fix
-
-Build the result from `filteredAddresses` rather than from `sel.options`; the full set is already in memory and the render cap exists only to keep the `<select>` manageable.  If sending thousands of ids is not wanted, send the filter itself and let the host page resolve it -- but do not send a hundred rows labelled as the filter.
-
-#### Where it lives in the build
-
-- `Templates/pickers/address_picker.html:118`
-- `Templates/pickers/address_picker.html:223`
-- `Templates/pickers/address_picker.html:344`
-- `Templates/pickers/address_picker.html:381`
-
-#### Demonstrated by
-
-- 1 × failed: `test_select_all_filtered_selects_every_address_the_filter_matched`
-- 1 × passed: `test_the_function_body_reader_stops_at_the_function`
 
 ## CBDB-D-013 — Recall on the Association Pairs page fills the pair with two people nothing chose, and says nothing about the rest of the stored list
 
@@ -995,6 +954,61 @@ Give the last loop the same filtered FROM its earlier loops have -- `fromAssocAs
 
 - 1 × failed: `test_no_two_categories_return_the_same_association`
 
+## CBDB-D-028 — Looking a person up in the Browser throws away the Kinship form's result, and the new Export Profile button does it without being asked
+
+**Affected area:** Browser and Kinship: shared scratch tables
+
+**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+`GET /api/browser/person/{id}/kinship` opens by deleting `ZZ_KIN_LIST`, `ZZ_KIN_LIST_TMP`, `ZZ_SCRATCH_KIN` and `ZZ_SCRATCH_KINNET` -- two of which are where the Kinship form's own query puts its answer, and where its *Export Query Results* button reads that answer back from.  A researcher with a Kinship result on screen who then looks somebody up in the Browser exports a different network from the one they are looking at, with HTTP 200 throughout and nothing on either page saying so.  The *Export Profile* button added in this build reaches the same handler for a user who never opens a kinship tab: `exportProfile()` loads every uncached tab in `EXPORT_TABS`, and kinship is one of them, with its own "Generating kinship data…" overlay.
+
+#### Evidence
+
+Driven through the shipped binary.  A Kinship query on one person is run, its *Export Query Results* taken and unpacked into its three files, a single `GET /api/browser/person/<other>/kinship` issued, and the same export taken again.  Both answer HTTP 200, and the test names which files changed and which did not -- the point being that not all of them do.  The direction of the change is not the point either: the two that change are simply somebody else's traversal.
+
+Re-running the Kinship query afterwards returns its rows again, so the tables were emptied and refilled rather than damaged.  That is what separates this from corruption, and it is also why it is easy to miss: the form looks fine the moment anyone checks it.
+
+The deletes are at the top of `handleGetKinship`, before any read, and are not conditional.  Note the shape rather than only the case: AGENTS.md already records this endpoint as the one read-looking request that writes, and the 20260907 build split the per-form working lists to stop exactly this kind of interference.  This is a new door into the same room.
+
+One limit, stated plainly: the *Export Profile* half is established from the page's own source rather than by pressing the button.  `test_export_profile_loads_the_kinship_tab_it_lists` checks the three links in the chain -- that `EXPORT_TABS` lists a kinship tab with a loader, that `exportProfile` calls the loader of any tab it has not cached, and that the loader fetches this endpoint.  Nothing reads the document the button produces, so this report says nothing about whether that document is otherwise complete or correct.
+
+#### Impact
+
+The user is shown one network and hands out another.  This is *Export Query Results* alone: it is the one Kinship export that reads the scratch tables.  The other five -- GIS, Neo4j, UCINet, Pajek, Gephi -- build their rows from the records the page posts to them, so they keep exporting what is on screen.  (Neo4j also queries `KINSHIP_CODES` to label its kin codes, which is a reference table and not part of anybody's result.)  Nothing fails and nothing warns.
+
+Worse, the bundle is not even wrong consistently.  *Export Query Results* produces three files, and the browser handler deletes the tables behind only two of them: `KinshipNetwork` and `EgoRelativeKinship` describe the person who was looked up, while `KinshipPeople` still comes from `ZZ_SP_KINSHIP`, which that handler never touches, and still describes the original working list.  One download, two different people.
+
+The *Export Profile* button makes it likelier rather than merely possible: a user who presses it has not chosen to look at kinship at all.  This is related to the session-scope agreement recorded in the waiver table -- one result per database, not per tab -- but it is not the same thing, and the difference is worth a decision: there the user ran a second query, here they read a page.
+
+#### Steps to reproduce
+
+1. On the Kinship form, choose a person and run a query.
+2. Press *Export Query Results* and keep the three files.
+3. Open the Browser, look up a different person, and open their Kinship tab -- or simply press Export Profile.
+4. Return to the Kinship form, which still shows the first result, and export again: KinshipNetwork and EgoRelativeKinship now describe the person who was looked up, while KinshipPeople still describes the first one.
+
+#### Suggested fix
+
+Give the Browser's kinship lookup its own scratch tables -- all of them, including `ZZ_SP_KINSHIP`, whose absence from the four it clears is what makes the export self-contradictory rather than merely stale -- as the 20260907 build did for the forms, or have it build its answer without clearing anything.  If sharing has to stay, the Kinship page should at least be able to tell that its result is no longer the one it is showing.
+
+#### Where it lives in the build
+
+- `Code/browser_form_backend.go:2116`
+- `Code/kinship_form_backend.go:2006`
+- `Templates/browser/index.html:182`
+- `Templates/browser/index.html:261`
+
+#### Demonstrated by
+
+- 1 × failed: `test_looking_a_person_up_does_not_discard_a_kinship_result`
+- 1 × passed: `test_export_profile_loads_the_kinship_tab_it_lists`
+
 ## CBDB-D-004 — Three of the Networks form's four network exports answer HTTP 500 for every input: they select a column their own scratch table does not have
 
 **Affected area:** Networks form: Pajek, Gephi/GUESS and UCINet exports
@@ -1231,7 +1245,7 @@ Give the plain `fromKin` the same `BIOG_MAIN AS BIOG_MAIN_1` join its dynasty an
 - 2 × failed: `test_the_sex_filter_removes_the_sex_it_was_told_to[F-useFemale]`, `test_the_sex_filter_removes_the_sex_it_was_told_to[M-useMale]`
 - 1 × passed: `test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on`
 
-## CBDB-D-007 — The distribution ships nine dated working copies of its own templates
+## CBDB-D-007 — The distribution ships eight dated working copies of its own templates
 
 **Affected area:** Packaging: Templates/
 
@@ -1243,11 +1257,11 @@ Give the plain `fromKin` the same `BIOG_MAIN AS BIOG_MAIN_1` join its dynasty an
 
 #### Description
 
-Nine of the archive's 84 members are dated backups of templates that ship alongside the live file -- `entry/entry.index.20260906.html` next to `entry/index.html`, `qbe/qbe.20260827.html` next to `qbe/qbe.html`, and so on.  No route serves them and only `Static/` is file-served, so they are not reachable pages; they are a working directory that was packaged as it stood.
+Eight of the archive's 85 members are dated backups of templates that ship alongside the live file -- `entry/entry.index.20260906.html` next to `entry/index.html`, `qbe/qbe.20260827.html` next to `qbe/qbe.html`, and so on.  No route serves them and only `Static/` is file-served, so they are not reachable pages; they are a working directory that was packaged as it stood.
 
 #### Evidence
 
-Read from the archive's own directory, not from the unpacked tree: `Templates/associations/associations.index.20260906.html`, `associations.index.20260908.html`, `entry/entry.index.20260906.html`, `office/office.index.20260815.html`, `pickers/address_picker.20260729.html`, `places/places.index.20260906.html`, `qbe/qbe.20260827.html`, `status/status.index.20260816.html` and `texts/texts.index.20260815.html`.  The build before this one shipped a tenth, `networks/networks.index.20260813.html`, and it is gone -- the only file this release removed.  Nine remain, so the packaging step still takes the working directory as it stands.  Diffing one against its live sibling shows it is genuinely older: the 20260906 copy of the Entry page has no `chkUseXY` control, which the shipped page has.
+Read from the archive's own directory, not from the unpacked tree: `Templates/associations/associations.index.20260906.html`, `associations.index.20260908.html`, `entry/entry.index.20260906.html`, `office/office.index.20260815.html`, `places/places.index.20260906.html`, `qbe/qbe.20260827.html`, `status/status.index.20260816.html` and `texts/texts.index.20260815.html`.  Two releases running have each dropped one: 20260909 removed `networks/networks.index.20260813.html` and this one removed `pickers/address_picker.20260729.html`, which was the last dated copy of a picker.  Eight remain, so the count is falling one at a time while the packaging step that collects them is unchanged.  Diffing one against its live sibling shows it is genuinely older: the 20260906 copy of the Entry page has no `chkUseXY` control, which the shipped page has.
 
 #### Impact
 
@@ -1255,8 +1269,8 @@ Small but not nil.  It makes the released tree ambiguous about which template is
 
 #### Steps to reproduce
 
-1. List the archive's contents: 7z l CBDB-Desktop_20260909.7z
-2. Note the nine Templates/ members whose names carry a date.
+1. List the archive's contents: 7z l CBDB-Desktop_20260910.7z
+2. Note the eight Templates/ members whose names carry a date.
 3. Diff any one of them against index.html in the same directory.
 
 #### Suggested fix
@@ -1265,58 +1279,14 @@ Build the distribution from a clean export rather than from the working director
 
 #### Where it lives in the build
 
-- `Templates/pickers/address_picker.20260729.html`
 - `Templates/qbe/qbe.20260827.html`
 - `Templates/entry/entry.index.20260906.html`
+- `Templates/associations/associations.index.20260908.html`
 
 #### Demonstrated by
 
-- 4 × failed: `test_distribution_ships_the_expected_pieces`, `test_the_distribution_ships_no_dated_working_copies`, `test_every_disabled_control_has_a_declared_precondition`, `test_every_page_has_the_buttons_it_shipped_with`
-
-## CBDB-D-014 — The front page's Users Guide link is a 404: the PDF is not in the distribution
-
-**Affected area:** Packaging: Static/
-
-**Severity:** P3 — Packaging — the released files contain something they should not, or lack something they should.
-
-**Where it comes from:** `release` — In how this particular release was assembled -- a working copy shipped in place of a freshly built one, a file that was not regenerated.  Fixed in the release process by whoever builds the distribution.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-`Templates/navigation/index.html` offers a *Users Guide* link pointing at `../../static/CBDB_UserGuide.pdf`.  `Static/` ships one file, `cbdb_styles.css`.
-
-#### Evidence
-
-Every same-origin link on the navigation page was followed.  All resolve except this one, which answers HTTP 404.  `Static/` is the only file-served directory in the build, so there is nowhere else the file could be reached from.
-
-The distribution settles for itself which side this belongs on.  `The directory structure for CBDB-Desktop.txt`, shipped at the root of the archive, lists `PDF files: CBDB-Desktop\Static\xxx.pdf` at its last line, and `cbdb_navigation_backend.go:62` describes the directory it serves as "Static files (PDF user guide, images, etc.)".  So the layout expects PDFs in `Static/`, the code that serves it expects the guide among them, the template links to it accordingly, and what is missing is the file: this is the packaging step, not a template pointing somewhere it never should have.
-
-#### Impact
-
-The documentation the application points its users at is not there.  This is a desktop distribution aimed at researchers rather than developers, and the guide is one of only two links the front page offers outside the forms themselves.
-
-#### Steps to reproduce
-
-1. Start the application and open the front page.
-2. Press Users Guide.
-3. Or: 7z l CBDB-Desktop_20260908.7z | findstr Static
-
-#### Suggested fix
-
-Ship `CBDB_UserGuide.pdf` in `Static/`, which is where the distribution's own layout document says PDFs go.  If the guide lives elsewhere -- a project website -- make the link point there and say so.
-
-#### Where it lives in the build
-
-- `Templates/navigation/index.html:75`
-- `The directory structure for CBDB-Desktop.txt:82`
-- `Code/cbdb_navigation_backend.go:62`
-- `Static/`
-
-#### Demonstrated by
-
-- 1 × failed: `test_every_link_the_navigation_offers_resolves`
+- 1 × failed: `test_the_distribution_ships_no_dated_working_copies`
+- 3 × passed: `test_distribution_ships_the_expected_pieces`, `test_every_disabled_control_has_a_declared_precondition`, `test_every_page_has_the_buttons_it_shipped_with`
 
 ## CBDB-D-011 — Six shipped capabilities have no way in: Group Data's KML exports, Association Pairs' KML writer, two autocomplete endpoints, the Places ASCII encoding, and the Places BAC filter
 
@@ -1386,7 +1356,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1423 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1429 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

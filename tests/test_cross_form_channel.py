@@ -66,7 +66,9 @@ import pytest
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import STORE_RESET, WORKING_LIST_RESETS
+from cbdb_desktop.gosource import SHARED, form_of, strip_comments
 from cbdb_desktop.routes import all_routes
+
 
 pytestmark = pytest.mark.app
 
@@ -108,6 +110,21 @@ CONFIRMING_FORMS = {
                 "/api/kinship/store-person-ids/confirmed"),
     "networks": ("/api/networks/store-person-ids",
                  "/api/networks/store-person-ids/confirmed"),
+}
+
+#: Forms that store **one** person rather than a list, and so cannot
+#: be driven by the parametrised round trip above.  New in the
+#: 20260910 build: the Browser page's *Save Person ID* writes the same
+#: ``ZZ_STORE_PERSON_ID`` the other ten do, clearing it first, but its
+#: body is ``{"personId": <int>}`` where theirs is
+#: ``{"personIds": [...]}``.
+#:
+#: Its path is singular too -- ``/store-person-id`` against everyone
+#: else's ``/store-person-ids`` or ``/store-ids`` -- which is how it
+#: reached a shipped build with nothing driving it: the gate below
+#: discovered store endpoints by matching those two spellings.
+SINGLE_PERSON_STORES = {
+    "browser": "/api/browser/store-person-id",
 }
 
 #: Forms that can pull the stored list into their own working list.
@@ -173,6 +190,19 @@ _SMALLEST_QUERY = {
                   "maxNodeDist": 1, "kinParam": True, "maxUp": 1,
                   "maxDwn": 1, "maxCol": 1, "maxMar": 1}, "nodeRecords"),
 }
+
+
+def _people_the_query_reaches(app: CbdbApp, form: str) -> set[int]:
+    """Who the form's own smallest query finds, from its working list.
+
+    A superset of the working list rather than a reading of it: the
+    application offers no endpoint that says *which* people are in
+    that list, only how many, so the nearest honest answer is the one
+    it gives when asked to expand from them.
+    """
+    body, key = _SMALLEST_QUERY[form]
+    answer = app.json("POST", f"/api/{form}/query", json=body)
+    return {row["personId"] for row in answer[key]}
 
 
 def _run_a_query(app: CbdbApp, form: str) -> int:
@@ -484,6 +514,142 @@ def test_rerun_seeds_the_working_list_with_the_people_the_query_found(
         "different set of the same size or larger would pass.")
 
 
+@pytest.mark.parametrize("form", sorted(SINGLE_PERSON_STORES))
+def test_what_a_single_person_store_saves_another_form_recalls(
+        app: CbdbApp, form: str, travellers, clean_channel):
+    """One person out of the Browser, into Networks and Kinship.
+
+    The same question the eight-form round trip above asks, for the
+    endpoints that hand over one person instead of a list.  Both
+    recalling forms are driven on the one store, which is what shows
+    that recall copies rather than moves -- if it moved, the second
+    recall would find nothing.
+
+    The assertion is agreement between the application's own answers:
+    the id that went in against what comes out, both the count and the
+    person.  The person matters on its own -- a channel that delivered
+    one *different* real person would keep every count right and every
+    page looking correct -- so each recalling form is asked to run its
+    own query and the traveller must be among the people it reaches.
+    The query expands outwards from the working list, so containment is
+    what can be claimed, and it is enough: substituting anybody would
+    drop the traveller out of it.  Nothing here predicts a row count
+    from the database.
+    """
+    # Not ``travellers[0]``: that is person 0, whom this endpoint
+    # refuses -- see the test below, which is about the refusal.
+    person = next(p for p in travellers if p)
+    stored = app.post(SINGLE_PERSON_STORES[form], json={"personId": person})
+    assert stored.status_code == 200, (
+        f"{form} could not save person {person}: HTTP "
+        f"{stored.status_code} {stored.text[:200]}")
+
+    for recalling, endpoint in sorted(RECALL_ENDPOINTS.items()):
+        recalled = app.post(endpoint, json={})
+        assert recalled.status_code == 200, (
+            f"{recalling} could not recall the person {form} saved: "
+            f"HTTP {recalled.status_code} {recalled.text[:200]}")
+        arrived = _working_list_size(app, recalling)
+        assert arrived == 1, (
+            f"{form} saved one person and {recalling} recalled "
+            f"{arrived}.  The two ends of the channel disagree about "
+            f"what was handed over; the person was {person}.")
+
+        reached = _people_the_query_reaches(app, recalling)
+        assert person in reached, (
+            f"{form} saved person {person}, {recalling} recalled one "
+            f"person, and querying from it reaches {sorted(reached)} -- "
+            f"which does not include {person}.  One person arrived and "
+            "it was not the one that was sent, so this channel carries "
+            "a count rather than an identity.")
+
+
+def test_saving_one_person_replaces_the_whole_stored_list(
+        app: CbdbApp, travellers, clean_channel):
+    """Save Person ID overwrites; it does not append.
+
+    Worth asking because the button's name does not say so and the
+    user cannot see the list it writes into.  A researcher who stores
+    five people from Office, opens the Browser, looks someone up and
+    presses *Save Person ID* has one person in the channel, not six --
+    and the next form they recall on gets the one.
+
+    Judged by the count the recalling form reports, which is the
+    application's own answer, against the two counts that went in.
+    """
+    app.post(STORE_ENDPOINTS["status"], json={"personIds": travellers})
+    app.post(RECALL_ENDPOINTS["networks"], json={})
+    before = _working_list_size(app, "networks")
+    assert before == len(travellers), (
+        f"the five-person store did not arrive ({before}), so this "
+        "test cannot tell replacement from appending")
+
+    app.post(SINGLE_PERSON_STORES["browser"],
+             json={"personId": next(p for p in travellers if p)})
+    for path, body in WORKING_LIST_RESETS:
+        app.post(path, json=body)
+    app.post(RECALL_ENDPOINTS["networks"], json={})
+    after = _working_list_size(app, "networks")
+
+    assert after == 1, (
+        f"after saving one person from the Browser the stored list "
+        f"holds {after}, not 1.  It held {len(travellers)} before, so "
+        "Save Person ID is adding to the list rather than replacing "
+        "it -- the handler's own DELETE says replace.")
+
+
+def test_a_person_the_browser_can_show_is_a_person_it_can_save(
+        app: CbdbApp, clean_channel):
+    """Person 0 is a real person, and *Save Person ID* refuses them.
+
+    ``BIOG_MAIN`` row 0 is *Weixiang / 未詳*, the placeholder CBDB uses
+    where an individual is unidentified.  It is not a gap in the data:
+    it is a person other rows point at, and it is the first row of the
+    table.
+
+    ``handleStorePersonID`` reads ``{"personId": int}`` and answers
+    ``400 personId is required`` when the value is zero, because Go
+    decodes an absent field to the same zero and the handler cannot
+    tell the two apart.
+
+    Whether that matters is decided here by the application, not by
+    me: the question is only asked if the Browser will *display*
+    person 0.  If it will, a button on that page that refuses the
+    person the page is showing is a defect the user meets.  If it will
+    not, the refusal is consistent and this test says nothing.
+    """
+    shown = app.get("/api/browser/person/0")
+    if shown.status_code != 200:
+        pytest.skip(
+            "the Browser does not serve person 0 "
+            f"(HTTP {shown.status_code}), so refusing to save them is "
+            "consistent and there is nothing to report")
+
+    saved = app.post(SINGLE_PERSON_STORES["browser"], json={"personId": 0})
+    if saved.status_code != 200:
+        name = ""
+        try:
+            body = shown.json() or {}
+            name = f" ({body.get('name') or body.get('nameChn') or ''})"
+        except ValueError:
+            pass
+        raise KnownShippedDefect(
+            f"the Browser serves person 0{name} and its Save Person ID "
+            f"button answers HTTP {saved.status_code} "
+            f"{saved.text.strip()[:80]!r} for that same person.  The "
+            "handler treats a personId of 0 as a missing field, which "
+            "is what Go decodes an absent one to, so the one person "
+            "the database numbers zero cannot be handed to another "
+            "form.  BIOG_MAIN row 0 is the placeholder for an "
+            "unidentified individual and is referenced by real rows.")
+
+    # It said yes, so the person must actually have arrived.
+    app.post(RECALL_ENDPOINTS["networks"], json={})
+    assert _working_list_size(app, "networks") == 1, (
+        "Save Person ID answered 200 for person 0 and the recalling "
+        "form found no one, so the save did not happen")
+
+
 def test_the_channel_is_the_one_the_build_registers(layout):
     """The three lists above, against the shipped route table.
 
@@ -501,7 +667,11 @@ def test_the_channel_is_the_one_the_build_registers(layout):
         return {path for path in registered
                 if any(path.endswith(s) for s in suffixes)}
 
-    stores = tails("/store-person-ids", "/store-ids") | {"/api/store-person-ids"}
+    # ``/store-person-id`` singular as well: the 20260910 build added
+    # ``POST /api/browser/store-person-id`` and this scan, matching
+    # only the two plural spellings, did not see it.
+    stores = (tails("/store-person-ids", "/store-ids", "/store-person-id")
+              | {"/api/store-person-ids"})
     stores &= registered
     confirmed = tails("/store-person-ids/confirmed")
     stores -= confirmed
@@ -509,6 +679,7 @@ def test_the_channel_is_the_one_the_build_registers(layout):
 
     listed_stores = set(STORE_ENDPOINTS.values())
     listed_stores |= {plain for plain, _ in CONFIRMING_FORMS.values()}
+    listed_stores |= set(SINGLE_PERSON_STORES.values())
 
     assert listed_stores == stores, (
         "the set of endpoints that write the shared person list has "
@@ -520,6 +691,59 @@ def test_the_channel_is_the_one_the_build_registers(layout):
     assert set(RECALL_ENDPOINTS.values()) == recalls, (
         f"the recall endpoints have changed: build {sorted(recalls)}, "
         f"this file {sorted(RECALL_ENDPOINTS.values())}")
+
+
+def test_every_form_that_writes_the_shared_list_is_driven_here(layout):
+    """The inventory above, checked against the table rather than the URLs.
+
+    The scan in the previous test matches path suffixes, and a suffix
+    is a spelling.  The 20260910 build added
+    ``POST /api/browser/store-person-id`` -- singular where the others
+    are plural -- and the scan saw nothing, so the Browser page joined
+    the channel with no test driving it.  That is precisely the state
+    the previous test's docstring says it exists to prevent, defeated
+    by a naming variation the file's own comment had already noticed.
+
+    So ask the build what the channel is made of instead of what its
+    URLs are called.  ``ZZ_STORE_PERSON_ID`` is the one table every
+    form hands people through; a form whose source names it and which
+    appears in none of this file's three inventories is an undriven
+    piece of the channel, whatever its endpoint is spelled like.
+
+    Two limits, because a gate that overstates itself is worse than
+    none.  ``<shared>`` -- the schema and the shared helpers -- is
+    subtracted rather than checked: a form's store handler that moved
+    into ``main.go`` would leave this quiet, which is the same failure
+    one file-location away.  And what is compared here are the
+    inventories' *keys*, so this says a form is listed, not that the
+    listed endpoint is the right one; that half is
+    ``test_the_channel_is_the_one_the_build_registers`` above, which
+    pins every value against the shipped route table.  Together they
+    hold; apart, neither does.
+    """
+    named_by = set()
+    for path in layout.go_sources():
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "ZZ_STORE_PERSON_ID" in strip_comments(text):
+            named_by.add(form_of(path.name))
+    named_by -= {SHARED}
+    assert named_by, (
+        "no Go source names ZZ_STORE_PERSON_ID; either the channel was "
+        "rebuilt on another table or this reader has stopped matching, "
+        "and in both cases the inventories below are unchecked")
+
+    driven = (set(STORE_ENDPOINTS) | set(CONFIRMING_FORMS)
+              | set(RECALL_ENDPOINTS) | set(SINGLE_PERSON_STORES))
+    missing = sorted(named_by - driven)
+    assert not missing, (
+        f"{missing} write or read the shared person list and appear in "
+        "none of STORE_ENDPOINTS, CONFIRMING_FORMS, RECALL_ENDPOINTS "
+        "or SINGLE_PERSON_STORES, "
+        "so nothing in this file drives their half of the channel.  "
+        "That is what the suffix scan above is supposed to catch and "
+        "cannot, because it matches spellings: the Browser page's "
+        "endpoint is /store-person-id where every other form says "
+        "/store-person-ids or /store-ids.")
 
 
 # ---------------------------------------------------------------------------
@@ -670,27 +894,52 @@ def test_importing_the_same_person_twice_imports_one_person(
 _STORES_WITHOUT_A_TRANSACTION = {
     "status_form_backend.go": "handleStorePersonIDs, which owns the "
                               "unprefixed /api/store-person-ids",
+    "browser_form_backend.go": "handleStorePersonID, the Save Person "
+                               "ID button added in the 20260910 build. "
+                               "It stores one person, so the window "
+                               "between the DELETE and the INSERT is "
+                               "as small as it can be -- but it is the "
+                               "same window, and the DELETE still "
+                               "commits alone",
+    "kinship_form_backend.go": "doStorePersonIDsConfirmed, the shared "
+                               "implementation behind both of that "
+                               "form's store handlers",
+    "networks_form_backend.go": "doStorePersonIDsConfirmed, the same "
+                                "arrangement on the Networks form",
 }
 
 
 def test_a_handler_that_empties_the_shared_list_refills_it_atomically(layout):
     """``DELETE`` then ``INSERT``, and what happens in between.
 
-    Eight handlers replace the shared person list with one the caller
-    sent, and seven of them wrap the emptying and the refilling in a
-    single ``h.db.Begin()`` with a deferred ``Rollback``.  The eighth
-    runs both as bare ``h.db.Exec``, so the ``DELETE`` commits on its
+    Eleven functions replace the shared person list with one the
+    caller sent, and seven of them wrap the emptying and the refilling
+    in a single ``h.db.Begin()`` with a deferred ``Rollback``.  Four
+    run both as bare ``h.db.Exec``, so the ``DELETE`` commits on its
     own: a failure part-way through the inserts leaves the user's
     previous result destroyed and the new one truncated, on the only
     channel the application has for moving a result between forms.
 
     The oracle is the other seven.  This is not a rule imposed from
     outside -- it is what this build already does everywhere else, and
-    the one exception is what the pinned set records.
+    the exceptions are what the pinned set records.
+
+    Found by the DELETE and not by the name, which took two goes to
+    get right.  Reading for two literal spellings missed the 20260910
+    Browser store, ``handleStorePersonID``; widening to
+    ``handleStore*`` still missed both *Confirmed* paths, which do the
+    work in a ``doStorePersonIDsConfirmed`` helper.  An inventory
+    whose claim is completeness cannot key on what things are called.
     """
-    pattern = re.compile(
-        r"func \(h \*\w+\) (?P<name>handleStorePersonIDs|handleStoreIDs)\b"
-        r".*?\n\}", re.DOTALL)
+    # Every function that empties the list, by what it does.  Keying
+    # on the name failed twice here: it read for two literal spellings
+    # until the 20260910 Browser store arrived as handleStorePersonID,
+    # singular, and widening it to handleStore* still missed the two
+    # Confirmed paths, which delegate to a doStorePersonIDsConfirmed
+    # helper.  The DELETE is the only thing that makes a function one
+    # of these, so it is the only thing matched.
+    pattern = re.compile(r"func \(h \*\w+\) (?P<name>\w+)\b.*?\n\}",
+                         re.DOTALL)
 
     with_tx, without_tx = {}, {}
     for source in layout.go_sources():
@@ -702,9 +951,9 @@ def test_a_handler_that_empties_the_shared_list_refills_it_atomically(layout):
             target = with_tx if "h.db.Begin()" in body else without_tx
             target[source.name] = match.group("name")
 
-    assert len(with_tx) + len(without_tx) == 8, (
-        f"{len(with_tx) + len(without_tx)} handlers replace the shared "
-        f"list, not 8: {sorted(with_tx) + sorted(without_tx)}")
+    assert len(with_tx) + len(without_tx) == 11, (
+        f"{len(with_tx) + len(without_tx)} functions replace the shared "
+        f"list, not 11: {sorted(with_tx) + sorted(without_tx)}")
 
     unexpected = sorted(set(without_tx) - set(_STORES_WITHOUT_A_TRANSACTION))
     assert not unexpected, (

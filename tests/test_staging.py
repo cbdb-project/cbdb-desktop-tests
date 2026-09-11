@@ -110,8 +110,14 @@ _DISTRIBUTION_MEMBERS: dict[str, str] = {
 }
 
 
-def _fake_distribution_7z(path: Path, *, root: str | None) -> Path:
-    """The same minimal distribution, in a 7z, optionally wrapped in ``root``."""
+def _fake_distribution_7z(path: Path, *, root: str | None,
+                          loose: str | None = None) -> Path:
+    """The same minimal distribution, in a 7z, optionally wrapped in ``root``.
+
+    ``loose`` puts one file at the archive root beside the wrapper --
+    the shape the 20260910 release introduced when it shipped its
+    notes there.
+    """
     py7zr = pytest.importorskip("py7zr")
     staged = path.parent / (path.stem + "-src")
     base = staged / root if root else staged
@@ -119,6 +125,8 @@ def _fake_distribution_7z(path: Path, *, root: str | None) -> Path:
         member = base / name
         member.parent.mkdir(parents=True, exist_ok=True)
         member.write_text(body, encoding="utf-8")
+    if loose is not None:
+        (staged / loose).write_text("release notes\n", encoding="utf-8")
     with py7zr.SevenZipFile(path, "w") as archive:
         for child in sorted(staged.iterdir()):
             archive.writeall(child, child.name)
@@ -685,6 +693,13 @@ def test_a_root_level_file_beside_the_wrapper_is_not_stripped():
 
     Stripping on a prefix match instead would drop that file from both
     the member list and the staged tree, with nothing to notice it.
+
+    Every assertion here is the original one and none has been
+    weakened, because the objection they encode is still right: the
+    first attempt at the ``stem`` exception below widened the rule to
+    "exactly one top-level directory" and would have stripped
+    ``Data/`` out of every flat zip build.  The fourth line is what
+    caught it.
     """
     assert common_root(["CBDB-Desktop/Data/CBDB.db",
                         "CBDB-Desktop/cbdb.exe"]) == "CBDB-Desktop"
@@ -693,6 +708,73 @@ def test_a_root_level_file_beside_the_wrapper_is_not_stripped():
     assert common_root(["cbdb.exe", "Data/CBDB.db"]) is None
     assert common_root(["../escaped.txt"]) is None
     assert common_root([]) is None
+
+
+def test_a_wrapper_the_archive_is_named_after_is_stripped_past_loose_files():
+    """The one exception, and the name is what earns it.
+
+    The 20260910 release shipped its notes as
+    ``CBDB-Desktop_20260910.txt`` at the archive root, beside the
+    ``CBDB-Desktop/`` directory holding the tree.  Refusing to strip
+    left every path one level deeper than the suite reads and staging
+    failed outright on ``Data/CBDB.db``.
+
+    Structure cannot tell that shape from a flat build -- one
+    directory and some files at the root, either way.  The name can:
+    these distributions wrap their tree in a directory named after the
+    archive, and a flat build's ``Data/`` bears no relation to
+    ``dist.zip``.
+    """
+    wrapped = ["CBDB-Desktop/Data/CBDB.db", "CBDB-Desktop/cbdb.exe",
+               "CBDB-Desktop_20260910.txt"]
+    assert common_root(wrapped, stem="CBDB-Desktop_20260910") == "CBDB-Desktop"
+
+    # Same members, an archive not named after the directory: refused,
+    # because then the loose file is as likely to be part of the tree.
+    assert common_root(wrapped, stem="something-else") is None
+    assert common_root(wrapped) is None
+
+    # The flat shape stays refused even when a stem is offered.
+    assert common_root(["cbdb.exe", "Data/CBDB.db"], stem="dist") is None
+
+    # A loose file that would land on top of one inside the wrapper.
+    assert common_root(["CBDB-Desktop/a.txt", "a.txt"],
+                       stem="CBDB-Desktop_1") is None
+
+
+def test_a_file_beside_the_wrapper_reaches_the_staged_tree(tmp_path: Path):
+    """Unwrapping past a loose file must not lose the loose file.
+
+    The 20260910 release shipped its notes as
+    ``CBDB-Desktop_20260910.txt`` at the archive root.  Refusing to
+    unwrap broke staging outright; unwrapping carelessly would drop
+    the notes, and the member list would then declare a file the tree
+    does not have -- which fails the integrity check on every later
+    run, restages 1.3 GB each time, and names no cause.
+
+    So the assertion that matters here is the last one: the manifest
+    and the tree agree.  ``common_root`` is unit-tested above; this is
+    the only test that takes the whole path through extraction.
+    """
+    seven = _fake_distribution_7z(
+        tmp_path / "CBDB-Desktop_20260910.7z",
+        root="CBDB-Desktop", loose="CBDB-Desktop_20260910.txt")
+    layout = stage(_config(tmp_path, seven), quiet=True)
+
+    layout.verify()
+    assert (layout.root / "Data").is_dir(), "the wrapper was not stripped"
+    notes = layout.root / "CBDB-Desktop_20260910.txt"
+    assert notes.is_file(), (
+        "the file beside the wrapper did not reach the staged tree; the "
+        "archive ships it, so dropping it makes the tree disagree with "
+        "its own manifest")
+    assert notes.read_text(encoding="utf-8") == "release notes\n"
+
+    manifest = read_manifest(layout.root)
+    assert manifest is not None
+    assert integrity_mismatches(layout, manifest) == [], (
+        "the staged tree and the manifest written from the archive "
+        "disagree, which is the corruption this test exists to catch")
 
 
 def test_a_corrupt_seven_zip_is_reported_not_crashed(tmp_path: Path):
