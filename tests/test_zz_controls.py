@@ -47,8 +47,14 @@ from cbdb_desktop.routes import all_routes
 #: unnoticed, and so that a parser regression in controls.py shows up as
 #: a count that moved rather than as coverage that quietly shrank.
 EXPECTED_BUTTONS = {
+    # Six forms each lost one button in the 2026-09-15 build and one
+    # gained one, all from the same change: the dynasty picker became
+    # multi-select, so the From and To buttons every form carried are
+    # now a single "Select Dynasties", and the Places form gained
+    # "Select Biog Addr Types" for the new BAC filter.  The picker that
+    # filter opens is the new pickers/bac_picker page below.
     "association_pairs": 21,
-    "associations": 18,
+    "associations": 17,
     # The Browser page has grown twice: 13 on the 20260908 build, 16 on
     # the 20260909 one, 18 here.
     #
@@ -69,25 +75,26 @@ EXPECTED_BUTTONS = {
     #
     # Read and moved deliberately, which is what this pin is for.
     "browser": 18,
-    "entry": 19,
+    "entry": 18,
     "group_data": 16,
     "index_addr": 3,
     "kinship": 18,
     "navigation": 0,
-    "networks": 25,
-    "office": 22,
+    "networks": 24,
+    "office": 21,
     "pickers/address_picker": 5,
     "pickers/associations_picker": 4,
+    "pickers/bac_picker": 3,
     "pickers/dynasty_picker": 3,
     "pickers/entry_picker": 5,
     "pickers/office_picker": 4,
     "pickers/people_picker": 3,
     "pickers/status_picker": 5,
     "pickers/texts_picker": 4,
-    "places": 12,
+    "places": 13,
     "qbe": 8,
-    "status": 17,
-    "texts": 18,
+    "status": 16,
+    "texts": 17,
 }
 
 #: How many distinct ``/api/`` endpoints the shipped pages can reach.
@@ -95,7 +102,12 @@ EXPECTED_BUTTONS = {
 #: set that has quietly shrunk: it is the denominator of the only
 #: coverage number this suite reports, and a denominator nobody checks
 #: is how "105 of 105" came to mean nothing.
-EXPECTED_REACHABLE_ENDPOINTS = 106
+#:
+#: 107 since the 2026-09-15 build.  The two Networks autocomplete
+#: helpers it deleted were never in this number -- no page called them,
+#: which is what made them a finding -- so the only movement is
+#: ``/api/biog-addr-codes``, which the new bac_picker fetches.
+EXPECTED_REACHABLE_ENDPOINTS = 107
 
 #: Endpoints the pages can reach that this suite deliberately does not
 #: request, with the reason.  Every entry is a decision; the gate

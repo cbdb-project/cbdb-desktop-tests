@@ -41,6 +41,7 @@ import re
 
 import pytest
 
+from cbdb_desktop import gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
@@ -249,6 +250,27 @@ def _request_keys(page: str, endpoint: str) -> set[str]:
             for part in body.group("keys").split(",") if part.strip()}
 
 
+def _only_file_named_by(response) -> str:
+    """The name of the single file an Association Pairs export returned.
+
+    These five exports answered with a bare ``{name, url}`` until the
+    2026-09-15 build moved them to the ``{status, files}`` envelope the
+    page has always required -- which is the fix to the Unknown-error
+    finding, and the reason this helper exists rather than a
+    ``.get("name")``.  Asserting the envelope here as well as in
+    ``exports.py`` is deliberate: this test's conclusions are drawn from
+    the file name, so reading it out of the wrong shape would make them
+    statements about nothing.
+    """
+    assert response.status_code == 200,         f"export-gis refused a minimal request: {response.text[:200]}"
+    payload = response.json()
+    assert payload.get("status") == "ok" and payload.get("files"), (
+        "an Association Pairs export no longer answers with "
+        f"{{status: 'ok', files: [...]}}: {sorted(payload)}.  The page "
+        "throws on anything else, so this is a user-visible change")
+    return payload["files"][0]["name"]
+
+
 def test_the_assocpairs_kml_checkbox_changes_what_comes_back(
         app: CbdbApp, page_text: dict[str, str], go_text: dict[str, str]):
     """``chkKML`` is sent as ``useKML``; the handler reads ``format``.
@@ -287,15 +309,15 @@ def test_the_assocpairs_kml_checkbox_changes_what_comes_back(
                          json=dict(body, format="kml"))
     assert reachable.status_code == 200, \
         f"export-gis refused a minimal request: {reachable.text[:200]}"
-    by_handlers_key = reachable.json().get("name", "")
+    by_handlers_key = _only_file_named_by(reachable)
     assert by_handlers_key.endswith(".kml"), (
         f"asking export-gis for format='kml' produced {by_handlers_key!r}; "
         "the KML writer is broken independently of which key selects it, "
         "which is a different defect from the one this test reports")
 
     # Then the page's key, which is the thing under test.
-    ticked = app.post("/api/assocpairs/export-gis",
-                      json=dict(body, useKML=True)).json().get("name", "")
+    ticked = _only_file_named_by(
+        app.post("/api/assocpairs/export-gis", json=dict(body, useKML=True)))
 
     if ignored:
         raise KnownShippedDefect(
@@ -318,8 +340,24 @@ def test_the_assocpairs_kml_checkbox_changes_what_comes_back(
 #: * on a **response** struct it is a key that ships in every reply and is
 #:   always the zero value -- inert here only because no page reads it.
 _UNREAD_REQUEST_FIELDS = {
-    ("networks_form_backend.go", "NetworkQuery", "IncludeID"): "includeID",
-    ("networks_form_backend.go", "NetworkQuery", "MaxLoop"): "maxLoop",
+    # The two on NetworkQuery -- IncludeID and MaxLoop, the Networks
+    # page's *Include ID in Output* checkbox and *Max Loop* number --
+    # were here until the 2026-09-15 build, which consumed both: the
+    # first is remembered under the form's mutex and read again at
+    # export time, the second raises the walk's loop bound.
+    #
+    # These two replaced them, and they are the same shape of thing
+    # seen from the other end of a migration.  Association Pairs is the
+    # one form the dynasty picker's move to multi-select did not reach
+    # (test_query_matrix.py::test_every_form_reads_the_dynasty_choice_
+    # the_picker_now_sends), and of the six From/To fields it still
+    # declares, its own handler reads four.  So even a page that spoke
+    # its vocabulary correctly would be sending two numbers into
+    # nothing.
+    ("assocpairs_form_backend.go", "AssocPairsQueryParams",
+     "FromDynastyEnd"): "fromDynastyEnd",
+    ("assocpairs_form_backend.go", "AssocPairsQueryParams",
+     "ToDynastyBegin"): "toDynastyBegin",
 }
 _UNPOPULATED_RESPONSE_FIELDS = {
     ("kinship_form_backend.go", "KinRecord", "KinRel0"): "kinRel0",
@@ -349,17 +387,19 @@ def test_a_field_the_json_declares_is_a_field_the_program_uses(
     to find, whereas a mention that turns out to be inert costs one line
     in the sets above.
 
-    This build has three, and the two on ``NetworkQuery`` are the ones
-    that cost a user something.  The Networks page reads both controls
-    and sends both values --
+    This build has three.  The two that cost a user something in the
+    previous build -- *Max Loop* and *Include ID in Output* on the
+    Networks page, both read from the DOM, both posted, and neither
+    consulted -- are consumed now, and the sets above are shorter for
+    it.
 
-        maxLoop:   parseInt(document.getElementById('txt-max-loop').value,10)||2,
-        includeID: document.getElementById('chk-include-id').checked,
-
-    -- so *Max Loop* (a number input the page offers between 1 and 10)
-    and *Include ID in Output* (a checkbox) are settings the user can
-    change, that survive the round trip into ``NetworkQuery``, and that
-    no line of Go then consults.
+    The two that replaced them face the same way and reach a user only
+    if the Association Pairs page is fixed first: that form still sends
+    the retired From/To dynasty vocabulary, and two of the six fields it
+    sends are read by nothing even there.  The finding that matters on
+    that page is the picker contract, not these; they are recorded
+    because a fix applied to one and not the other would leave half a
+    dynasty filter working.
     """
     inventory = _tagged_fields(go_text)
     assert inventory, "no json-tagged fields found; the field regex has gone stale"
@@ -382,20 +422,34 @@ def test_a_field_the_json_declares_is_a_field_the_program_uses(
         "a field pinned here as unused is now used, or has been removed; "
         f"either way the record below is stale: {missing}")
 
+    # ``key: value`` *and* ``payload.key = value``.  Both spellings are
+    # in use and only the first was matched, which under-reported: the
+    # Association Pairs page builds its query by assigning onto a
+    # payload object, so every field it sends was invisible here.  A
+    # test that decides "no page sends this" has to know both ways a
+    # page can send something.  Comments are stripped first, or a field
+    # named in prose counts as sent.
     sent_by_a_page = sorted(
         (f, struct, go, js) for (f, struct, go), js in _UNREAD_REQUEST_FIELDS.items()
-        if any(re.search(r"\b" + re.escape(js) + r"\s*:", page)
+        if any(re.search(r"\b" + re.escape(js) + r"\s*[:=][^=]",
+                         _without_comments(page))
                for page in page_text.values())
     )
     if sent_by_a_page:
         raise KnownShippedDefect(
-            "a control the page sends is declared by the handler and read "
-            "by nothing: "
+            f"{len(sent_by_a_page)} value(s) a page computes and sends are "
+            "declared by the handler that receives them and read by no "
+            "line of Go: "
             + "; ".join(f"{js} ({struct}.{go} in {f})"
                         for f, struct, go, js in sent_by_a_page)
-            + ".  On the Networks page these are the Max Loop number input "
-              "and the Include ID in Output checkbox: both are read from "
-              "the DOM, both are posted, and neither changes the answer")
+            + ".  All of them are on Association Pairs, which is the one "
+              "form still speaking the From/To dynasty vocabulary the "
+              "shared picker stopped sending -- so its dynasty filter is "
+              "inert for a larger reason, and these two fields would "
+              "still be inert after that was fixed.  The page computes "
+              "each from the dynasty it thinks was chosen and assigns it "
+              "onto the query payload; the handler's own year arithmetic "
+              "reads the other four and never these")
 
 
 # ===========================================================================
@@ -557,16 +611,20 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 #: fills in, not in a name a test author happened to think of.
 #: How many ``/api/`` routes the shipped Go registers.  The denominator
 #: of the survey below, pinned for the reason recorded in that test.
-EXPECTED_API_ROUTES = 117
+# 116 since the 2026-09-15 build, which deleted
+# /api/networks/person-search and /api/networks/place-search --
+# the two endpoints this survey had found and reported as
+# reachable from no page at all, and the fix it asked for.
+EXPECTED_API_ROUTES = 116
 
-_ROUTED_AND_UNCALLED = {
-    "/api/networks/place-search":
-        "documented in its own comment as the autocomplete helper for the "
-        "address picker",
-    "/api/networks/person-search":
-        "documented in its own comment as the autocomplete helper for the "
-        "people picker",
-}
+# Empty, and empty is the goal.  The 2026-09-15 build removed the two
+# that were here -- the Networks person and place autocomplete helpers,
+# each documented in its own comment as serving a picker that never
+# called it -- by deleting the handlers rather than wiring them up.
+# The survey stays: it is extracted from the build, so the next
+# endpoint that ships with no way in fails the first assertion below
+# rather than needing anyone to look for it.
+_ROUTED_AND_UNCALLED: dict[str, str] = {}
 
 
 def _without_comments(page: str) -> str:
@@ -692,67 +750,90 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
 # 4. the answer that is quietly partial
 # ===========================================================================
 
-def test_the_place_search_helper_finds_the_places_the_table_holds(
-        app: CbdbApp, sqlite_conn):
-    """A 200 with an empty list, for a term thousands of rows match.
+#: Columns the schema declares as text and whose *names* read like
+#: codes, so a handler is tempted to scan them into an int.  One entry,
+#: and the reason it is a table rather than a literal is that the
+#: mistake is a species, not an incident.
+_TEXT_COLUMNS_THAT_LOOK_NUMERIC = {
+    "c_admin_type": "varchar(255) in ADDR_CODES, holding names like "
+                    "'Zhou' and 'Xian' in all 30,100 rows",
+}
 
-    ``handlePlaceSearch`` selects ``COALESCE(c_admin_type, 0)`` into
 
-        AdminType int `json:"adminType"`
+def test_no_handler_scans_a_text_column_into_a_number(
+        go_text: dict[str, str], sqlite_conn):
+    """The mistake two handlers made, asserted where the fix goes.
 
-    but ``ADDR_CODES.c_admin_type`` is ``varchar(255)`` and holds text --
-    ``'Zhou'``, ``'Xian'``.  ``COALESCE`` supplies a default for NULL; it
-    does not coerce a type, so every row fails to scan.  The loop's
-    error arm is
+    ``ADDR_CODES.c_admin_type`` is declared ``varchar(255)`` and holds
+    text.  Two handlers read it into an ``int``, and the two failed
+    differently, which is what makes this worth a source-level check
+    rather than two endpoint tests:
 
-        if err := rows.Scan(...); err != nil { continue }
+    * the Associations Neo4j export let the scan error escape and
+      answered HTTP 500 on every input -- loud, and findable by pressing
+      the button;
+    * ``handlePlaceSearch`` swallowed it with ``continue`` and answered
+      200 with an empty list, so not one row of a 30,100-row table could
+      be found through it and nothing said so.  Silent, and findable
+      only by knowing what the answer should have been.
 
-    which discards the row and the reason for it, and the handler then
-    encodes the empty slice with a 200.  Not one row of the table can be
-    found through this endpoint, and nothing in the response says so.
+    The 2026-09-15 build fixed both -- the export scans into a string,
+    and the search endpoint was deleted along with the picker helper
+    nobody called.  This is what keeps them fixed, and it is a source
+    check on purpose (AGENTS.md operating principle 8): it says which
+    line to change, it cannot be flaky, and it covers the handlers that
+    do not exist yet.  The endpoint test it replaces could only ever ask
+    the one endpoint.
 
-    Two things this test deliberately does *not* do.  It does not pick
-    the search term by hand -- § *Inputs come from the data*; the term
-    is the commonest last word among the place names the table holds,
-    so a data refresh that retired it chooses another rather than
-    quietly testing nothing.  And it does not reproduce the handler's
-    ``LIKE``: the count comes from the same ``GROUP BY`` that chose the
-    term, which is a base fact about ``ADDR_CODES`` and not a
-    transcription of the predicate under test.  What is asserted is
-    empty-versus-non-empty, never a count -- a handler rewritten from
-    scratch to the same specification would still pass.
+    The tell is the numeric default in the ``COALESCE`` -- ``COALESCE(
+    c_admin_type, 0)`` -- which is how both offenders were written and
+    is only ever written for a value about to be read as a number.
+
+    Scoped honestly: a scan of the bare column, with no ``COALESCE`` at
+    all, is not seen.  The obvious second tell -- a Go field named
+    ``AdminType`` declared ``int`` -- was tried and withdrawn, because
+    ``associations_form_backend.go`` has one that reads
+    ``BIOG_ADDR_CODES.c_addr_type``, a genuine smallint primary key.
+    Matching on a field's name says nothing about which column it
+    receives, and a gate that cries wolf on correct code is a gate
+    somebody switches off.
     """
-    # The commonest final word in a place name -- "Zhou", "Xian" and
-    # the like are administrative suffixes, so the top one is shared by
-    # thousands of rows whatever the data refresh brings.
-    row = sqlite_conn.execute(
-        "SELECT TRIM(SUBSTR(c_name, INSTR(c_name, ' ') + 1)) AS tail, "
-        "       COUNT(*) AS n "
-        "FROM ADDR_CODES "
-        "WHERE c_name LIKE '% %' AND LENGTH(TRIM(c_name)) > 0 "
-        "GROUP BY tail HAVING LENGTH(tail) >= 2 "
-        "ORDER BY n DESC, tail LIMIT 1").fetchone()
-    assert row, "ADDR_CODES has no multi-word place names to choose a term from"
-    term, matching = row
+    # The premise, from the database rather than from memory: if this
+    # column ever becomes numeric, the whole test is stale and should
+    # say so rather than going on policing a fixed mistake.
+    declared = {
+        row[1]: (row[2] or "").upper()
+        for row in sqlite_conn.execute('PRAGMA table_info("ADDR_CODES")')}
+    for column, why in _TEXT_COLUMNS_THAT_LOOK_NUMERIC.items():
+        assert column in declared, (
+            f"ADDR_CODES no longer has {column}; this test is judging a "
+            "column the build has dropped")
+        assert "CHAR" in declared[column] or "TEXT" in declared[column], (
+            f"ADDR_CODES.{column} is now declared {declared[column]!r}, "
+            f"not the text type this test is about ({why}).  If the data "
+            "really became numeric, delete this test with the finding")
 
-    assert matching > 100, (
-        f"the commonest place-name word {term!r} covers only {matching} "
-        "rows in this data; there is no term frequent enough for an "
-        "empty answer to mean anything")
-
-    response = app.get("/api/networks/place-search", params={"q": term, "limit": 20})
-    assert response.status_code == 200, \
-        f"place-search failed outright: HTTP {response.status_code} {response.text[:200]}"
-    returned = response.json()
-
-    if not returned:
-        raise KnownShippedDefect(
-            f"/api/networks/place-search?q={term} returned 200 and an empty "
-            f"list; {matching} rows of ADDR_CODES carry that word in "
-            "their name.  c_admin_type is varchar(255) holding text and "
-            "the handler scans it into an int, so every row fails; the scan "
-            "error is swallowed by `continue`, which turns a type mismatch "
-            "into a successful search that finds nothing")
+    offenders: dict[str, list[str]] = {}
+    for name, text in sorted(go_text.items()):
+        body = gosource.strip_comments(text)
+        for column in _TEXT_COLUMNS_THAT_LOOK_NUMERIC:
+            # `COALESCE(c_admin_type, 0)` -- a numeric default is only
+            # ever written for a value about to be read as a number.
+            for match in re.finditer(
+                    r"COALESCE\(\s*(?:\w+\.)?" + re.escape(column)
+                    + r"\s*,\s*([^)\s]+)\s*\)", body):
+                if match.group(1) not in ("''", '""'):
+                    offenders.setdefault(name, []).append(
+                        f"COALESCE({column}, {match.group(1)})")
+    assert not offenders, (
+        "a handler reads a text column as a number: "
+        + "; ".join(f"{name}: {found}" for name, found in offenders.items())
+        + ".  " + "; ".join(f"{column} is {why}" for column, why
+                            in _TEXT_COLUMNS_THAT_LOOK_NUMERIC.items())
+        + ".  Scanning it into an int fails on every row; whether that "
+          "surfaces as an HTTP 500 or as a successful search that finds "
+          "nothing depends only on whether the error arm is `return` or "
+          "`continue`")
 
 
 #: Every ``SELECT`` in the build that caps its rows without ordering
@@ -765,10 +846,15 @@ def test_the_place_search_helper_finds_the_places_the_table_holds(
 #: when the query is a lookup whose predicate already selects a single
 #: intended row and the ``LIMIT`` is belt-and-braces -- so those are
 #: listed separately, with what makes them keyed.
-_ARBITRARY_ROW_CAPS = {
-    ("assocpairs_form_backend.go", "handleRecallIDs"):
-        "LIMIT 2 over ZZ_STORE_PERSON_ID, whose rows are different people",
-}
+#: Empty, and empty is the goal.  ``handleRecallIDs`` was here until the
+#: 2026-09-15 build: ``LIMIT 2`` over ``ZZ_STORE_PERSON_ID``, whose rows
+#: are different people, so which two the Association Pairs form
+#: recalled depended on SQLite's plan.  It now reads ``ORDER BY
+#: s.rowid``, which makes the two it keeps the two that were stored
+#: first.  The survey stays, extracted from the build: the next capped
+#: query that ships without an order fails the assertion below without
+#: anyone going looking for it.
+_ARBITRARY_ROW_CAPS: dict[tuple[str, str], str] = {}
 _KEYED_ROW_CAPS = {
     ("browser_form_backend.go", "kinrelReductionUpdate"):
         "correlated subquery keyed on kr.c_kinrel_target = the row's "
@@ -1102,45 +1188,43 @@ def test_select_all_filtered_selects_every_address_the_filter_matched(
         "reader does not match, and nothing below would be judging them")
     walkers = {name: "sel.options" in body for name, body in bodies.items()}
 
-    # The truncation prompt, asserted rather than assumed.  This
-    # finding is waived, and the waiver rests entirely on the picker
-    # telling the user it showed only the first hundred -- so the
-    # prompt is the one thing that must not disappear quietly.  It
-    # would have: everything above reads the slice and the two
-    # functions, and nothing in the suite looked at the count line.
-    # Read out of ``renderList`` rather than the file, for the reason
-    # the comment above ``bodies`` gives: a whole-file search is
-    # satisfied by any surviving mention -- a comment, a dead branch --
-    # and would stay green after the line itself had gone.  The
-    # condition and the string are matched together, because either one
-    # alone can outlive the other.
+    # The fix, asserted where it was made.  Until the 2026-09-15 build
+    # both functions walked sel.options, so Select All Filtered returned
+    # the rendered slice -- at most MAX_RENDER addresses -- while
+    # sendResult labelled it isSelectAllFiltered=true and the host page
+    # rendered that as the whole filter text.  sendResult now takes the
+    # isSelectAllFiltered path from filteredAddresses, which is the list
+    # that holds the entire match set.
     #
-    # A plain AssertionError is deliberate.  The waiver narrows to
-    # ``raises = "KnownShippedDefect"``, so this failure is *not*
-    # tolerated: losing the mitigation reopens the finding instead of
-    # being absorbed by the agreement that was made because of it.
-    warns = re.search(
-        r"filteredAddresses\.length\s*>\s*MAX_RENDER\s*\?\s*`Showing first ",
-        render)
+    # selectAllFiltered() still walks sel.options, and that is correct:
+    # it ticks what the user can see.  What matters is which list the
+    # *result* is built from, so only sendResult is required to have
+    # moved -- and requiring exactly that, rather than "neither walks
+    # sel.options", is what keeps this from failing a correct build.
+    assert re.search(r"isSelectAllFiltered\s*\)?\s*\{[^}]*filteredAddresses"
+                     r"\s*\.\s*slice\(\s*\)", bodies["sendResult"],
+                     re.DOTALL), (
+        "sendResult no longer answers a Select All Filtered by copying "
+        "filteredAddresses, the list holding the whole match set.  If it "
+        "has gone back to walking sel.options, a filter matching more "
+        f"than {cap.group(1)} addresses silently returns the first "
+        f"{cap.group(1)} of them, labelled as the whole filter.  "
+        "sendResult reads:\n" + bodies["sendResult"][:600])
+
+    # The truncation prompt.  It is the mitigation the waiver on this
+    # test was agreed on, and the waiver is now retired -- but the
+    # prompt is still what tells a user the list they are looking at is
+    # not the whole match set, so losing it is still worth a failure.
+    # Read out of renderList rather than the file: a whole-file search
+    # is satisfied by any surviving mention, a comment or a dead branch
+    # included, and would stay green after the line itself had gone.
+    warns = re.search(r"filteredAddresses\.length\s*>\s*MAX_RENDER",
+                      render) and "Showing first " in render
     assert warns, (
         "the address picker no longer tells the user it truncated the "
-        "filter -- the count line that reads \"Showing first N of M -- "
+        "list -- the count line that reads \"Showing first N of M -- "
         "refine your search\" is gone from "
-        "Templates/pickers/address_picker.html.  The waiver on this "
-        "test was agreed on that prompt being there, so it no longer "
-        "applies and the finding below is live again.")
-
-    if all(walkers.values()):
-        raise KnownShippedDefect(
-            f"Select All Filtered selects the rendered options only, and "
-            f"the picker renders at most {cap.group(1)} of the matching "
-            "addresses.  On a wider filter it returns the first "
-            f"{cap.group(1)} while setting isSelectAllFiltered=true and the "
-            "filter text, so the host page reports the whole filter and the "
-            f"query runs on {cap.group(1)} rows.  Both "
-            f"{' and '.join(sorted(walkers))} build their answer from "
-            "sel.options rather than from filteredAddresses, which is the "
-            "list that holds the whole match set")
+        "Templates/pickers/address_picker.html")
 
 
 def test_export_profile_loads_the_kinship_tab_it_lists(layout: AppLayout):
