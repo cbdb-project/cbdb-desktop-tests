@@ -4,7 +4,7 @@ _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正�
 
 _受測版本：CBDB-Desktop_20260915_2.7z_
 
-_本報告產生於 2026-09-16 02:45 UTC，依據一次 1382 項測試的執行結果（耗時 427 秒）。_
+_本報告產生於 2026-09-16 02:56 UTC，依據一次 1382 項測試的執行結果（耗時 429 秒）。_
 
 尊敬的維護者：
 
@@ -20,19 +20,12 @@ _本報告產生於 2026-09-16 02:45 UTC，依據一次 1382 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 1182 |
-| 失敗 | 16 |
+| 通過 | 1184 |
+| 失敗 | 14 |
 | 預期失敗（已知缺陷，仍然存在） | 3 |
 | 略過 | 181 |
 
-在 16 項失敗中，有 **14** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **2** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
-
-其中 **2** 項屬於本測試套件自身的問題，而不是釋出版本的缺陷：可能是介面上有、但我們尚未驅動過的東西，也可能是我們自己的作業流程出了紕漏。那部分該由我們補上，與您無關。
-
-| 對應檢查 | 它指出我們這邊的什麼問題 |
-| --- | --- |
-| `test_the_committed_report_still_says_what_the_registry_says` | 已提交的報告比登錄表舊——條目變更後沒有重新產生報告，這是我們自己的作業疏漏，與版本無關（7 findings are filed in the registry but reports/CBDB_Desktop_Issues_EN.md is not in the tree. The report is the deliverable of a round, not an optional by-product. Write it: python reports\generate） |
-| `test_the_committed_report_still_says_what_the_registry_says` | 已提交的報告比登錄表舊——條目變更後沒有重新產生報告，這是我們自己的作業疏漏，與版本無關（7 findings are filed in the registry but reports/CBDB_Desktop_Issues_ZH-Hant.md is not in the tree. The report is the deliverable of a round, not an optional by-product. Write it: python reports\gen） |
+14 項失敗全部都是用來證明下列問題的測試。
 
 ## 測試套件的涵蓋範圍
 
