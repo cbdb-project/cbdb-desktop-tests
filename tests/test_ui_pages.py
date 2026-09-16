@@ -300,8 +300,8 @@ def _refuse_a_dead_page(page, pre: Precondition, log) -> None:
     second finding for one cause would need a second entry describing
     it.
     """
-    named = sorted(set(re.findall(r"\b([A-Za-z_$][\w$]*)\s*\(", pre.interact))
-                   - _NOT_PAGE_FUNCTIONS)
+    named = sorted(set(re.findall(r"(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(",
+                                  pre.interact)) - _NOT_PAGE_FUNCTIONS)
     if not named:
         return
     missing = page.evaluate(
@@ -316,15 +316,17 @@ def _refuse_a_dead_page(page, pre: Precondition, log) -> None:
 
 #: Names that appear as calls in an ``interact`` body and are not the
 #: page's own functions: browser built-ins and the DOM.
+#: Only keywords and constructors.  A *method* call cannot reach this
+#: list at all -- the pattern above refuses a name preceded by a dot --
+#: which is what keeps a future `interact` using `.closest()` or
+#: `.trim()` from failing the guard with a nonsense message.  Keeping
+#: the DOM's method names here as well would have worked today and hidden
+#: that hole until somebody used a method nobody had thought of.
 _NOT_PAGE_FUNCTIONS = frozenset({
-    # the DOM and the standard library
-    "getElementById", "querySelector", "querySelectorAll", "dispatchEvent",
-    "Event", "filter", "forEach", "map", "click", "parseInt", "String",
-    "Number", "Array", "Object", "JSON", "console", "setTimeout",
-    # JavaScript keywords, which `name (` also matches: every `interact`
-    # is an arrow function, so at minimum `async (` is always there.
     "async", "await", "function", "return", "typeof", "new", "delete",
-    "if", "for", "while", "switch", "catch", "of", "in",
+    "if", "for", "while", "switch", "catch", "of", "in", "void",
+    "Event", "Array", "Object", "String", "Number", "Promise", "Date",
+    "parseInt", "parseFloat", "setTimeout", "JSON", "console",
 })
 
 
@@ -419,38 +421,61 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
             route_of["qbe"] = route.path
 
     wanted: dict[str, tuple[str, list[str]]] = {}
+    unrouted = []
     inline = listeners = 0
     for page, (buttons, _script) in sorted(inventory.items()):
-        names = []
+        names: set[str] = set()
         for button in buttons:
             if not button.handler:
                 continue
-            if button.wiring == "onclick":
-                inline += 1
-                # The handler is an expression -- ``setLanguage('english')``
-                # -- and what has to exist is the function it names.
-                called = re.match(r"\s*([A-Za-z_$][\w$]*)\s*\(",
-                                  button.handler)
-                if called:
-                    names.append(called.group(1))
-            else:
+            if button.wiring != "onclick":
                 listeners += 1
+                continue
+            inline += 1
+            # An ``onclick`` is an expression and may hold more than one
+            # call: the Browser page wires ten of its tabs as
+            # ``showTab('tab-kinship', this); loadTabKinship()``.  Taking
+            # only the first left all ten ``loadTab*`` unchecked -- and
+            # one of them is the function another test in this file
+            # depends on.  The lookbehind keeps a method call out: what
+            # must exist on ``window`` is a bare name, not ``.slice``.
+            names |= set(re.findall(r"(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(",
+                                    button.handler)) - _NOT_PAGE_FUNCTIONS
         route = route_of.get(page)
-        if route and names:
-            wanted[page] = (route, sorted(set(names)))
+        if names and not route:
+            unrouted.append(page)
+        elif route and names:
+            wanted[page] = (route, sorted(names))
 
-    assert inline > 100, (
-        f"only {inline} buttons are wired with an inline onclick "
-        f"({listeners} use addEventListener), so this test is judging "
-        "almost nothing.  If the build has moved to listeners, this "
-        "needs a different question rather than a smaller one")
+    assert not unrouted, (
+        f"these pages have buttons wired to named functions and no route "
+        f"this test knows how to open: {unrouted}.  They were silently "
+        "skipped, so the gate was covering less than it reports -- a form "
+        "directory that ships before it is wired into the navigation map "
+        "lands here")
+
+    # Exact, not a floor.  ``> 100`` was here, and it survives a build
+    # that moves half these buttons to addEventListener -- which is the
+    # silent shrink the guard exists to prevent, and which nothing else
+    # would notice, because EXPECTED_BUTTONS pins the totals and not the
+    # split.  Operating principle 5, applied to this file's own coverage.
+    assert (inline, listeners) == (205, 41), (
+        f"{inline} buttons are wired with an inline onclick and "
+        f"{listeners} with addEventListener, against 205 and 41.  Only "
+        "the first kind can be checked here -- a listener's function "
+        "need never be global -- so a build that moved them would "
+        "shrink this test without failing it")
 
     dead: dict[str, list[str]] = {}
     for page, (route, names) in wanted.items():
-        with browser.open_page(app.base_url, route) as (browser_page, _log):
-            missing = browser_page.evaluate(
-                "names => names.filter(n => typeof window[n] !== 'function')",
-                names)
+        try:
+            with browser.open_page(app.base_url, route) as (browser_page, _log):
+                missing = browser_page.evaluate(
+                    "names => names.filter("
+                    "n => typeof window[n] !== 'function')", names)
+        except RuntimeError as exc:
+            dead[page] = [f"the page would not open: {exc}"]
+            continue
         if missing:
             dead[page] = [f"{len(missing)} of {len(names)}"] + sorted(missing)
 
@@ -479,8 +504,6 @@ def test_every_disabled_control_has_a_declared_precondition(layout):
     new build -- which is the same guarantee the export and endpoint
     inventories give.
     """
-    import re
-
     declared: dict[str, set[str]] = {}
     for pre in PRECONDITIONS:
         declared.setdefault(pre.page, set()).update(pre.must_enable)
@@ -557,6 +580,18 @@ def test_all_offices_leaves_the_office_form_able_to_query(app: CbdbApp):
         "be the smaller half of the problem")
 
     with browser.open_page(app.base_url, "/LookAtOffice") as (page, log):
+        # The same guard the preconditions get: on a page whose script
+        # did not parse, the call below is a bare ReferenceError with
+        # the cause nowhere in it.
+        absent = page.evaluate(
+            "names => names.filter(n => typeof window[n] !== 'function')",
+            ["officePickerCallback", "clearOffice"])
+        assert not absent, (
+            f"the Office page has no {absent} after loading, so its "
+            "inline <script> did not execute and there is no enable "
+            f"state to judge.  The page logged {log.page_errors} "
+            f"{log.console_errors}.  test_page_scripts.py has the line")
+
         page.evaluate(
             "() => { officePickerCallback("
             "{codes: [%d], desc: 'x', descChn: ''}); }" % OFFICE_CODE)
@@ -566,8 +601,14 @@ def test_all_offices_leaves_the_office_form_able_to_query(app: CbdbApp):
         page.evaluate("() => { document.getElementById("
                       "'btn-all-offices').click(); }")
         page.wait_for_timeout(200)
-        after_all = browser.control_states(
-            page, ["btnRunQuery", "btn-all-offices"])
+        after_all = browser.control_states(page, ["btnRunQuery"])
+
+        # Read inside the block, and asserted before the raise below:
+        # after it, on this build, it would never run.
+        logged = f"{log.page_errors} {log.console_errors}"
+        clean = log.clean
+
+    assert clean, f"the Office page logged {logged}"
 
     assert after_pick == "enabled", (
         "Run Query is still disabled after an office was picked, so this "
@@ -587,8 +628,6 @@ def test_all_offices_leaves_the_office_form_able_to_query(app: CbdbApp):
 
     assert after_all["btnRunQuery"] == "enabled", (
         f"Run Query is {after_all['btnRunQuery']} after All Offices")
-    assert log.clean, (
-        f"the Office page logged {log.page_errors} {log.console_errors}")
 
 
 # One test per declared precondition, id'd by the page and the controls
@@ -701,7 +740,6 @@ def test_an_export_does_not_claim_more_files_than_it_delivered(
             attempted = browser.take_attempts(page, log)
             accepted = list(log.downloads)
 
-            import re
             match = re.search(r"(\d+)\s*file\(s\)", claimed)
             assert match, (
                 f"press {press}: the page said {claimed!r}, which does not "

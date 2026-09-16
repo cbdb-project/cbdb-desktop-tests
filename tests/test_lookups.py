@@ -56,6 +56,13 @@ def _keys(rows: list[dict]) -> set[str]:
      {"addr_type", "combined_desc", "desc_chn"}, 20),
     ("/api/indexaddr/rankings",
      {"addr_type", "index_addr_rank", "index_addr_default_rank"}, 22),
+    # New in the 2026-09-15 build: the list bac_picker.html offers for
+    # the Places form's biographical-address-type filter.  All 22 of
+    # BIOG_ADDR_CODES, unlike /api/indexaddr/codes above, which excludes
+    # the two that are not real choices -- the two endpoints read the
+    # same table for different purposes and the difference is the point,
+    # so both counts are pinned.
+    ("/api/biog-addr-codes", {"code", "desc", "descChn"}, 22),
 ])
 def test_a_lookup_returns_its_declared_shape(app: CbdbApp, path: str,
                                              expected_keys: set[str],
