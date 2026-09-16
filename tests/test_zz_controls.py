@@ -168,7 +168,7 @@ def test_every_endpoint_the_pages_call_is_a_route_the_build_registers(layout,
     """
     registered = {route.path for route in all_routes(layout)}
     called: dict[str, set[str]] = {}
-    for page, path in controls._pages(layout).items():
+    for page, path in controls.pages(layout).items():
         html = path.read_text(encoding="utf-8", errors="replace")
         for endpoint in controls.endpoints_in_page(html):
             called.setdefault(endpoint, set()).add(page)
@@ -312,7 +312,7 @@ def test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run(
             "Coverage is certified by an unfiltered run: .\\run_tests.ps1")
 
     reachable: dict[str, set[str]] = {}
-    for page, path in controls._pages(layout).items():
+    for page, path in controls.pages(layout).items():
         html = path.read_text(encoding="utf-8", errors="replace")
         for endpoint in controls.endpoints_in_page(html):
             reachable.setdefault(endpoint, set()).add(page)

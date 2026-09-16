@@ -317,6 +317,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "Whether the two halves of a form agree about the request and the "
      "reply -- a control the handler never reads, a reply the page cannot "
      "read, a capability with no way in"),
+    ("test_page_scripts.py",
+     "Whether each page's JavaScript still parses",
+     "A form keeps all its behaviour in one inline script, so a syntax "
+     "error in it leaves every control on the page dead while the page "
+     "still loads -- read out of the shipped templates, with no browser"),
     ("test_lookups.py",
      "The code and address lists",
      "The dropdowns each form offers before a query is run"),
@@ -397,6 +402,11 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                "表單的前後兩半對於請求與回應是否一致——"
                                "後端從不讀取的控制項、頁面讀不懂的回應、"
                                "沒有任何入口的功能"),
+    "test_page_scripts.py": ("各頁面的 JavaScript 是否還能解析",
+                             "表單把全部行為都放在單一的內嵌 script 裡，"
+                             "因此只要其中有一處語法錯誤，整頁的控制項"
+                             "就全部失效，而頁面本身照樣載入——這項檢查"
+                             "直接讀釋出的模板，不需要瀏覽器"),
     "test_lookups.py": ("代碼與地址清單", "各表單在查詢前提供的下拉選單"),
     "test_group_data.py": ("分群資料表單",
                            "五個區段開關逐一單獨驅動，以及全部關閉"
