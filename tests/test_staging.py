@@ -1174,7 +1174,11 @@ def test_distribution_ships_the_expected_pieces(layout: AppLayout):
     assert (layout.static_dir / "cbdb_styles.css").is_file()
     pickers = sorted(p.name for p in (layout.templates_dir / "pickers").glob("*.html"))
     assert pickers == [
-        "address_picker.html", "associations_picker.html", "dynasty_picker.html",
+        "address_picker.html", "associations_picker.html",
+        # New in the 2026-09-15 build, for the Places form's
+        # biographical-address-type filter.
+        "bac_picker.html",
+        "dynasty_picker.html",
         "entry_picker.html", "office_picker.html", "people_picker.html",
         "status_picker.html", "texts_picker.html",
     ], pickers

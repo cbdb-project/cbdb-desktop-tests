@@ -1022,12 +1022,17 @@ def test_the_columns_with_no_affinity_are_the_ones_the_entry_names(
     build ships -- the grid's own column whitelist and the database's
     own declared types -- and pinned.
 
-    One column is deliberately not in the answer.  ``View_KinAddr``
-    offers ``c_index_year_type_desc``; the view exposes it as
-    ``c_index_year_type_desc:1``, so the name the grid sends matches
-    no column and the query errors before any comparison happens.
-    That is the renamed-column defect, not this one, and a reader
-    recounting from the schema alone would make it a fourth.
+    Four as of the 2026-09-15 build, and the fourth is worth a
+    sentence because it is what a fix looks like from here.  Until this
+    build ``View_KinAddr.c_index_year_type_desc`` was *not* in the
+    answer: the view exposed it as ``c_index_year_type_desc:1``, so the
+    name the grid sent matched no column and the query errored before
+    any comparison happened.  That was the renamed-column defect
+    hiding this one.  Aliasing the collisions away made the column
+    resolvable, and a resolvable column with no declared type belongs
+    here -- so repairing one defect widened the scope of another,
+    which is exactly the kind of movement a pinned list exists to
+    surface.
     """
     schema = json.loads(layout.schema_json.read_text(encoding="utf-8"))
     offered = {(table["name"], column["name"])
@@ -1052,17 +1057,19 @@ def test_the_columns_with_no_affinity_are_the_ones_the_entry_names(
 
     assert no_affinity == [
         "View_BiogSourceData.c_hyperlink",
+        "View_KinAddr.c_index_year_type_desc",
         "View_KinAddr.c_node_index_year_type_desc",
         "View_PeopleData.c_index_year_type_desc",
     ], (
         f"the offered columns with no declared type are now "
-        f"{no_affinity}, and the registry entry on group-function "
-        "criteria names three.  If the list grew, the entry's scope "
-        "sentence is too narrow; if it shrank, the entry may be "
-        "reporting a defect on a column that no longer exists.  "
+        f"{no_affinity}, and this round's finding on group-function "
+        "criteria is written about four.  If the list grew, that "
+        "finding's scope sentence is too narrow; if it shrank, it may "
+        "be reporting a defect on a column that no longer exists.  "
         f"({len(offered)} columns offered, {len(unresolved)} of which "
-        "name nothing in the view they belong to -- those are the "
-        "renamed-column defect and are counted separately.)")
+        "name nothing in the view they belong to -- those would be the "
+        "renamed-column defect, repaired in the 2026-09-15 build, and "
+        "are counted separately.)")
 
     # And the reason the first of the three is a weak example, said
     # here rather than discovered again: it holds no values.

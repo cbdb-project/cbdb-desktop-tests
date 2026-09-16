@@ -57,11 +57,22 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     per_form = {}
     for route in routes:
         per_form[route.form] = per_form.get(route.form, 0) + 1
+    # The 2026-09-15 build moved three of these, and the total did not
+    # change, which is exactly why the shape is pinned per form as well
+    # as in total: two routes deleted and two added would otherwise pass
+    # the count above without anyone reading them.
+    #
+    #   networks 20 -> 18  /api/networks/person-search and
+    #                      /api/networks/place-search deleted.  Both were
+    #                      autocomplete helpers no page ever called.
+    #   places    9 -> 10  GET /api/biog-addr-codes added, feeding the new
+    #                      bac_picker.html.
+    #   main      8 ->  9  the static route serving that picker file.
     assert per_form == {
         "associations": 8, "assocpairs": 10, "browser": 14,
         "cbdb_navigation_backend": 5, "entry": 10, "groupdata": 8,
-        "indexaddr": 5, "kinship": 15, "main": 8, "networks": 20,
-        "office": 8, "places": 9, "qbe_handlers": 3, "status": 11,
+        "indexaddr": 5, "kinship": 15, "main": 9, "networks": 18,
+        "office": 8, "places": 10, "qbe_handlers": 3, "status": 11,
         "texts": 8,
     }, per_form
 
@@ -246,7 +257,9 @@ def test_every_picker_is_served_from_the_shipped_file(app: CbdbApp,
                                                       layout: AppLayout):
     """The picker routes serve the exact files the archive shipped."""
     files = R.picker_files(layout)
-    assert len(files) == 8, files
+    # Nine since the 2026-09-15 build: bac_picker.html joined the eight,
+    # for the Places form's new biographical-address-type filter.
+    assert len(files) == 9, files
 
     for name in files:
         on_disk = layout.templates_dir / "pickers" / name
