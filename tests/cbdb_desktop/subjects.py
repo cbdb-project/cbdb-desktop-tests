@@ -37,6 +37,12 @@ ENTRY_CODE = 36
 #: ticking it is the same act a user performs.
 ASSOC_CODE = 349
 
+#: One office code a real posting names, for the Office form's
+#: preconditions.  Same reasoning as ``ASSOC_CODE``: the picker could
+#: not offer a code the code table lacks, and a code no posting names
+#: is not the input its comment claims.
+OFFICE_CODE = 9
+
 
 @dataclass(frozen=True)
 class FixedInput:
@@ -63,4 +69,11 @@ FIXED_INPUTS: tuple[FixedInput, ...] = (
     FixedInput("ASSOC_CODE", ASSOC_CODE, "ASSOC_DATA", "c_assoc_code", False,
                "and it has to name something: a code that exists but "
                "covers no rows is not the input its comment claims"),
+    FixedInput("OFFICE_CODE", OFFICE_CODE, "OFFICE_CODES", "c_office_id", True,
+               "the office code the Office preconditions pick; the picker "
+               "could not offer it if the code table lacked it"),
+    FixedInput("OFFICE_CODE", OFFICE_CODE, "POSTED_TO_OFFICE_DATA",
+               "c_office_id", False,
+               "and it has to name something: All Offices is judged "
+               "against a query that returns rows"),
 )
