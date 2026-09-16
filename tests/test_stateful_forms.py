@@ -679,9 +679,13 @@ _NETWORK_BASE = {
 #: them; the condition is now ``BIOG_MAIN_1.c_dy IN (...)``.
 _DYNASTY_KEY = "dynastyCodes"
 
+#: The page-scoped variable the shared picker's callback fills, and
+#: therefore the only place a user's choice can come from.
+_DYNASTY_SOURCE = "selectedDynasties"
 
-def _networks_query_payload_keys(layout) -> set[str]:
-    """The keys of the request the Networks page actually builds.
+
+def _networks_query_payload(layout) -> dict[str, str]:
+    """``{key: the expression it is assigned}`` for the Networks query.
 
     Read off the payload object, not off the page as a whole.  A plain
     substring search over the template reports a name the page merely
@@ -689,7 +693,14 @@ def _networks_query_payload_keys(layout) -> set[str]:
     this test written for the previous build had to work, and why it
     said so at length.  The page has one query payload,
     ``const params={...}`` immediately followed by
-    ``JSON.stringify(params)``, and its keys are what this returns.
+    ``JSON.stringify(params)``, and this returns each of its keys with
+    the expression assigned to it.
+
+    The *expression*, not just the key, because a key alone proves
+    nothing about the value: ``dynastyCodes: []`` satisfies "the page
+    sends dynastyCodes" while silently discarding whatever the user
+    chose, and the requests this test then builds by hand would go on
+    proving the handler works.
     """
     text = (layout.templates_dir / "networks" / "index.html").read_text(
         encoding="utf-8", errors="replace")
@@ -708,7 +719,9 @@ def _networks_query_payload_keys(layout) -> set[str]:
         "`params` is no longer the body of the query request; this helper "
         "is reading an object that is not what gets sent")
 
-    return set(re.findall(r"^\s*(\w+)\s*:", body, re.MULTILINE))
+    return {key: value.strip().rstrip(",")
+            for key, value in re.findall(r"^\s*(\w+)\s*:([^\n]*)", body,
+                                         re.MULTILINE)}
 
 
 def _network_nodes_raw(app: CbdbApp, ego: int, **extra) -> list[dict]:
@@ -758,12 +771,13 @@ def test_the_networks_page_sends_the_dynasty_choice_its_handler_reads(
     asked for, and widening the selection may add people but may never
     lose any.
 
-    Union is deliberately **not** asserted, and the reason is particular
-    to this form.  The condition constrains ``BIOG_MAIN_1``, the node
-    being admitted, so a person reachable only *through* someone of the
-    second dynasty appears when both are selected and under neither
-    alone.  Asking for A+B to equal A plus B would fail a correct build.
-    Monotonicity is the property that holds.
+    Union **is** asserted, and the reason it can be is particular to
+    this form and to this depth -- the body of the test says it at the
+    assertion, because getting it wrong in either direction costs a
+    round.  In short: the condition constrains the node being admitted,
+    so at a depth where the walk passes *through* one person to reach
+    another, union would fail on a correct build; this request is depth
+    one, where the second loop adds edges and never nodes.
     """
     # SUBJECT rather than a discovered ego: judging a filter needs a
     # network big enough for "narrower" to mean something, and this is
@@ -771,13 +785,22 @@ def test_the_networks_page_sends_the_dynasty_choice_its_handler_reads(
     # whose existence test_staging.py checks against the shipped data).
     ego = SUBJECT
 
-    sent = _networks_query_payload_keys(app.layout)
+    sent = _networks_query_payload(app.layout)
     assert _DYNASTY_KEY in sent, (
         f"the Networks page builds its query without `{_DYNASTY_KEY}`, "
         "which is the only dynasty field its handler decodes, so a "
         "dynasty chosen in the picker reaches the server as nothing at "
         f"all and the filter is silently skipped.  The payload sends: "
         f"{sorted(sent)}")
+    # And it must send the user's selection, not a constant.  The
+    # variable the picker's callback fills is the only thing that can
+    # carry a choice; `dynastyCodes: []` would satisfy the key check
+    # above while throwing the selection away.
+    assert _DYNASTY_SOURCE in sent[_DYNASTY_KEY], (
+        f"the Networks page sends `{_DYNASTY_KEY}: {sent[_DYNASTY_KEY]}`, "
+        f"which does not read `{_DYNASTY_SOURCE}` -- the variable the "
+        "dynasty picker's callback fills.  Whatever the user chooses, "
+        "that request carries something else")
 
     unfiltered, present = _network_dynasties(app, ego, useDynasties=False)
     assert unfiltered > 100, (

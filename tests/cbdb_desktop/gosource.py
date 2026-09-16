@@ -85,12 +85,17 @@ def struct_body(source: str, struct_name: str) -> str | None:
 _NOT_CATEGORIES = frozenset({"chkSubUnits", "chkPlaceLimit", "chkXYRef"})
 
 
-#: ``{code dir: flags}``.  These readers are called once per network
-#: request -- hundreds of times in a run -- and each call re-read and
-#: re-parsed a 3,000-line Go file.  Keyed by the directory rather than
-#: by the layout, so two layouts over one staged tree share the answer
-#: and a restage gets a fresh one.
-_CATEGORY_CACHE: dict[str, list[str]] = {}
+#: ``{(path, size, mtime): flags}``.  These readers are called once per
+#: network request -- hundreds of times in a run -- and each call
+#: re-read and re-parsed a 3,000-line Go file.
+#:
+#: The path alone is not enough for a key, and the difference matters
+#: for exactly one caller: ``stage(..., force=True)`` replaces the tree
+#: *at the same path*, so a forced restage inside one process would be
+#: served the previous build's answer.  Size and mtime move when the
+#: file does, which is the cheap version of the content-addressing
+#: ``staging.py`` does properly.
+_CATEGORY_CACHE: dict[tuple[str, int, int], list[str]] = {}
 
 
 def association_category_flags(layout) -> list[str]:
@@ -109,10 +114,11 @@ def association_category_flags(layout) -> list[str]:
     to say so by ticking all of them, which is what ``all_categories_on``
     below is for.
     """
-    key = str(layout.code_dir)
+    source = layout.code_dir / "networks_form_backend.go"
+    stat = source.stat()
+    key = (str(source), stat.st_size, stat.st_mtime_ns)
     if key not in _CATEGORY_CACHE:
-        text = (layout.code_dir / "networks_form_backend.go").read_text(
-            encoding="utf-8", errors="replace")
+        text = source.read_text(encoding="utf-8", errors="replace")
         body = struct_body(text, "NetworkQuery")
         assert body, "networks_form_backend.go no longer declares NetworkQuery"
         flags = re.findall(r'`json:"(chk[A-Za-z]+)"`', body)
