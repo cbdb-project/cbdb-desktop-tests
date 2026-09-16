@@ -58,3 +58,75 @@ def strip_comments(source: str) -> str:
     """
     source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
     return re.sub(r"//[^\n]*", " ", source)
+
+
+def struct_body(source: str, struct_name: str) -> str | None:
+    """The field block of one Go struct declaration, or ``None``.
+
+    Matched to a closing brace in column zero rather than by a
+    non-greedy run to the next ``}``, which would stop at the first
+    brace inside a field's tag or a comment and report the struct's
+    fields as absent -- a gate reading nothing and finding nothing
+    wrong with it.
+    """
+    found = re.search(
+        r"^type\s+" + re.escape(struct_name) + r"\s+struct\s*\{(.*?)^\}",
+        source, re.DOTALL | re.MULTILINE)
+    return found.group(1) if found else None
+
+
+#: Three ``chk*`` fields on ``NetworkQuery`` that are not association
+#: categories: all three are address controls read by
+#: ``populateScratchAddr``.  ``chkXYRef`` in particular was counted as a
+#: category until the source was asked which flags ``makeAssocFilter``
+#: gives a selector to -- it is the historical-XY bounding-box switch,
+#: and counting it made the sweep claim thirty categories where the form
+#: offers twenty-nine.
+_NOT_CATEGORIES = frozenset({"chkSubUnits", "chkPlaceLimit", "chkXYRef"})
+
+
+#: ``{code dir: flags}``.  These readers are called once per network
+#: request -- hundreds of times in a run -- and each call re-read and
+#: re-parsed a 3,000-line Go file.  Keyed by the directory rather than
+#: by the layout, so two layouts over one staged tree share the answer
+#: and a restage gets a fresh one.
+_CATEGORY_CACHE: dict[str, list[str]] = {}
+
+
+def association_category_flags(layout) -> list[str]:
+    """The ``chk*`` association categories ``NetworkQuery`` declares.
+
+    Read off the request struct rather than listed, for the reason
+    AGENTS.md section *Coverage is the program's job* gives: a category
+    the build gains should widen every sweep over them by itself.
+
+    Shared, because since the 2026-09-15 build this list is needed for
+    more than sweeping.  That build made an empty category selection
+    mean "no association ties" rather than "no filter" -- correctly, and
+    it is the fix to a real defect -- so a request that ticks nothing no
+    longer means what the suite's network request bodies assumed it
+    meant.  Anything that wants "an ordinary unfiltered network" now has
+    to say so by ticking all of them, which is what ``all_categories_on``
+    below is for.
+    """
+    key = str(layout.code_dir)
+    if key not in _CATEGORY_CACHE:
+        text = (layout.code_dir / "networks_form_backend.go").read_text(
+            encoding="utf-8", errors="replace")
+        body = struct_body(text, "NetworkQuery")
+        assert body, "networks_form_backend.go no longer declares NetworkQuery"
+        flags = re.findall(r'`json:"(chk[A-Za-z]+)"`', body)
+        _CATEGORY_CACHE[key] = sorted(set(flags) - _NOT_CATEGORIES)
+    return list(_CATEGORY_CACHE[key])
+
+
+def all_categories_on(layout) -> dict[str, bool]:
+    """Every association category ticked, as request fields.
+
+    Selecting all of them is the one selection the handler treats as no
+    filter at all (``totalCount == categoryMax`` skips the filter table),
+    so this is how a test asks for a network with the association side
+    left alone.  Ticking none is a different request with a different
+    meaning, and asking for it by accident is what this exists to stop.
+    """
+    return {flag: True for flag in association_category_flags(layout)}

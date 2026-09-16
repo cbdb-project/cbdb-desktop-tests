@@ -22,27 +22,9 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
 
 pytestmark = pytest.mark.app
-
-# The columns the shipped whitelist offers that the database does not
-# have.  Pinned exactly: this is a defect report, and a build that fixes
-# some of them (or breaks new ones) must not slip past silently.
-PHANTOM_COLUMNS = {
-    "View_BiogInstAddrData": ["c_personid", "c_notes"],
-    "View_BiogInstData": ["c_personid", "c_notes"],
-    "View_BiogSourceData": ["c_notes"],
-    "View_BiogTextData": ["c_source", "c_pages", "c_notes"],
-    "View_Entry": ["c_personid", "c_entry_code", "c_assoc_code", "c_notes"],
-    "View_EventData": ["c_event_code", "c_addr_id", "c_source", "c_pages"],
-    "View_KinAddr": ["c_personid", "c_index_year", "c_index_year_type_desc",
-                     "c_index_year_type_hz", "c_dy", "c_dynasty",
-                     "c_dynasty_chn", "c_female", "c_notes"],
-    "View_PostingOfficeData": ["c_office_id", "c_source", "c_pages", "c_notes",
-                               "c_dy"],
-}
 
 
 def _count_query(table: str, column: str, **extra) -> dict:
@@ -88,10 +70,15 @@ def db_catalogue(layout: AppLayout) -> dict[str, set[str]]:
 # ---------------------------------------------------------------------------
 
 def test_the_whitelist_has_the_documented_shape(qbe_schema):
-    # 102 tables and 1386 columns in the 2026-09-07 build, against 99
-    # and 1350 in 2026-09-01.  Pinned exactly, like every count here: a
-    # whitelist that lost a third of its columns would satisfy any floor
-    # loose enough to survive a data refresh.
+    # 102 tables and 1390 columns in the 2026-09-15 build, against 1386
+    # in 2026-09-07 and 1350 in 2026-09-01.  The four are the duplicate
+    # output names that build repaired: aliasing away a `c_notes:1` or a
+    # `c_personid:1` in eight views turns a column nothing could select
+    # into one the grid can offer -- see
+    # test_no_view_resolves_two_columns_to_the_same_name below, which is
+    # where that change is actually judged.  Pinned exactly, like every
+    # count here: a whitelist that lost a third of its columns would
+    # satisfy any floor loose enough to survive a data refresh.
     assert len(qbe_schema) == 102, len(qbe_schema)
     assert [t["name"] for t in qbe_schema] == sorted(t["name"] for t in qbe_schema), \
         "the grid shows tables in the order it receives them; they are not sorted"
@@ -103,7 +90,7 @@ def test_the_whitelist_has_the_documented_shape(qbe_schema):
             assert set(column) == {"name", "label", "sql_type"}, sorted(column)
 
     total = sum(len(t["columns"]) for t in qbe_schema)
-    assert total == 1386, total
+    assert total == 1390, total
 
 
 def test_no_view_resolves_two_columns_to_the_same_name(db_catalogue,
@@ -120,16 +107,30 @@ def test_no_view_resolves_two_columns_to_the_same_name(db_catalogue,
     header -- so a view that produces one has an output column nobody
     can ask for.
 
-    Eight views do, and the correspondence with the whitelist's 30
-    phantom columns is one-to-one: every phantom ``X`` has a sibling
-    ``X:1`` in the same view.  That is what identifies the mechanism as
+    Eight views did, and the correspondence with the whitelist's 30
+    phantom columns was one-to-one: every phantom ``X`` had a sibling
+    ``X:1`` in the same view.  That is what identified the mechanism as
     duplicate-name resolution rather than a stale schema file, and it is
     why regenerating ``qbe_schema.json`` from the same ``CREATE VIEW``
-    text does not fix it -- the JSON and the SQL agree with each other,
-    and SQLite disagrees with both.
+    text did not fix it -- the JSON and the SQL agreed with each other,
+    and SQLite disagreed with both.
 
     Read from ``PRAGMA table_info``, which is how SQLite itself resolves
     a view's columns at query time.  No handler logic is reproduced.
+
+    Fixed in the 2026-09-15 build, and this is now the regression test
+    that keeps it fixed.  Eight views were repaired by giving the
+    colliding columns explicit ``AS`` aliases in
+    ``CBDB_AdditionalTablesViewsIndices.sql`` -- ``BIOG_INST_DATA.c_notes
+    AS c_notes``, and so on -- so no view produces a ``:1`` name any
+    more and the thirty phantom columns are gone with them.  The four
+    columns the whitelist gained are the same repair seen from the
+    other side.
+
+    Kept rather than deleted, and kept as a *source-level* check: the
+    fix lives in the database builder, which is a file nothing else in
+    this suite reads, and a view added later with the same collision
+    would reintroduce the whole defect silently.
     """
     mangled = {name: sorted(column for column in columns if ":" in column)
                for name, columns in db_catalogue.items()}
@@ -143,32 +144,17 @@ def test_no_view_resolves_two_columns_to_the_same_name(db_catalogue,
                 if f"{column['name']}:1" in real:
                     phantom_pairs.append(f"{table['name']}.{column['name']}")
 
-    assert mangled == {
-        "View_BiogInstAddrData": ["c_notes:1", "c_personid:1"],
-        "View_BiogInstData": ["c_notes:1", "c_personid:1"],
-        "View_BiogSourceData": ["c_notes:1"],
-        "View_BiogTextData": ["c_notes:1", "c_pages:1", "c_source:1"],
-        "View_Entry": ["c_assoc_code:1", "c_entry_code:1", "c_notes:1",
-                       "c_personid:1"],
-        "View_EventData": ["c_addr_id:1", "c_event_code:1", "c_pages:1",
-                           "c_source:1"],
-        "View_KinAddr": ["c_dy:1", "c_dynasty:1", "c_dynasty_chn:1",
-                         "c_female:1", "c_index_year:1",
-                         "c_index_year_type_desc:1",
-                         "c_index_year_type_hz:1", "c_notes:1",
-                         "c_personid:1"],
-        "View_PostingOfficeData": ["c_dy:1", "c_notes:1", "c_office_id:1",
-                                   "c_pages:1", "c_source:1"],
-    }, (
-        "the set of views with duplicate output column names changed -- "
-        f"update the defect report:\n{mangled}")
+    assert mangled == {}, (
+        "these views produce an output column whose name SQLite had to "
+        "disambiguate with ':1', so the grid offers a sibling column "
+        f"nobody can select: {mangled}.  The fix is an explicit AS alias "
+        "on the colliding column in CBDB_AdditionalTablesViewsIndices.sql")
 
-    # The link between the two halves, so a partial fix cannot leave the
-    # report describing a mechanism that no longer applies.
-    assert len(phantom_pairs) == sum(len(v) for v in mangled.values()) == 30, (
-        f"{len(phantom_pairs)} of the whitelist's phantom columns have a "
-        f"':1' sibling, against {sum(len(v) for v in mangled.values())} "
-        "mangled columns in the database")
+    # The link between the two halves, so a partial regression cannot
+    # leave one of them reporting a mechanism the other has dropped.
+    assert not phantom_pairs, (
+        f"{len(phantom_pairs)} of the whitelist's columns are missing "
+        f"from their view and have a ':1' sibling in it: {phantom_pairs}")
 
 
 def test_every_offered_table_exists_in_the_database(qbe_schema, db_catalogue):
@@ -179,9 +165,11 @@ def test_every_offered_table_exists_in_the_database(qbe_schema, db_catalogue):
 def test_every_offered_column_exists_in_the_database(qbe_schema, db_catalogue):
     """The whitelist must not offer a column that cannot be selected.
 
-    The marker is narrowed to the exact known set: a build that fixes
-    some of them, or breaks a new one, fails here rather than xfailing
-    quietly.
+    Thirty such columns shipped until the 2026-09-15 build, across the
+    eight views described above; all thirty are gone.  What is left is
+    the plain assertion, which is the regression test -- and it is a
+    live one, because the whitelist is generated from the views and any
+    view that reintroduces a duplicate output name puts them back.
     """
     phantom: dict[str, list[str]] = {}
     for table in qbe_schema:
@@ -190,14 +178,10 @@ def test_every_offered_column_exists_in_the_database(qbe_schema, db_catalogue):
         if absent:
             phantom[table["name"]] = absent
 
-    if phantom == PHANTOM_COLUMNS:
-        raise KnownShippedDefect(
-            f"the Query Builder offers "
-            f"{sum(len(v) for v in phantom.values())} columns across "
-            f"{len(phantom)} views that do not exist in the database")
     assert not phantom, (
-        "the set of phantom columns changed -- update PHANTOM_COLUMNS and the "
-        f"defect report:\n{phantom}")
+        f"the Query Builder offers {sum(len(v) for v in phantom.values())} "
+        f"column(s) across {len(phantom)} view(s) that the database does "
+        f"not have, so selecting one fails: {phantom}")
 
 
 # ---------------------------------------------------------------------------
@@ -219,38 +203,11 @@ def test_every_offered_table_can_actually_be_queried(app: CbdbApp, qbe_schema):
             failures.append(f"{table['name']}.{column} -> {response.status_code} "
                             f"{response.json().get('message', '')[:100]}")
 
-    known = {f"{table}.{columns[0]}" for table, columns in PHANTOM_COLUMNS.items()
-             if columns[0] == "c_personid"}
-    unexpected = [f for f in failures
-                  if not any(f.startswith(k) for k in known)]
-    assert not unexpected, "\n".join(unexpected)
-
-    if failures:
-        raise KnownShippedDefect(
-            f"{len(failures)} whitelisted tables cannot be queried on their "
-            f"first offered column:\n" + "\n".join(failures))
-
-
-@pytest.mark.parametrize("table,column", [
-    (table, column)
-    for table, columns in sorted(PHANTOM_COLUMNS.items())
-    for column in columns
-])
-def test_a_phantom_column_gives_the_user_a_server_error(app: CbdbApp, table: str,
-                                                        column: str):
-    """What the defect looks like from the grid: a 500, not a validation error.
-
-    Any *other* failure -- a 400, a hang, a different message -- is a real
-    failure, because the marker only tolerates the signature below.  And
-    fixing the whitelist, or the views, turns these green-unexpectedly and
-    forces the pinned list to be revisited.
-    """
-    response = app.post("/api/qbe/run", json=_count_query(table, column))
-    if response.status_code == 500 and "no such column" in response.text:
-        raise KnownShippedDefect(
-            f"{table}.{column} is offered by the grid but does not exist: "
-            f"{response.json()['message']}")
-    assert response.status_code == 200, response.text[:300]
+    # No allowance any more.  Eight of these used to fail because the
+    # grid's first offered column for the view was a phantom
+    # ``c_personid``; the 2026-09-15 build aliased the collisions away
+    # and every whitelisted table now answers.
+    assert not failures, "\n".join(failures)
 
 
 def test_a_simple_query_returns_rows_and_the_sql_it_ran(app: CbdbApp):

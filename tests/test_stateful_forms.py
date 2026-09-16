@@ -39,9 +39,11 @@ from __future__ import annotations
 
 import base64
 import re
+from collections import Counter
 
 import pytest
 
+from cbdb_desktop import gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import STORE_RESET, WORKING_LIST_RESETS
@@ -658,73 +660,36 @@ def test_an_association_pairs_query_returns_its_two_people(app: CbdbApp,
 
 #: The Networks query, at the depth that keeps it cheap.  Everything the
 #: dynasty tests below vary is added on top of this.
+#: The association categories are added per request from the build --
+#: see ``gosource.all_categories_on`` -- because since the 2026-09-15
+#: build ticking none of them means "no association ties" rather than
+#: "no filter", and a network with no association ties is not the
+#: network these tests are about.
 _NETWORK_BASE = {
     "usePersonID": True, "useKin": True, "useNonKin": True,
     "useMale": True, "useFemale": True, "maxLoop": 1, "maxNodeDist": 1,
     "kinParam": True, "maxUp": 1, "maxDwn": 1, "maxCol": 1, "maxMar": 1,
 }
 
-#: Two real dynasties, and the years the shipped ``DYNASTIES`` table
-#: gives them.  whichever two the data yields: adjacent, both
-#: populous, and the page computes exactly these four numbers when a
-#: user picks them -- then does not send them.
-@pytest.fixture(scope="module")
-def two_dynasties(sqlite_conn):
-    """Two overlapping dynasties spanning the subject's own lifetime.
-
-    Read from ``DYNASTIES`` rather than pinned as literals: AGENTS.md is
-    explicit that inputs come from the data, and the year bounds here
-    have to be *the ones the picker would have supplied*, so a literal
-    that drifted out of step with the table would leave the ``repaired``
-    control silently no longer a control.
-
-    Chosen relative to ``SUBJECT`` rather than from the top of the table,
-    which matters more than it looks.  The first version took the first
-    two overlapping dynasties in year order and got SanGuo (220-265) --
-    a period in which a Song figure's network contains nobody, so every
-    measurement came back 1 and the control could not tell a working
-    filter from a broken one.  A filter is only judgeable over a span
-    where the answer would otherwise be large.
-    """
-    subject_dy = sqlite_conn.execute(
-        "SELECT c_dy FROM BIOG_MAIN WHERE c_personid = ?", (SUBJECT,)).fetchone()
-    assert subject_dy and subject_dy[0],         f"person {SUBJECT} has no dynasty in BIOG_MAIN; pick another subject"
-
-    rows = sqlite_conn.execute(
-        "SELECT c_dy, c_dynasty, c_start, c_end FROM DYNASTIES "
-        "WHERE c_start > 0 AND c_end > c_start ORDER BY c_start").fetchall()
-    home = [r for r in rows if r[0] == subject_dy[0]]
-    assert home, f"dynasty {subject_dy[0]} is not in DYNASTIES"
-    earlier = home[0]
-
-    # The next dynasty that starts before this one ends -- the overlap is
-    # what makes it a *span* rather than two disjoint windows.
-    later = next((r for r in rows
-                  if r[0] != earlier[0] and earlier[2] < r[2] < earlier[3]), None)
-    if later is None:
-        pytest.skip(f"nothing overlaps {earlier[1]} ({earlier[2]}-{earlier[3]})")
-    return earlier, later
+#: The key the Networks page now sends its dynasty choice under, since
+#: the shared picker became multi-select.  The four year fields the page
+#: used to compute and drop -- ``fromDynastyBegin`` and friends -- are
+#: gone from both sides, together with the ``DYNASTIES_1.c_end >`` /
+#: ``c_start <`` arithmetic in ``buildDynastyConditions`` that consumed
+#: them; the condition is now ``BIOG_MAIN_1.c_dy IN (...)``.
+_DYNASTY_KEY = "dynastyCodes"
 
 
-#: What ``buildDynastyConditions`` compares against, and therefore what
-#: the page has to send for a dynasty choice to mean anything.
-_DYNASTY_YEAR_FIELDS = frozenset({
-    "fromDynastyBegin", "fromDynastyEnd", "toDynastyBegin", "toDynastyEnd",
-})
+def _networks_query_payload_keys(layout) -> set[str]:
+    """The keys of the request the Networks page actually builds.
 
-
-def _fields_missing_from_the_networks_query(layout) -> set[str]:
-    """Which of the four year fields the Networks page never sends.
-
-    Read off the request the page builds, not off the page as a whole:
-    the four names *do* occur in the file, as the globals
-    ``gFromDynastyBegin`` and friends that the dynasty picker fills in,
-    so a plain substring search over the template would report that the
-    page sends them when what it does is compute them and drop them.
-
-    The page has one query payload -- ``const params={...}`` immediately
-    followed by ``JSON.stringify(params)`` -- and its keys are what this
-    returns.
+    Read off the payload object, not off the page as a whole.  A plain
+    substring search over the template reports a name the page merely
+    *computes* as a name the page sends -- which is how the version of
+    this test written for the previous build had to work, and why it
+    said so at length.  The page has one query payload,
+    ``const params={...}`` immediately followed by
+    ``JSON.stringify(params)``, and its keys are what this returns.
     """
     text = (layout.templates_dir / "networks" / "index.html").read_text(
         encoding="utf-8", errors="replace")
@@ -743,122 +708,166 @@ def _fields_missing_from_the_networks_query(layout) -> set[str]:
         "`params` is no longer the body of the query request; this helper "
         "is reading an object that is not what gets sent")
 
-    sent = set(re.findall(r"^\s*(\w+)\s*:", body, re.MULTILINE))
-    assert "fromDynasty" in sent, \
-        f"the query payload no longer carries a dynasty at all: {sorted(sent)}"
-    return _DYNASTY_YEAR_FIELDS - sent
+    return set(re.findall(r"^\s*(\w+)\s*:", body, re.MULTILINE))
 
 
-def _network_nodes(app: CbdbApp, ego: int, **extra) -> int:
-    """How many people one Networks query returns.  -1 when it errors."""
+def _network_nodes_raw(app: CbdbApp, ego: int, **extra) -> list[dict]:
+    """The ``nodeRecords`` of one Networks query, or ``[]`` on an error."""
     app.post("/api/networks/set-person", json={"personId": ego})
     response = app.post("/api/networks/query",
-                        json=dict(_NETWORK_BASE, **extra))
+                        json=dict(_NETWORK_BASE,
+                                  **gosource.all_categories_on(app.layout),
+                                  **extra))
     if response.status_code != 200:
-        return -1
-    return len({row["personId"] for row in response.json()["nodeRecords"]})
+        return []
+    return response.json()["nodeRecords"]
 
 
-def test_the_networks_page_sends_the_dynasty_span_its_handler_needs(
-        app: CbdbApp, clean_lists, two_dynasties):
-    """Pick two dynasties on the Networks form and see what arrives.
+def _network_dynasties(app: CbdbApp, ego: int, **extra) -> tuple[int, set]:
+    """``(node count, dynasty codes of everyone but the ego)``.
 
-    The Networks form offers a dynasty *span* -- a From picker and a To
-    picker -- and its handler filters on the two dynasties' **years**:
-    ``DYNASTIES_1.c_end > FromDynastyBegin`` and
-    ``DYNASTIES_1.c_start < ToDynastyEnd`` (networks_form_query.go,
-    ``buildDynastyConditions``).  The page computes those four numbers
-    when the picker returns (``gFromDynastyBegin`` and friends) and then
-    builds a request without them, so the handler reads them as 0.
-
-    Three ways for a user to hit it, and this test drives all three
-    against the same ego so the numbers are comparable:
-
-    * **From only** -- ``c_end > 0`` is true of every dynasty, so the
-      filter the user asked for is silently not applied;
-    * **two different dynasties** -- ``c_start < 0`` is true of five
-      dynasties out of eighty-five, so the answer collapses to almost
-      nothing, with no message;
-    * **All Dynasties** -- the page's own button sets both codes to a
-      ``-2`` sentinel the handler does not recognise, which slips past
-      its "neither boundary set" guard and builds a condition on
-      ``DYNASTIES_1`` that the chosen FROM clause never joined.
-
-    The decisive half is the last comparison: sending the same request
-    **with** the four year fields the page dropped makes the two-dynasty
-    span behave, which is what identifies the page rather than the
-    handler as the thing to fix.
+    ``-1`` for the count when the query errored, so a 500 is a
+    measurement rather than an exception with the diagnosis nowhere.
     """
-    # SUBJECT rather than a discovered ego: judging a filter needs a network
-    # big enough for "narrower" to mean something, and this is the person
-    # the suite already fixes for that reason (subjects.py, whose existence
-    # test_staging.py checks against the shipped data).
+    app.post("/api/networks/set-person", json={"personId": ego})
+    response = app.post("/api/networks/query",
+                        json=dict(_NETWORK_BASE,
+                                  **gosource.all_categories_on(app.layout),
+                                  **extra))
+    if response.status_code != 200:
+        return -1, set()
+    nodes = response.json()["nodeRecords"]
+    return (len({row["personId"] for row in nodes}),
+            {row.get("dy") for row in nodes
+             if row.get("personId") != ego})
+
+
+def test_the_networks_page_sends_the_dynasty_choice_its_handler_reads(
+        app: CbdbApp, clean_lists):
+    """Pick dynasties on the Networks form and see what arrives.
+
+    Networks is the one form with a dynasty filter that the discovered
+    matrix does not cover, because its result is a traversal rather than
+    a filtered table -- so this is where that filter is driven.
+
+    Both halves are checked, and they fail differently.  The *page* half
+    is the request it builds: the shared picker hands back an array and
+    the page has to send it under the key the handler decodes, or the
+    filter silently receives nothing.  The *handler* half is what comes
+    back: every node the traversal admits must be of a dynasty that was
+    asked for, and widening the selection may add people but may never
+    lose any.
+
+    Union is deliberately **not** asserted, and the reason is particular
+    to this form.  The condition constrains ``BIOG_MAIN_1``, the node
+    being admitted, so a person reachable only *through* someone of the
+    second dynasty appears when both are selected and under neither
+    alone.  Asking for A+B to equal A plus B would fail a correct build.
+    Monotonicity is the property that holds.
+    """
+    # SUBJECT rather than a discovered ego: judging a filter needs a
+    # network big enough for "narrower" to mean something, and this is
+    # the person the suite already fixes for that reason (subjects.py,
+    # whose existence test_staging.py checks against the shipped data).
     ego = SUBJECT
-    unfiltered = _network_nodes(app, ego, useDynasties=False)
+
+    sent = _networks_query_payload_keys(app.layout)
+    assert _DYNASTY_KEY in sent, (
+        f"the Networks page builds its query without `{_DYNASTY_KEY}`, "
+        "which is the only dynasty field its handler decodes, so a "
+        "dynasty chosen in the picker reaches the server as nothing at "
+        f"all and the filter is silently skipped.  The payload sends: "
+        f"{sorted(sent)}")
+
+    unfiltered, present = _network_dynasties(app, ego, useDynasties=False)
     assert unfiltered > 100, (
         f"person {ego} returns only {unfiltered} people at depth 1; too "
         "small a network to tell a working filter from a broken one")
 
-    (from_dy, from_name, from_start, from_end),         (to_dy, to_name, to_start, to_end) = two_dynasties
+    # The two dynasties are read out of the *unfiltered answer* -- the
+    # application's own account of who is in this network -- and then
+    # confirmed one at a time.  Choosing them from DYNASTIES by year
+    # overlap, as the From/To version of this test did, picks codes that
+    # may contribute nobody: measured on this ego, the overlapping
+    # dynasty returned the ego and nothing else, so every assertion
+    # about *two* dynasties passed without the second one doing
+    # anything.
+    counts = Counter(row.get("dy") for row in _network_nodes_raw(app, ego)
+                     if row.get("personId") != ego)
+    ranked = [dy for dy, _n in counts.most_common() if dy]
+    if len(ranked) < 2:
+        pytest.skip(
+            f"person {ego}'s network spans fewer than two dynasties "
+            f"({counts}), so a two-dynasty selection cannot be judged")
+    from_dy, to_dy = ranked[0], ranked[1]
 
-    same = _network_nodes(app, ego, useDynasties=True,
-                          fromDynasty=from_dy, toDynasty=from_dy)
-    from_only = _network_nodes(app, ego, useDynasties=True,
-                               fromDynasty=from_dy, toDynasty=-1)
-    span = _network_nodes(app, ego, useDynasties=True,
-                          fromDynasty=from_dy, toDynasty=to_dy)
-    everything = _network_nodes(app, ego, useDynasties=True,
-                                fromDynasty=-2, toDynasty=-2)
+    one, one_seen = _network_dynasties(
+        app, ego, useDynasties=True, dynastyCodes=[from_dy])
+    other, other_seen = _network_dynasties(
+        app, ego, useDynasties=True, dynastyCodes=[to_dy])
+    both, both_seen = _network_dynasties(
+        app, ego, useDynasties=True, dynastyCodes=[from_dy, to_dy])
+    empty, _ = _network_dynasties(
+        app, ego, useDynasties=True, dynastyCodes=[])
 
-    # The same span, with the four numbers the page leaves out.  This is
-    # the control: if it behaves, the handler is right and the request
-    # was wrong.
-    repaired = _network_nodes(app, ego, useDynasties=True,
-                              fromDynasty=from_dy, toDynasty=to_dy,
-                              fromDynastyBegin=from_start,
-                              fromDynastyEnd=from_end,
-                              toDynastyBegin=to_start,
-                              toDynastyEnd=to_end)
+    measured = (f"ego {ego}: unfiltered={unfiltered}, "
+                f"dynasty {from_dy}={one}, dynasty {to_dy}={other}, "
+                f"both={both}, empty selection={empty}")
 
-    measured = (f"{from_name} ({from_start}-{from_end}) to {to_name} "
-                f"({to_start}-{to_end}): "
-                f"unfiltered={unfiltered}, one dynasty={same}, "
-                f"from only={from_only}, span={span}, "
-                f"All Dynasties={everything}, span repaired={repaired}")
+    # ``> 1``, not ``> 0``: the ego is in nodeRecords whatever the filter
+    # does, so ``> 0`` is true by construction and the message it carries
+    # -- "nobody but the ego" -- describes the case it lets through.
+    assert one > 1 and other > 1, (
+        f"a single dynasty returned nobody but the ego, although both "
+        f"were read out of the unfiltered answer: {measured}")
 
-    assert same > 0, f"even a single dynasty returns nothing: {measured}"
+    # The per-node half: what came back, against what was asked for.
+    # This is the assertion that catches a condition bound to the wrong
+    # alias or to the wrong person -- the shape this form has had before.
+    assert one_seen <= {from_dy}, (
+        f"asking for dynasty {from_dy} alone returned nodes of "
+        f"{sorted(one_seen - {from_dy})} as well.  {measured}")
+    assert other_seen <= {to_dy}, (
+        f"asking for dynasty {to_dy} alone returned nodes of "
+        f"{sorted(other_seen - {to_dy})} as well.  {measured}")
+    assert both_seen <= {from_dy, to_dy}, (
+        f"asking for dynasties {from_dy} and {to_dy} returned nodes of "
+        f"{sorted(both_seen - {from_dy, to_dy})} as well.  {measured}")
 
-    # The subject of this test is the *page*, so the page is what it
-    # judges.  The numbers above establish that the four fields matter
-    # -- 1 person without them, 438 with -- but a test that only drove
-    # the handler could not tell "the page was fixed" from "the page is
-    # still broken": the fix D-008 asks for changes what the page sends,
-    # and hand-built request bodies are not what the page sends.  So the
-    # decision is taken on the request the page builds, and the driven
-    # numbers are the reason it is worth taking.
-    missing = _fields_missing_from_the_networks_query(app.layout)
+    # Union, and it is worth saying exactly why it is assertable here
+    # when the discovered matrix asserts the same shape for the six
+    # read-only forms and this form looks like it should not.
+    #
+    # The dynasty condition constrains BIOG_MAIN_1, the node being
+    # admitted.  At a depth where the walk can pass *through* one
+    # person to reach another, a node reachable only via someone of the
+    # second dynasty would appear under the pair and under neither
+    # single code, and union would fail on a correct build.  This
+    # request is depth one: ``maxNodeDist`` is 1, so ``loopLimit`` is 2,
+    # loop 1 admits the ego's direct associates, and loop 2 is the
+    # closure pass -- whose FROM (``fromAssocLast``) joins
+    # ``ZZ_SP_NETWORK`` to itself on both endpoints and therefore adds
+    # edges between people already admitted, never new people.  So at
+    # this depth the node sets really are a partition by dynasty, and
+    # the strongest available oracle is the exact one.
+    assert both_seen == (one_seen | other_seen), (
+        f"the nodes admitted for both dynasties are not the union of "
+        f"the nodes admitted for each: only in the pair "
+        f"{sorted(both_seen - (one_seen | other_seen))}, missing from it "
+        f"{sorted((one_seen | other_seen) - both_seen)}.  {measured}")
+    assert both == one + other - 1, (
+        f"two dynasties returned {both} people, and the two single "
+        f"selections returned {one} and {other} -- which share only the "
+        f"ego, so the pair should return {one + other - 1}.  {measured}")
 
-    if missing:
-        raise KnownShippedDefect(
-            f"the Networks page builds its query without {sorted(missing)}, "
-            "which is what buildDynastyConditions filters on.  Measured "
-            "against person " + str(ego) + ": " + measured
-            + ".  'All Dynasties' answers HTTP 500 (-1 above); a span of "
-            "two dynasties collapses because the year bounds arrive as 0; "
-            "and From-only barely filters at all, because `c_end > 0` is "
-            "true of all but five of the eighty-five dynasties.  Supplying "
-            "the four year fields the page computes but never sends repairs "
-            "the span, which is where the fix belongs")
+    # Widening cannot exceed no filter at all.
+    assert both <= unfiltered, (
+        f"two dynasties returned more people than no filter: {measured}")
 
-    # Past this point the page sends the four fields, so `repaired` is
-    # the request the page now makes and `span` is one it no longer
-    # makes.  Only `repaired` may be asserted on: judging `span` here
-    # would fail a correctly fixed build and blame the handler for a
-    # body the page had stopped sending.
-    assert same <= repaired <= unfiltered, (
-        f"the page now sends the year bounds and a two-dynasty span is not "
-        f"between one dynasty and no filter: {measured}")
-    assert everything != -1, f"'All Dynasties' still answers HTTP 500: {measured}"
-    assert everything >= repaired, (
-        f"'All Dynasties' returned fewer people than a two-dynasty span: "
-        f"{measured}")
+    # An empty selection is "All Dynasties" -- the page's own Clear
+    # button -- and adds no condition, so it must match no filter at
+    # all.  The previous build sent a -2 sentinel here and answered
+    # HTTP 500; -1 is how _network_dynasties reports that.
+    assert empty == unfiltered, (
+        f"an empty dynasty selection is All Dynasties and must equal an "
+        f"unfiltered query: {measured}")

@@ -570,10 +570,11 @@ EXPECTED_UNIQUE_DECLARATIONS = 5
 #: Tables whose shipped definition has no such constraint even though a
 #: form declares one, with what it costs.  Exact, and empty is the goal.
 _UNIQUE_DECLARED_BUT_NOT_SHIPPED = {
-    "ZZ_SIP_NETWORK":
-        "the Networks working list.  Driven: importing one person twice "
-        "leaves person-count reporting 2, and the query then returns that "
-        "person twice in nodeRecords and in every export taken from them",
+    # ZZ_SIP_NETWORK was here until the 2026-09-15 build, which added
+    # UNIQUE(c_person_id) to its definition in
+    # CBDB_AdditionalTablesViewsIndices.sql.  Removed rather than marked
+    # fixed: this table is the registry of what the build in front of us
+    # does, and the `stale` assertion below is what noticed.
     "ZZ_SP_KINSHIP":
         "the Kinship result table.  No user-visible consequence found: "
         "importing a duplicate inflates Kinship's person-count (which "

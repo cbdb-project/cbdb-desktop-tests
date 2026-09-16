@@ -66,6 +66,7 @@ import re
 
 import pytest
 
+from cbdb_desktop import gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import STORE_RESET, WORKING_LIST_RESETS
@@ -76,6 +77,16 @@ pytestmark = pytest.mark.app
 #: The smallest query that still returns a network worth filtering.
 #: Depth one on both walks: these are graph traversals with no
 #: server-side cap, and this file runs many of them.
+#:
+#: The association categories are **not** here, because they cannot be:
+#: which ones exist is read out of the build (``gosource``), and since
+#: the 2026-09-15 build ticking none of them no longer means "no
+#: filter".  It means "no association ties", which is correct and is
+#: the fix to a real defect -- but it made every request body in this
+#: file that left them out ask a different question than it was written
+#: to ask, and the tests that failed were the ones that noticed.
+#: ``_base`` below is what a test gets; see it for which selection is
+#: the neutral one.
 _BASE = {
     "usePersonID": True, "useKin": True, "useNonKin": True,
     "useMale": True, "useFemale": True, "maxLoop": 1, "maxNodeDist": 1,
@@ -105,8 +116,22 @@ def ego(app: CbdbApp):
     reset()
 
 
+def _base(app: CbdbApp) -> dict:
+    """``_BASE`` with every association category ticked.
+
+    All-on is the neutral selection: the handler treats "the user chose
+    every category" as no filter at all and skips the filter table
+    entirely, which is what a test asking about something *other* than
+    the categories wants.  All-off is a different request -- it asks for
+    no association ties -- and is driven deliberately, by the tests that
+    mean it.
+    """
+    return dict(_BASE, **gosource.all_categories_on(app.layout))
+
+
 def _query(app: CbdbApp, **extra) -> dict:
-    answer = app.json("POST", "/api/networks/query", json=dict(_BASE, **extra))
+    answer = app.json("POST", "/api/networks/query",
+                      json=dict(_base(app), **extra))
     assert {"edgeRecords", "nodeRecords"} <= set(answer), sorted(answer)
     return answer
 
@@ -201,7 +226,7 @@ def _raw_query(app: CbdbApp, **extra):
     a test that dies on it reports an error with the diagnosis
     nowhere.
     """
-    return app.post("/api/networks/query", json=dict(_BASE, **extra))
+    return app.post("/api/networks/query", json=dict(_base(app), **extra))
 
 
 @pytest.mark.parametrize("excluded,switch", [("F", "useFemale"),
@@ -236,7 +261,7 @@ def test_the_sex_filter_removes_the_sex_it_was_told_to(
         # different report from a filter that never works.
         with_dynasty = _raw_query(app, **{switch: False,
                                           "useDynasties": True,
-                                          "fromDynasty": 15})
+                                          "dynastyCodes": [15]})
         raise KnownShippedDefect(
             f"unticking {switch} answers HTTP {response.status_code}: "
             f"{response.text.strip()[:120]}.  The sex condition is "
@@ -285,7 +310,7 @@ def test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on(
     rewriting -- which is the point of driving it.
     """
     response = _raw_query(app, useFemale=True, useMale=False,
-                          useDynasties=True, fromDynasty=15)
+                          useDynasties=True, dynastyCodes=[15])
     assert response.status_code == 200, (
         "the sex filter answers HTTP "
         f"{response.status_code} even with a dynasty filter set: "
@@ -299,38 +324,6 @@ def test_the_sex_filter_stops_erroring_when_a_dynasty_filter_is_on(
 # the twenty-nine category checkboxes
 # ---------------------------------------------------------------------------
 
-def _category_flags(layout) -> list[str]:
-    """The ``chk*`` association categories ``NetworkQuery`` declares.
-
-    Read off the request struct rather than listed here, for the
-    reason § *Coverage is the program's job* gives: a category the
-    build gains should widen this sweep by itself.
-
-    ``chkSubUnits``, ``chkPlaceLimit`` and ``chkXYRef`` are excluded:
-    all three are address controls read by ``populateScratchAddr``,
-    not association categories.  ``chkXYRef`` was counted as a
-    category until the source was asked which flags
-    ``makeAssocFilter`` gives a selector to -- it is the historical-XY
-    bounding-box switch, and counting it made this sweep claim thirty
-    categories where the form offers twenty-nine.
-
-    ``chkKin`` was in the exclusion set too and is not a field on
-    ``NetworkQuery`` at all; kinship is ``useKin``.  Excluding a name
-    that matches nothing costs nothing today and would have silently
-    swallowed a real category if the build ever added one under that
-    name, so it is gone.
-    """
-    text = (layout.code_dir / "networks_form_backend.go").read_text(
-        encoding="utf-8", errors="replace")
-    body = re.search(r"^type\s+NetworkQuery\s+struct\s*\{(.*?)^\}",
-                     text, re.DOTALL | re.MULTILINE)
-    assert body, "networks_form_backend.go no longer declares NetworkQuery"
-    flags = re.findall(r'`json:"(chk[A-Za-z]+)"`', body.group(1))
-    return sorted(set(flags) - {"chkSubUnits", "chkPlaceLimit",
-                                "chkXYRef"})
-
-
-
 def test_the_category_sweep_covers_every_category_the_build_declares(layout):
     """The denominator, pinned, before anything is swept.
 
@@ -339,7 +332,7 @@ def test_the_category_sweep_covers_every_category_the_build_declares(layout):
     that let seven Use XY switches go unsent for the life of the
     suite.
     """
-    flags = _category_flags(layout)
+    flags = gosource.association_category_flags(layout)
     assert len(flags) == EXPECTED_CATEGORY_FLAGS, (
         f"NetworkQuery declares {len(flags)} association categories, not "
         f"{EXPECTED_CATEGORY_FLAGS}: {flags}.  Update the number in the "
@@ -350,8 +343,8 @@ def test_no_category_switch_removes_an_edge_that_was_already_there(
         app: CbdbApp, ego, layout):
     """Each category can only add people, and some must actually add.
 
-    Twenty-nine checkboxes, of which the rest of the suite sends
-    none.  The property is the one ``test_query_matrix.py``'s sweep
+    Twenty-nine checkboxes.  The property is the one
+    ``test_query_matrix.py``'s sweep
     uses for the read-only forms -- widening a selection may not
     narrow an answer -- but it has to be stated on the right thing
     here, and the first version stated it on the wrong one.
@@ -378,15 +371,19 @@ def test_no_category_switch_removes_an_edge_that_was_already_there(
     version the order was the other way round and the liveness
     assertion had never once executed.
     """
-    flags = _category_flags(layout)
+    flags = gosource.association_category_flags(layout)
     none_on = {flag: False for flag in flags}
 
-    # The baseline is *one* category on, not none.  All-off cannot be
-    # the control here: this build treats an empty selection as no
-    # filter and answers with everything, which is its own finding
-    # below -- measuring "does adding a category add edges" against
-    # that baseline would report every category as *removing* edges,
-    # which is what the first version of this test did.
+    # The baseline is *one* category on, not none.  In the build this
+    # test was written against, all-off meant "no filter" and answered
+    # with everything, so measuring "does adding a category add edges"
+    # against that baseline reported every category as *removing*
+    # edges -- which is what the first version of this test did.  The
+    # 2026-09-15 build fixed that: all-off now means no association
+    # ties, which would make all-off a usable baseline.  One-on is kept
+    # anyway, because it is the baseline that stays correct under both
+    # meanings and the test is about the categories, not about which
+    # build defines the empty selection how.
     anchor = flags[0]
 
     def pairs_and_edges(**extra):
@@ -435,7 +432,7 @@ def test_turning_every_category_off_leaves_no_association_ties(
     that could still appear would have to belong to a category the
     user turned off.
     """
-    flags = _category_flags(layout)
+    flags = gosource.association_category_flags(layout)
     answer = _query(app, useKin=False, useNonKin=True,
                     **{flag: False for flag in flags})
 
@@ -485,7 +482,7 @@ def test_every_category_the_form_offers_selects_something(layout):
     back -- and the count it contributes still moves the all-on
     threshold, so it is not even inert.
     """
-    flags = _category_flags(layout)
+    flags = gosource.association_category_flags(layout)
     selectors = _category_selectors(layout)
     without = sorted(set(flags) - set(selectors))
 
@@ -572,7 +569,7 @@ def test_no_two_categories_return_the_same_association(
     drivable = sorted(_category_selectors(layout))
     assert drivable, "no category has a selector, so none can be driven"
 
-    flags = _category_flags(layout)
+    flags = gosource.association_category_flags(layout)
     off = {flag: False for flag in flags}
 
     returned: dict[str, set[int]] = {}

@@ -51,12 +51,13 @@ from collections import Counter
 
 import pytest
 
-from cbdb_desktop import discovery
+from cbdb_desktop import discovery, gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import REPO_ROOT
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.forms import (FORMS_BY_NAME, NARROWS, TOGGLES,
                                 WIDENS, FormSpec, Toggle)
+from cbdb_desktop.staging import AppLayout
 
 pytestmark = pytest.mark.app
 
@@ -131,7 +132,7 @@ _DIMENSION_OF = {
     "test_the_forms_other_year_filter_partitions_the_same_way": "century",
     "test_a_one_sided_year_window_filters_on_the_side_it_was_given":
         "century",
-    "test_a_dynasty_range_contains_both_of_its_ends": "dynasty",
+    "test_choosing_two_dynasties_returns_exactly_both_of_them": "dynasty",
 }
 
 _MATRIX_CACHE: dict[int, list[discovery.Combination]] = {}
@@ -225,9 +226,9 @@ def test_a_dynasty_filter_returns_only_that_dynasty(app: CbdbApp,
                                                     combination):
     """Ask for one dynasty and every row must be of that dynasty.
 
-    The handler special-cases ``fromDynasty == toDynasty`` into a plain
-    equality on ``BIOG_MAIN.c_dy``, so this is the cleanest per-row
-    invariant the form offers.  Where the response carries only the
+    A one-element selection becomes ``BIOG_MAIN.c_dy IN (?)``, so this
+    is the cleanest per-row invariant the form offers.  Where the
+    response carries only the
     dynasty's *name* and not its code -- four of the six forms -- the
     check falls back to "one dynasty name throughout", which is weaker
     and still catches a filter that is not being applied.
@@ -481,12 +482,18 @@ def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
     is the biography rows, because the handler substitutes Biography
     when it finds every switch off (places_form_backend.go:204-206).
 
-    That substitution is deliberate, and as a guard against an empty
-    request it is reasonable.  What makes it a defect is that the page
-    lets a user reach it: the seven checkboxes have no "at least one"
-    rule, ``inc-biog`` merely starts checked, and unticking all seven
-    and pressing Query returns biographical addresses the user has
-    explicitly excluded, with no message.
+    Until the 2026-09-15 build the answer was the biography rows,
+    because the handler substituted Biography when it found every
+    switch off.  As a guard against an empty request that was
+    reasonable; what made it a defect is that the page let a user reach
+    it, so unticking all seven and pressing Query returned biographical
+    addresses the user had explicitly excluded, with no message.
+
+    This build refuses the request instead -- HTTP 400, *at least one
+    relation-type category must be selected* -- and disables Run Query
+    until a category is ticked.  Both answers are defensible and the
+    test accepts either: what it will not accept is a 200 carrying rows.
+    A substituted default is the failure, not the status code.
 
     Written as one test rather than seven because the seven-way version
     would need, per branch, an input where only that branch contributes
@@ -506,15 +513,25 @@ def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
                           **{branch: (branch == "includeBiog")
                              for branch in branches})
 
-    nothing = _pairs(form, _query(app, form, everything_off))
     biography = _pairs(form, _query(app, form, biography_only))
-
     # Without this the test would pass on a code whose biography branch
-    # is empty anyway, and prove nothing.
+    # is empty anyway, and prove nothing: "no rows" and "the substituted
+    # branch has no rows" would look the same.
     assert biography, \
         f"places code {codes} has no biographical addresses, so this " \
-        "cannot distinguish the two"
+        "cannot distinguish a refusal from a substitution"
 
+    response = app.post(form.query_path, json=everything_off)
+
+    if response.status_code == 400:
+        return
+
+    assert response.status_code == 200, (
+        f"asking for no categories answered HTTP {response.status_code}: "
+        f"{response.text[:200]}.  Refusing the request is a correct "
+        "answer and so is an empty result, but neither is a server error")
+
+    nothing = _pairs(form, form.rows(response.json()))
     if nothing == biography:
         raise KnownShippedDefect(
             f"every category switched off returned {sum(nothing.values())} "
@@ -524,6 +541,101 @@ def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
     assert not nothing, (
         f"every category switched off returned {sum(nothing.values())} "
         f"rows from somewhere: {sorted(nothing)[:5]}")
+
+
+#: The Places form's seven relation-type categories, in the order the
+#: page lists them.  Named here rather than extracted because the
+#: extraction already exists and disagreeing with it would be worse than
+#: repeating it: ``test_every_switch_the_build_declares_is_one_the_sweep
+#: _drives`` reads the boolean fields off ``PlaceQueryParams`` and fails
+#: if TOGGLES and the struct diverge, and every name below is one of
+#: those.  The check at the top of the test keeps the two in step.
+_PLACE_CATEGORIES = ("includeBiog", "includeAssocPlace", "includeAssocPerson",
+                     "includeEntry", "includeKinship", "includeOffice",
+                     "includeInst")
+
+
+def test_each_place_category_contributes_its_own_part_of_the_whole(
+        app: CbdbApp, matrix, layout):
+    """Seven categories, one at a time, against all seven together.
+
+    This is the experiment that replaces "turn all of them off", and it
+    exists because that one stopped being available.  Five of the Places
+    form's seven category switches report "identical either way" in the
+    sweep above on every input tried, and a skip cannot tell "the option
+    is ignored" from "this data has nothing on the other side of it".
+    The all-off request used to settle it in one call -- a user who has
+    selected nothing has asked for nothing, so nothing is the only
+    defensible answer, whatever CBDB holds.  The 2026-09-15 build now
+    refuses that request with HTTP 400, which is a better answer to give
+    a user and leaves the five switches undecided again.
+
+    So: ask for each category alone, and for all seven together.  The
+    handler assembles its answer as a ``UNION ALL`` across the enabled
+    branches (``places_form_backend.go``, "Assemble UNION ALL"), so the
+    seven single-category answers must sum -- as multisets, not as sets
+    -- to exactly the all-seven answer.  Nothing about that depends on
+    what the data contains, which is what makes it an oracle:
+
+    * a switch that is decoded and never used puts its branch in every
+      answer, so the seven singles sum to more than the whole;
+    * a switch wired to the wrong branch makes two singles identical and
+      a third missing, and the sum moves either way;
+    * a substituted default -- the shape this form had -- adds the
+      Biography branch to a request that did not ask for it, so the sum
+      exceeds the whole by exactly that branch.
+
+    It also gives each switch its own liveness reading, which the sweep
+    cannot: a category whose single-category answer is empty contributes
+    nothing on this input and is reported, rather than silently folded
+    into a skip.
+    """
+    form = FORMS_BY_NAME["places"]
+    codes = _discovered_codes(matrix, "places")[-1:]
+    assert codes, "discovery found no address codes"
+
+    declared = {toggle.option for toggle in TOGGLES if toggle.form == "places"}
+    unknown = sorted(set(_PLACE_CATEGORIES) - declared)
+    assert not unknown, (
+        f"these are listed here as Places categories and are in no row of "
+        f"TOGGLES: {unknown}.  One of the two is out of date, and the "
+        "switch sweep and this test would then be driving different forms")
+
+    def ask(selected: set[str]) -> Counter:
+        body = dict(form.body(codes),
+                    **{name: (name in selected) for name in _PLACE_CATEGORIES})
+        return _pairs(form, _query(app, form, body))
+
+    whole = ask(set(_PLACE_CATEGORIES))
+    assert whole, (
+        f"places code {codes} returns nothing with every category "
+        "selected, so the parts cannot be compared against the whole")
+
+    parts = {name: ask({name}) for name in _PLACE_CATEGORIES}
+    summed = Counter()
+    for part in parts.values():
+        summed += part
+
+    sizes = {name: sum(part.values()) for name, part in parts.items()}
+    empty = sorted(name for name, size in sizes.items() if not size)
+
+    assert summed == whole, (
+        "the seven categories asked for one at a time do not sum to the "
+        f"seven asked for together: {sum(summed.values())} rows against "
+        f"{sum(whole.values())}.  Per category: {sizes}.  "
+        f"Only in the parts: {sorted((summed - whole))[:5]}; "
+        f"only in the whole: {sorted((whole - summed))[:5]}.  The handler "
+        "unions the enabled branches, so a difference means a switch "
+        "selects a branch other than its own, selects nothing, or is "
+        "ignored and leaves its branch in every answer")
+
+    # Not an assertion: on a narrow address code most branches are
+    # legitimately empty, and requiring otherwise would make this test
+    # about the input rather than about the switches.  It is recorded so
+    # that "this switch has never once been observed to do anything" is
+    # visible in the run rather than inferred from a green tick.
+    if empty:
+        print(f"\nplaces categories with no rows for code {codes}: {empty}")
 
 
 @pytest.mark.parametrize("toggle", [pytest.param(t, id=t.id) for t in TOGGLES])
@@ -903,101 +1015,107 @@ def test_a_one_sided_year_window_filters_on_the_side_it_was_given(
         "than applied")
 
 
-def test_a_dynasty_range_contains_both_of_its_ends(
-        app: CbdbApp, combination, sqlite_conn):
-    """From one dynasty *to another*, which nothing had asked for.
+def test_choosing_two_dynasties_returns_exactly_both_of_them(
+        app: CbdbApp, combination, matrix, sqlite_conn):
+    """More than one dynasty at a time, which nothing had asked for.
 
-    Every dynasty test above sends the same code for both ends, so
-    what they drive is the ``BM.c_dy = ?`` branch.  A range takes the
-    other one, and on these six forms that branch does something the
-    Networks form does not: it looks the years up itself --
+    Every dynasty test above sends a one-element selection, so what
+    they drive is a ``c_dy IN (?)`` with a single placeholder -- which
+    is indistinguishable from an equality test, and says nothing about
+    what the form does when a user ticks several dynasties in the
+    picker.  Since the 2026-09-15 build that is the *only* way the
+    filter is expressed: the From/To pair, and the year-span arithmetic
+    the handlers used to do with ``DYNASTIES.c_start`` and ``c_end``,
+    are gone from all seven forms.
 
-        D.c_end > (SELECT c_start FROM DYNASTIES WHERE c_dy = ?)
+    The property is the asymmetric one AGENTS.md asks for rather than a
+    containment, because containment is satisfied by a filter that is
+    ignored altogether.  Two dynasty codes are mutually exclusive --
+    ``BIOG_MAIN.c_dy`` holds one value per person -- so asking for
+    ``{A, B}`` must return the multiset for ``A`` plus the multiset for
+    ``B``, exactly:
 
-    -- rather than trusting the page to send them.  The Networks form
-    trusts the page instead and is broken for it
-    (``networks_form_query.go:buildDynastyConditions``), so this is the
-    same question asked of the six that get it right, and worth keeping
-    right.
+        Counter(A) + Counter(B) == Counter(A+B)
 
-    The property needs no oracle: a span from A to B must contain
-    everybody A alone returns and everybody B alone returns, and must
-    itself be inside the unfiltered answer.  A range branch bound to
-    the wrong column, or one that collapses to a single dynasty,
-    loses one of the two ends.
+    That is false when the selection is ignored (the answer would be
+    the whole unfiltered result), false when only the first code is
+    applied, false when the list is ANDed rather than ORed (nothing
+    comes back), and false if a person were counted twice.  No count is
+    predicted from the data: all three numbers come from the
+    application.
     """
     form = FORMS_BY_NAME[combination.form]
     codes = list(combination.codes)
     first = combination.dynasty
 
-    # The next dynasty that starts inside this one's span -- the
-    # overlapping case, which is what makes it a range rather than two
-    # disjoint windows.
+    # A second dynasty, chosen from the data and then confirmed against
+    # the application -- picking an input, never predicting an answer.
     #
-    # Both ends must have a real year span, and that is not a detail.
-    # DYNASTIES holds eight rows whose c_start is null or <= 0,
-    # including code 0 ("unknown"), and every handler treats a dynasty
-    # code of 0 as *unset*: picking it as the far end would run the
-    # from-only branch while this test claimed to be driving the range
-    # branch, and would make `only_second` an unfiltered query that the
-    # range is then asked to contain -- an assertion a correct build
-    # fails.  This passed only because the earliest dynasty happens to
-    # keep everything.  Dynasties with no span are their own finding
-    # (test_a_dynasty_the_picker_offers_is_one_the_filter_can_use); here
-    # they are simply not the input.
-    row = sqlite_conn.execute(
-        "SELECT other.c_dy FROM DYNASTIES this JOIN DYNASTIES other "
-        "  ON other.c_dy <> this.c_dy "
-        " AND other.c_start > this.c_start AND other.c_start < this.c_end "
-        "WHERE this.c_dy = ? AND this.c_start > 0 AND this.c_end > 0 "
-        "  AND other.c_dy > 0 AND other.c_start > 0 AND other.c_end > 0 "
-        "ORDER BY other.c_start LIMIT 1",
-        (first,)).fetchone()
-    if row is None:
-        pytest.skip(f"no dynasty with a year span begins inside dynasty "
-                    f"{first}, so there is no overlapping range to ask for")
-    second = row[0]
+    # Discovery has already found which dynasties are populated for this
+    # very code, so its siblings come first: they are two or three codes
+    # rather than eighty-four, and each is known to have rows.  The full
+    # DYNASTIES list stays as the fallback, because a code with only one
+    # populated dynasty has no sibling and the test should still try
+    # rather than skip.  Code 0 ("unknown") is excluded from the
+    # fallback: it is a real row in DYNASTIES that no page offers.
+    siblings = [other.dynasty for other in matrix
+                if other.dimension == "dynasty"
+                and other.form == combination.form
+                and tuple(other.codes) == tuple(combination.codes)
+                and other.dynasty != first]
+    rest = [row[0] for row in sqlite_conn.execute(
+        "SELECT c_dy FROM DYNASTIES WHERE c_dy > 0 AND c_dy <> ? "
+        "ORDER BY c_sort", (first,)).fetchall()]
+    candidates = siblings + [dy for dy in rest if dy not in siblings]
 
+    def ask(selection):
+        return _pairs(form, _query(app, form, form.filtered_body(
+            codes, mode=form.dynasty_mode, dynasty=selection)))
+
+    only_first = ask([first])
+    second = None
+    only_second: Counter = Counter()
+    for candidate in candidates:
+        answer = ask([candidate])
+        if answer:
+            second, only_second = candidate, answer
+            break
+
+    if second is None:
+        pytest.skip(
+            f"{combination.id}: no second dynasty returns anything for "
+            "this code, so a selection of two cannot be judged")
+    if not only_first:
+        pytest.skip(
+            f"{combination.id}: dynasty {first} returns nothing for this "
+            "code, so a selection containing it cannot be judged")
+
+    together = ask([first, second])
+
+    assert together == only_first + only_second, (
+        f"{combination.id}: asking for dynasties {first} and {second} "
+        f"together returned {sum(together.values())} rows, but "
+        f"{first} alone returns {sum(only_first.values())} and "
+        f"{second} alone returns {sum(only_second.values())}, which sum "
+        f"to {sum((only_first + only_second).values())}.  A person "
+        "belongs to exactly one dynasty, so a two-dynasty selection is "
+        "the two one-dynasty answers and nothing else: more means the "
+        "selection was widened or ignored, fewer means one of the two "
+        "codes was dropped.  "
+        f"Only in the pair: {sorted((together - (only_first + only_second)))[:3]}; "
+        f"missing from it: {sorted(((only_first + only_second) - together))[:3]}")
+
+    # Equality above is satisfied by a join that fanned every row out by
+    # the same factor on all three requests.  The single-code case is
+    # covered by test_a_dynasty_filter_narrows_and_never_adds, which
+    # names fan-out as its subject; this is the two-code case, and it
+    # costs one more request.
     unfiltered = _pairs(form, _query(app, form, form.body(codes)))
-    only_first = _pairs(form, _query(app, form, form.filtered_body(
-        codes, mode=form.dynasty_mode, dynasty=first)))
-    body = form.filtered_body(codes, mode=form.dynasty_mode, dynasty=first)
-    body["toDynasty"] = second
-    spanning = _pairs(form, _query(app, form, body))
-
-    only_second = _pairs(form, _query(app, form, form.filtered_body(
-        codes, mode=form.dynasty_mode, dynasty=second)))
-
-    if not only_first and not only_second:
-        pytest.skip(
-            f"{combination.id}: neither dynasty {first} nor {second} "
-            "returns anything for this code, so a span of the two cannot "
-            "be judged")
-
-    escaped = set(spanning) - set(unfiltered)
+    escaped = together - unfiltered
     assert not escaped, (
-        f"{combination.id}: the range {first}-{second} returned "
-        f"{len(escaped)} rows the unfiltered query does not have: "
-        f"{sorted(escaped)[:5]}")
-
-    # Containment on its own is satisfied by a range branch that is
-    # ignored entirely -- an unfiltered answer contains both ends and
-    # everything else.  The range has to narrow something.
-    if set(spanning) == set(unfiltered):
-        pytest.skip(
-            f"{combination.id}: the range {first}-{second} returns the "
-            f"whole unfiltered answer ({len(unfiltered)} rows), so this "
-            "code covers nobody outside the span and the containment "
-            "below would hold however the branch behaved")
-
-    for label, end in ((first, only_first), (second, only_second)):
-        lost = set(end) - set(spanning)
-        assert not lost, (
-            f"{combination.id}: dynasty {label} alone returns "
-            f"{len(lost)} row(s) that the range {first}-{second} does "
-            f"not: {sorted(lost)[:5]}.  A span must contain both of its "
-            "ends, and this is the branch the Networks form gets "
-            "wrong")
+        f"{combination.id}: asking for dynasties {first} and {second} "
+        f"returned {sum(escaped.values())} row(s) the unfiltered query "
+        f"does not have: {sorted(escaped)[:5]}")
 
 
 # ---------------------------------------------------------------------------
@@ -1046,12 +1164,10 @@ def test_every_switch_the_build_declares_is_one_the_sweep_drives(layout):
     for form, (source, struct_name) in sorted(_QUERY_PARAMS.items()):
         text = (layout.code_dir / source).read_text(
             encoding="utf-8", errors="replace")
-        found = re.search(
-            r"^type\s+" + re.escape(struct_name) + r"\s+struct\s*\{(.*?)^\}",
-            text, re.DOTALL | re.MULTILINE)
-        assert found, f"{source} no longer declares {struct_name}"
+        body = gosource.struct_body(text, struct_name)
+        assert body is not None, f"{source} no longer declares {struct_name}"
         for go_name, json_name in re.findall(
-                r'^\s*(\w+)\s+bool\s+`json:"(\w+)"', found.group(1), re.MULTILINE):
+                r'^\s*(\w+)\s+bool\s+`json:"(\w+)"', body, re.MULTILINE):
             declared[(form, json_name)] = go_name
 
     listed = {(toggle.form, toggle.option) for toggle in TOGGLES}
@@ -1170,20 +1286,28 @@ def test_a_year_window_does_not_admit_rows_whose_year_is_unknown(
 
 def test_a_dynasty_the_picker_offers_is_one_the_filter_can_use(
         app: CbdbApp, sqlite_conn):
-    """Korea has no years, and the dynasty filter is written in years.
+    """Korea has no years.  It used to matter; it must not any more.
 
-    Every form resolves a dynasty range through ``DYNASTIES.c_start``
-    and ``c_end``.  Three rows have both at 0 -- code 0 (*unknown*),
-    58 (*Korea*) and 67 (*Xinluo (Korea)*) -- and the guard the
-    handlers use is ``> 0`` on the *code*, not on the years.  So 58
-    and 67 pass the guard and produce a comparison against zero:
-    ``c_end > 0`` is true of every dynasty, ``c_start < 0`` of none.
+    Three ``DYNASTIES`` rows carry no year span at all -- code 0
+    (*unknown*), 58 (*Korea*) and 67 (*Xinluo (Korea)*), both years 0 --
+    and until the 2026-09-15 build every form resolved a dynasty choice
+    *through* those years, guarding on the code being ``> 0`` rather
+    than on the years being real.  58 and 67 passed the guard and
+    produced a comparison against zero, so choosing one of them showed
+    the user either everything or nothing with no way to tell which.
 
-    The picker offers all eighty-five without filtering, so both are
-    one click away.  Driven rather than read, because what makes this
-    worth reporting is not the SQL but that a user can choose it and
-    be shown either everything or nothing, with no way to tell which
-    happened.
+    The migration to an explicit ``c_dy IN (...)`` removes the whole
+    mechanism: a dynasty with no years is now filtered exactly like a
+    dynasty with years, because no years are consulted.  This is the
+    test that keeps it removed.  It is deliberately still driven rather
+    than deleted -- the year arithmetic could come back, and this is the
+    input that would notice, on the two codes that were affected rather
+    than on a code chosen at random.
+
+    The property needs no oracle: ask for a spanless dynasty and every
+    row must be of that dynasty, and the answer must be a *proper*
+    subset of the unfiltered one.  "Everything" and "nothing" -- the two
+    things the old arithmetic produced -- both fail it.
     """
     spanless = sqlite_conn.execute(
         "SELECT c_dy, c_dynasty FROM DYNASTIES "
@@ -1193,162 +1317,184 @@ def test_a_dynasty_the_picker_offers_is_one_the_filter_can_use(
         pytest.skip("every dynasty the picker offers has a year span, so "
                     "there is no unusable choice to make")
 
-    form = FORMS_BY_NAME["status"]
-    (code,) = sqlite_conn.execute(
-        "SELECT c_status_code FROM STATUS_DATA GROUP BY c_status_code "
-        "HAVING COUNT(*) BETWEEN 5 AND 60 ORDER BY c_status_code "
-        "LIMIT 1").fetchone()
-    codes = [code]
-
-    unfiltered = _pairs(form, _query(app, form, form.body(codes)))
-    assert unfiltered, f"status code {code} returns nothing unfiltered"
-
-    def with_dynasty(**ends):
-        body = dict(form.body(codes))
-        body[form.year_filter_field] = form.dynasty_mode
-        body.update(ends)
-        return _pairs(form, _query(app, form, body))
-
-    dy, name = spanless[0]
-    from_only = with_dynasty(fromDynasty=dy)
-    to_only = with_dynasty(toDynasty=dy)
-
-    # A real dynasty, as the control -- and one this code's own people
-    # actually belong to.  Taking the globally earliest dynasty with a
-    # span made the control depend on data unrelated to the request:
-    # a refresh in which no such person held this status would have
-    # failed the assertion below on a perfectly correct build.
-    control_row = sqlite_conn.execute(
-        "SELECT bm.c_dy FROM STATUS_DATA sd "
-        "JOIN BIOG_MAIN bm ON bm.c_personid = sd.c_personid "
-        "JOIN DYNASTIES d ON d.c_dy = bm.c_dy "
-        "WHERE sd.c_status_code = ? AND d.c_start > 0 AND d.c_end > d.c_start "
-        "GROUP BY bm.c_dy ORDER BY COUNT(*) DESC LIMIT 1", (code,)).fetchone()
-    if control_row is None:
-        pytest.skip(
-            f"nobody with status code {code} belongs to a dynasty that has "
-            "a year span, so there is no working case to compare against")
-    (real,) = control_row
-    control = with_dynasty(fromDynasty=real)
-    assert control, (
-        f"even dynasty {real}, which has a year span, returns nothing as "
-        "a From bound; this test has no working case to compare against")
-
-    # `c_end > 0` is true of every dynasty with a span, so a From bound
-    # of a spanless one keeps everything the join can see -- not
-    # necessarily every row, since a person with no dynasty at all is
-    # dropped by the join itself, which is why this is a proportion
-    # rather than an equality.  `c_start < 0` is true of none, so the
-    # To bound keeps nothing.
-    keeps_nearly_all = len(from_only) >= 0.9 * len(unfiltered)
-    if keeps_nearly_all and not to_only:
-        raise KnownShippedDefect(
-            f"dynasty {dy} ({name}) has no year span in DYNASTIES, and the "
-            f"picker offers it like any other.  Choosing it as the From "
-            f"dynasty returns {len(from_only)} of the {len(unfiltered)} "
-            "rows an unfiltered query returns, so the filter does very "
-            "nearly nothing; choosing the same dynasty as the To dynasty "
-            "returns none.  Neither tells the user which happened.  "
-            f"{len(spanless)} of the eighty-five dynasties are in this "
-            f"state: {[f'{c} ({n})' for c, n in spanless]}")
-
-
-def test_the_forms_agree_where_one_dynasty_ends_and_the_next_begins(
-        app: CbdbApp, sqlite_conn):
-    """Jin ends in 1234 and Yuan begins in 1234.  Is Yuan in Song-to-Jin?
-
-    Five forms write the upper half of a dynasty range as ``D.c_start
-    < ?`` and Places writes ``D.c_start <= ?``, so on a boundary year
-    they disagree: the strict form excludes a dynasty that begins
-    exactly where the range ends, and Places includes it.
-    Thirty-five dynasties begin on another's end year, so this is not
-    a corner nobody reaches.
-
-    The oracle is agreement between two of the application's own
-    answers to one question.  Neither is declared correct here -- that
-    is the developers' call -- but they cannot both be, and a user
-    running the same range on two forms is entitled to one answer.
-    """
-    # A boundary both of whose dynasties actually have people, or the
-    # two forms agree by both returning nothing and the comparison
-    # says nothing.  Ordered by how many people the later dynasty has,
-    # so the disagreement is visible if there is one.
-    boundary = sqlite_conn.execute(
-        "SELECT earlier.c_dy, later.c_dy, later.c_dynasty "
-        "FROM DYNASTIES earlier JOIN DYNASTIES later "
-        "  ON later.c_start = earlier.c_end AND later.c_dy <> earlier.c_dy "
-        "WHERE earlier.c_end > 0 AND later.c_end > 0 "
-        "  AND (SELECT COUNT(*) FROM BIOG_MAIN WHERE c_dy = later.c_dy) > 100 "
-        "  AND (SELECT COUNT(*) FROM BIOG_MAIN WHERE c_dy = earlier.c_dy) > 100 "
-        "ORDER BY (SELECT COUNT(*) FROM BIOG_MAIN WHERE c_dy = later.c_dy) "
-        "DESC LIMIT 1").fetchone()
-    if boundary is None:
-        pytest.skip("no dynasty begins exactly where another ends")
-    ends_at, begins_at, later_name = boundary
-
-    # Only the forms whose rows carry a dynasty code can answer this:
-    # the question is *which dynasties came back*, and a form that
-    # does not return one can only be asked how many rows it found,
-    # which the two forms would differ on anyway.  `status` was the
-    # first comparison partner here and it returns no `dy`, so the
-    # test read every one of its answers as "no dynasties" and skipped
-    # -- looking like missing data when it was a blind comparison.
-    comparable = sorted(name for name, spec in FORMS_BY_NAME.items()
-                        if spec.row_has_dynasty_code)
-    if len(comparable) < 2:
-        pytest.skip(f"only {comparable} return a dynasty per row, so no "
-                    "two forms can be compared on which dynasties they "
-                    "admit")
-
-    # The earliest dynasty with a real span, as the lower end: the
-    # question is about the *upper* boundary, so the lower one should
-    # exclude nothing.  Dynasty codes are not chronological, so this is
-    # read from the years rather than assumed from the code.
-    (earliest,) = sqlite_conn.execute(
-        "SELECT c_dy FROM DYNASTIES WHERE c_start IS NOT NULL "
-        "AND c_start <> 0 AND c_end > c_start "
-        "ORDER BY c_start ASC LIMIT 1").fetchone()
-
-    seen_by = {}
-    for name in comparable:
-        form = FORMS_BY_NAME[name]
-        # A code whose people actually include the dynasty in
-        # question, chosen per form: the two forms draw their codes
-        # from different tables, and picking each one's lowest code
-        # independently gave a Places code covering the boundary and a
-        # Status code covering nothing, so the comparison skipped.
+    # A form and one of its codes whose people actually include
+    # somebody from a spanless dynasty -- chosen from the data, which
+    # selects the input and predicts nothing about the answer.  Without
+    # it the filter would correctly return nothing and the assertions
+    # would run against an empty list.
+    #
+    # The forms whose rows carry a dynasty code are tried first, because
+    # only those can answer the per-row half below; the others can still
+    # answer the subset half, which is the part that catches "everything"
+    # and "nothing".  Spanless dynasties are thinly populated -- 1,395
+    # people in Korea and four in Xinluo on this data, with single-figure
+    # row counts per code -- so the window is deliberately wide at the
+    # bottom.  One row is enough to distinguish a filter that works from
+    # one that returns the whole table.
+    placeholders = ",".join("?" for _ in spanless)
+    candidates = sorted(FORMS_BY_NAME.values(),
+                        key=lambda spec: not spec.row_has_dynasty_code)
+    chosen_input = None
+    for spec in candidates:
         row = sqlite_conn.execute(
-            f"SELECT d.{form.code_column} FROM {form.code_table} d "
-            f"JOIN BIOG_MAIN bm ON bm.c_personid = d.{form.person_column} "
-            f"WHERE bm.c_dy IN (?, ?) "
-            f"GROUP BY d.{form.code_column} "
-            f"HAVING COUNT(*) BETWEEN 20 AND 2000 "
-            f"ORDER BY COUNT(*) DESC LIMIT 1", (ends_at, begins_at)).fetchone()
-        if row is None:
-            pytest.skip(f"{name} has no code covering dynasties "
-                        f"{ends_at} and {begins_at}")
-        body = dict(form.body([row[0]]))
-        body[form.year_filter_field] = form.dynasty_mode
-        body["fromDynasty"] = earliest
-        body["toDynasty"] = ends_at
-        rows = [row for row in _query(app, form, body) if isinstance(row, dict)]
-        seen_by[name] = {row.get("dy") for row in rows if row.get("dy")}
+            f"SELECT d.{spec.code_column}, bm.c_dy "
+            f"FROM {spec.code_table} d "
+            f"JOIN BIOG_MAIN bm ON bm.c_personid = d.{spec.person_column} "
+            f"WHERE bm.c_dy IN ({placeholders}) "
+            f"GROUP BY d.{spec.code_column}, bm.c_dy "
+            f"HAVING COUNT(*) BETWEEN 1 AND 200 "
+            f"ORDER BY COUNT(*) DESC LIMIT 1",
+            tuple(code for code, _ in spanless)).fetchone()
+        if row is not None:
+            chosen_input = (spec, row[0], row[1])
+            break
 
-    if any(not seen for seen in seen_by.values()):
-        pytest.skip(f"one form returns no dynasties for a range ending at "
-                    f"{ends_at}, so the two cannot be compared: {seen_by}")
+    if chosen_input is None:
+        pytest.skip(
+            "nobody in a dynasty with no year span "
+            f"({[f'{c} ({n})' for c, n in spanless]}) appears under any "
+            "form's codes, so the choice cannot be driven on this data")
+    form, code, spanless_dy = chosen_input
+    name = dict(spanless)[spanless_dy]
 
-    includes = {name: begins_at in seen for name, seen in seen_by.items()}
-    if len(set(includes.values())) > 1:
-        raise KnownShippedDefect(
-            f"dynasty {begins_at} ({later_name}) begins in the year "
-            f"dynasty {ends_at} ends, and the forms disagree about whether "
-            f"it belongs in a range ending at {ends_at}: "
-            + "; ".join(f"{name} {'includes' if got else 'excludes'} it"
-                        for name, got in sorted(includes.items()))
-            + ".  Five forms write the upper bound as `D.c_start < ?` and "
-              "Places writes `D.c_start <= ?`, so one request answered by "
-              "two forms gives two different sets of people")
+    unfiltered = _pairs(form, _query(app, form, form.body([code])))
+    assert unfiltered, f"{form.name} code {code} returns nothing unfiltered"
+
+    chosen = _query(app, form, form.filtered_body(
+        [code], mode=form.dynasty_mode, dynasty=spanless_dy))
+    filtered = _pairs(form, chosen)
+
+    assert filtered, (
+        f"dynasty {spanless_dy} ({name}) has no year span in DYNASTIES, "
+        "and choosing it on the "
+        f"{form.name} form returns nothing at all -- although "
+        f"{sum(unfiltered.values())} rows come back unfiltered and the "
+        f"data has people of that dynasty under code {code}.  A dynasty "
+        "with no years is being resolved through its years again")
+    assert set(filtered) < set(unfiltered), (
+        f"dynasty {spanless_dy} ({name}) has no year span, and choosing "
+        f"it on the {form.name} form returns {sum(filtered.values())} of "
+        f"the {sum(unfiltered.values())} rows an unfiltered query returns "
+        "-- so the filter is doing nothing.  That is what the old year "
+        "arithmetic did with a zero span, and it is what "
+        "`c_dy IN (...)` was supposed to end")
+
+    # The per-row half, which is what "filtered like any other dynasty"
+    # actually means.  A handler that narrowed to some arbitrary subset
+    # would satisfy the two assertions above.  Only the forms that
+    # return a dynasty per row can be asked.
+    if form.row_has_dynasty_code:
+        wrong = {row.get("dy") for row in chosen
+                 if isinstance(row, dict)} - {spanless_dy}
+        assert not wrong, (
+            f"asking the {form.name} form for dynasty {spanless_dy} "
+            f"({name}) returned rows from {sorted(wrong)} as well")
+
+
+#: The vocabulary the shared dynasty picker speaks since it became
+#: multi-select.  One field, a list of codes.
+_DYNASTY_FIELD = "dynastyCodes"
+
+#: The vocabulary it replaced: a From/To pair, plus the four boundary
+#: years the page used to look up and send so the handler could do year
+#: arithmetic with them.  A struct still declaring any of these is a
+#: form the migration did not reach.
+_RETIRED_DYNASTY_FIELDS = (
+    "fromDynasty", "toDynasty",
+    "fromDynastyBegin", "fromDynastyEnd",
+    "toDynastyBegin", "toDynastyEnd",
+)
+
+#: Which request structs decode a dynasty choice at all -- pinned, so
+#: that a form dropping the filter entirely fails here rather than
+#: passing by being absent from a gate about dynasty filters.  The *set*
+#: is extracted from the build below; this is only the count it must
+#: come to, in the shape AGENTS.md operating principle 5 asks for.
+_EXPECTED_DYNASTY_STRUCTS = 8
+
+
+def _structs_that_decode_a_dynasty(layout: AppLayout) -> dict[str, str]:
+    """``{struct name: file}`` for every request struct with a dynasty field.
+
+    Extracted rather than listed.  A struct counts if it declares the
+    new field or any of the retired ones, which is exactly "this form
+    offers a dynasty filter" without having to know which forms those
+    are -- so a form the build adds is judged without anyone
+    remembering, and a struct the build renames does not silently drop
+    out of the gate.
+    """
+    wanted = (_DYNASTY_FIELD,) + _RETIRED_DYNASTY_FIELDS
+    found = {}
+    for source in sorted(layout.code_dir.glob("*.go")):
+        text = source.read_text(encoding="utf-8", errors="replace")
+        for struct_name in re.findall(r"^type\s+(\w+)\s+struct\s*\{",
+                                      text, re.MULTILINE):
+            body = gosource.struct_body(text, struct_name)
+            if body and any(f'json:"{field}"' in body for field in wanted):
+                found[struct_name] = source.name
+    return found
+
+
+def test_every_form_reads_the_dynasty_choice_the_picker_now_sends(
+        layout: AppLayout):
+    """One picker, one vocabulary -- or the odd form out filters nothing.
+
+    ``dynasty_picker.html`` is shared by every form that offers a
+    dynasty filter, and in this build it became multi-select: it hands
+    back an array of chosen dynasties, and the forms send that array as
+    ``dynastyCodes``.  The handlers were rewritten to match, replacing
+    the From/To pair and the ``DYNASTIES.c_start``/``c_end`` arithmetic
+    that resolved it.
+
+    A form left behind by that migration does not fail loudly.  It
+    declares fields the page no longer sends, decodes them as zero
+    values, and answers with an unfiltered result -- the silent wrong
+    answer this suite exists to catch.  This reads the shipped Go as
+    data and requires the whole set to have moved together.
+
+    Replaces ``test_the_forms_agree_where_one_dynasty_ends_and_the_next
+    _begins``, whose subject -- five forms writing ``D.c_start < ?``
+    while Places wrote ``D.c_start <= ?``, so a dynasty beginning
+    exactly where a range ended belonged to it on one form and not on
+    another -- no longer exists in any form.  The agreement that test
+    checked is now structural, and this is where it is checked.
+    """
+    structs = _structs_that_decode_a_dynasty(layout)
+    assert len(structs) == _EXPECTED_DYNASTY_STRUCTS, (
+        f"{len(structs)} request struct(s) in this build decode a dynasty "
+        f"choice, not {_EXPECTED_DYNASTY_STRUCTS}: {structs}.  If a form "
+        "gained or lost the filter, update the number in the same commit "
+        "as the reason; if it did not, the struct reader has stopped "
+        "matching some and this gate is judging less than it thinks")
+
+    missing = {}
+    retired = {}
+    for struct, filename in sorted(structs.items()):
+        body = gosource.struct_body(
+            (layout.code_dir / filename).read_text(
+                encoding="utf-8", errors="replace"), struct)
+        if f'json:"{_DYNASTY_FIELD}"' not in body:
+            missing[f"{filename}:{struct}"] = "no dynastyCodes"
+        still_there = sorted(field for field in _RETIRED_DYNASTY_FIELDS
+                             if f'json:"{field}"' in body)
+        if still_there:
+            retired[f"{filename}:{struct}"] = still_there
+
+    assert not missing, (
+        f"these forms do not decode `{_DYNASTY_FIELD}`: {sorted(missing)}.  "
+        "That is the only dynasty field the shared multi-select picker's "
+        "callers send, so a dynasty chosen in the picker reaches the "
+        "handler as nothing and the filter is silently skipped.  Note "
+        "where the fix goes: a handler and its own page can be perfectly "
+        "consistent with each other and still be wrong here, because what "
+        "moved is the *picker's* call contract -- it now hands its opener "
+        "one array argument.  Adding the field to the struct alone would "
+        "not fix the page; see the page-side check in "
+        "test_page_contracts.py")
+    assert not retired, (
+        "these forms still decode the From/To dynasty vocabulary the "
+        "shared picker stopped speaking, so those fields arrive as zero "
+        f"values and the dynasty filter is silently skipped: {retired}")
 
 
 def test_use_xy_does_not_treat_the_unmapped_corner_as_a_place(

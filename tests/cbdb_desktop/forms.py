@@ -20,6 +20,7 @@ below is ever used to predict what the application should return.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 from typing import Any, Callable
 
 
@@ -86,7 +87,7 @@ class FormSpec:
 
     def filtered_body(self, codes: list[int], *, mode: str | None = None,
                       from_year: int | None = None, to_year: int | None = None,
-                      dynasty: int | None = None,
+                      dynasty: int | Sequence[int] | None = None,
                       addr_ids: list[int] | None = None,
                       subunits: bool | None = None) -> dict:
         """``body(codes)`` with one extra filter applied.
@@ -104,8 +105,15 @@ class FormSpec:
         if to_year is not None:
             body["toYear"] = to_year
         if dynasty is not None:
-            body["fromDynasty"] = dynasty
-            body["toDynasty"] = dynasty
+            # As of the 2026-09-15 build every form takes an explicit
+            # *set* of dynasty codes -- the picker became multi-select,
+            # and the handlers became a plain ``c_dy IN (...)`` -- where
+            # they used to take a From/To pair whose span the handler
+            # resolved through DYNASTIES.c_start and c_end.  One code is
+            # a one-element set, so callers asking for a single dynasty
+            # need not change; callers asking for several pass a list.
+            body["dynastyCodes"] = (
+                [dynasty] if isinstance(dynasty, int) else list(dynasty))
         if addr_ids is not None:
             body[self.addr_field] = addr_ids
         if subunits is not None:
@@ -217,8 +225,19 @@ FORMS: tuple[FormSpec, ...] = (
         export_path="/api/places/export-results",
         code_table="BIOG_ADDR_DATA",
         code_column="c_addr_id",
+        # All seven relation-type categories ticked, which is both what
+        # the page ships with and the only selection the handler will
+        # now accept as a starting point: since the 2026-09-15 build an
+        # empty selection is refused with HTTP 400 rather than silently
+        # substituting Biography.  Ticking only Biography, as this body
+        # used to, meant the switch sweep's "Biography off" position was
+        # an empty selection and got the refusal instead of a result.
         body=lambda codes: {"addrIds": codes, "includeSubUnits": False,
-                            "yearFilterType": "none", "includeBiog": True,
+                            "yearFilterType": "none",
+                            "includeBiog": True, "includeAssocPlace": True,
+                            "includeAssocPerson": True, "includeEntry": True,
+                            "includeKinship": True, "includeOffice": True,
+                            "includeInst": True,
                             "filterBac": False, "bacCodes": []},
         export_files=("PlacePeopleRecords.tsv", "PlacePeopleRecordsPeople.tsv"),
         row_has_dynasty_code=True,
