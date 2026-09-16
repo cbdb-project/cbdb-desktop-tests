@@ -581,12 +581,21 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
         "places_form_backend.go honours is whatever that literal says "
         "and nothing a user does can change it")
 
-    # And the variable has to be one the picker writes, not merely a
+    # And the variable has to be one something *writes*, not merely a
     # variable: `let filterBac = false` with no writer is the same
-    # defect spelled differently.
-    assert re.search(re.escape(value) + r"\s*=\s*[^=]", page), (
+    # defect spelled differently.  So the declaration's own initialiser
+    # does not count -- which it did in the first version of this, and
+    # would have let a build keep `filterBac: filterBac`, declare it
+    # false, delete the picker's assignment, and pass.
+    assignments = [match for match in
+                   re.finditer(r"(?:(let|const|var)\s+)?" + re.escape(value)
+                               + r"\s*=\s*[^=]", page)
+                   if not match.group(1)]
+    assert assignments, (
         f"the Places page sends `filterBac: {value}` and nothing ever "
-        f"assigns to {value}, so it is a constant with a longer name")
+        f"assigns to {value} except its own declaration, so it is a "
+        "constant with a longer name and the BAC filter is off for "
+        "every user")
 
 
 #: Routed endpoints no page calls.  Pinned exactly, from a survey of
@@ -732,22 +741,39 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
               "a user")
 
 
-#: A page's Run Query button greyed out whenever some list is empty.
-#: Both spellings the build uses -- the assignment may wrap onto the
-#: next line, which is why this is not anchored to one line.
+#: A page's Run Query button greyed out whenever some list is empty,
+#: capturing the thing whose length is tested.  Both spellings the build
+#: uses -- the assignment may wrap onto the next line.
 _RUN_QUERY_GATE = re.compile(
     r"""getElementById\(\s*['"]btnRunQuery['"]\s*\)\s*\.disabled\s*=\s*"""
-    r"""([^;]{0,120}?\.length\s*===?\s*0)""", re.DOTALL)
+    r"""([^;]{0,120}?)\.length\s*===?\s*0""", re.DOTALL)
 
 #: A handler that adds a filter only when the list is non-empty, which
 #: is how every form in this build spells "an empty selection means
 #: all of them".
 _EMPTY_MEANS_ALL = re.compile(r"if len\((?:p|q|params)\.(\w+)\) > 0 \{")
 
+#: A ``[]T`` field of a request struct, with its JSON name.
+_LIST_FIELD = re.compile(r"^\s*(\w+)\s+\[\]\w+\s+`json:\"(\w+)\"", re.MULTILINE)
+
+#: Which request struct each form decodes its query into, and which
+#: Templates directory its page lives in.  Three of the six differ from
+#: their handler's stem, which is why this is a table of three rather
+#: than a guess.
+_QUERY_STRUCTS = {
+    "associations": ("AssocQueryParams", "associations"),
+    "entry": ("EntryQueryParams", "entry"),
+    "office": ("OfficeQueryParams", "office"),
+    "places": ("PlaceQueryParams", "places"),
+    "status": ("StatusQueryParams", "status"),
+    "texts": ("TextQueryParams", "texts"),
+}
+
 #: Forms whose page greys Run Query until a code list is filled, and
-#: whose handler reads that same emptiness as "no filter".  Pinned
-#: exactly: this is a defect report, and a build that fixes one of them
-#: -- or breaks a fourth -- must fail here rather than pass quietly.
+#: whose handler reads that same list's emptiness as "no filter" --
+#: joined through the request field the page sends it as, not merely
+#: found on both sides.  Pinned exactly: this is a defect report, and a
+#: build that fixes one of them, or breaks a fourth, must fail here.
 _CANNOT_ASK_FOR_EVERYTHING = {
     "associations": "btnClearAssoc, labelled All, calls clearAssoc(), "
                     "which empties assoc-ids-json and re-greys Run Query",
@@ -756,6 +782,22 @@ _CANNOT_ASK_FOR_EVERYTHING = {
     "status": "no All button at all; selectedStatusCodes starts empty and "
               "Run Query is greyed until a status is picked",
 }
+
+
+def _sends_as(page: str, variable: str) -> set[str]:
+    """Which request fields the page builds from ``variable``.
+
+    Both spellings a payload uses: ``officeCodes: _officeCodes`` and the
+    shorthand ``assocCodes,`` -- which is how the Associations page
+    sends the very list its Run Query gate tests, so a reader that knew
+    only the first would find no connection and conclude there was none.
+    """
+    stem = variable.split(".")[-1].strip("'\") ")
+    fields = {match.group(1) for match in re.finditer(
+        r"(\w+)\s*:\s*([^,\n]*\b" + re.escape(stem) + r"\b[^,\n]*)", page)}
+    if re.search(r"^\s*" + re.escape(stem) + r"\s*,\s*$", page, re.MULTILINE):
+        fields.add(stem)
+    return fields
 
 
 def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
@@ -775,15 +817,26 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
     list and then re-greys the button that would have run it.  Pressing
     the control for "everything" disables the control for "go".
 
-    Found by sweeping rather than by testing the form somebody noticed.
-    The first version of this was one hand-written browser test for the
-    Office form; the Associations page has carried the same shape since
-    at least the 2026-09-10 build, and its own comment says it copied
-    the Office pattern deliberately.  A report that named one of three
-    would have understated it -- AGENTS.md § *A finding is not finished
-    until a test would find it again*, point 4.
+    **The join is established rather than assumed**, and that is the
+    difference between a sweep and a coincidence.  It is not enough to
+    find a page that refuses an empty list and a handler that accepts
+    one: they have to be refusing and accepting the *same* list.  So
+    the chain is followed all three steps -- the quantity the Run Query
+    gate tests, the request field the page builds from it, and the Go
+    field that request field decodes into -- and a form is reported
+    only when all three meet.  Without that, a page gated on an
+    unrelated list would be filed against a handler field it never
+    sends.
 
-    Read from the shipped source on both sides, and deliberately **not**
+    Found by sweeping rather than by testing the form somebody noticed.
+    The first version was one hand-written browser test for the Office
+    form; the Associations page has carried the same shape since at
+    least the 2026-09-10 build, and its own comment says it copied the
+    Office pattern deliberately.  A report naming one of three would
+    have understated it -- AGENTS.md § *A finding is not finished until
+    a test would find it again*, point 4.
+
+    Read from the shipped source on every side, and deliberately **not**
     driven: the request in question is a form query with no filter, and
     no form query in this build applies a ``LIMIT``.  One entry code
     returned 89 MB; the whole table would be worse.  What a browser can
@@ -791,36 +844,33 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
     ``test_ui_pages.py::test_all_offices_leaves_the_office_form_able_to
     _query`` shows it.
     """
-    accepts_empty = {}
-    for name, text in sorted(go_text.items()):
-        form = gosource.form_of(name)
-        if form == gosource.SHARED:
+    unreachable: dict[str, tuple[str, str]] = {}
+    checked = 0
+    for form, (struct, directory) in sorted(_QUERY_STRUCTS.items()):
+        source = go_text[f"{form}_form_backend.go"]
+        body = gosource.struct_body(source, struct)
+        assert body, f"{form}_form_backend.go no longer declares {struct}"
+        empty_means_all = set(_EMPTY_MEANS_ALL.findall(
+            gosource.strip_comments(source)))
+        json_of = {go: js for go, js in _LIST_FIELD.findall(body)
+                   if go in empty_means_all}
+        assert json_of, (
+            f"{struct} declares no list field the handler reads as "
+            "'all when empty', so this gate is judging a form it cannot "
+            "have understood")
+        checked += 1
+
+        page = gosource.strip_comments(page_text[directory])
+        gate = _RUN_QUERY_GATE.search(page)
+        if not gate:
             continue
-        fields = sorted(set(_EMPTY_MEANS_ALL.findall(
-            gosource.strip_comments(text))))
-        if fields:
-            accepts_empty[form] = fields
-    assert accepts_empty, (
-        "no handler in the build reads an empty list as 'all', which "
-        "cannot be right -- the reader has gone stale")
+        tested = " ".join(gate.group(1).split())
+        sent_as = _sends_as(page, tested) & set(json_of.values())
+        if sent_as:
+            unreachable[directory] = (tested, sorted(sent_as)[0])
 
-    gated = {}
-    for page, text in sorted(page_text.items()):
-        match = _RUN_QUERY_GATE.search(gosource.strip_comments(text))
-        if match:
-            gated[page] = " ".join(match.group(1).split())
-
-    # The join is the finding: a page that refuses an empty list, on a
-    # form whose handler is written to accept one.  Page directories and
-    # handler stems differ for three forms, so the name is normalised
-    # rather than assumed equal.
-    _PAGE_TO_FORM = {"association_pairs": "assocpairs",
-                     "group_data": "groupdata", "index_addr": "indexaddr"}
-    unreachable = {
-        page: (expression, accepts_empty[_PAGE_TO_FORM.get(page, page)])
-        for page, expression in gated.items()
-        if _PAGE_TO_FORM.get(page, page) in accepts_empty
-    }
+    assert checked == len(_QUERY_STRUCTS), (
+        f"only {checked} of {len(_QUERY_STRUCTS)} forms were read")
 
     assert set(unreachable) == set(_CANNOT_ASK_FOR_EVERYTHING), (
         "the set of forms whose page cannot ask for an unfiltered query "
@@ -830,13 +880,15 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
 
     if unreachable:
         raise KnownShippedDefect(
-            f"{len(unreachable)} of the six forms that accept an "
-            "unfiltered query give no way to ask for one -- the page "
-            "greys Run Query whenever the code list is empty, which is "
-            "the state the handler reads as 'every code': "
+            f"{len(unreachable)} of the {len(_QUERY_STRUCTS)} forms that "
+            "accept an unfiltered query give no way to ask for one.  Each "
+            "page greys Run Query while a list is empty, and sends that "
+            "same list as the request field its handler reads as 'every "
+            "code': "
             + "; ".join(
-                f"{page} ({expression}; {_CANNOT_ASK_FOR_EVERYTHING[page]})"
-                for page, (expression, _fields) in sorted(unreachable.items()))
+                f"{page} (gated on {tested}.length === 0, sent as "
+                f"{field}; {_CANNOT_ASK_FOR_EVERYTHING[page]})"
+                for page, (tested, field) in sorted(unreachable.items()))
             + ".  Two of them offer a button for exactly that state and "
               "it disables the one that would run it")
 
@@ -1568,17 +1620,26 @@ def _split_call_arguments(text: str, start: int) -> list[str]:
 
 
 def _picker_callbacks(all_pages: dict[str, str]) -> dict[str, tuple[str, int]]:
-    """``{callback: (picker, how many arguments it is called with)}``."""
-    found = {}
-    for name, text in all_pages.items():
+    """``{callback: (picker, the fewest arguments it is ever called with)}``.
+
+    The *fewest*, because a page must cope with every call: a picker
+    that calls its opener from two places with different argument
+    counts binds the page to the shorter one.  Keeping the last seen --
+    which a plain assignment does -- would let a second call site hide
+    behind the first.
+    """
+    found: dict[str, tuple[str, int]] = {}
+    for name, text in sorted(all_pages.items()):
         if not name.startswith("pickers/"):
             continue
+        body = _without_comments(text)
         for match in re.finditer(r"window\.opener\.([A-Za-z_$][\w$]*)\s*\(",
-                                 _without_comments(text)):
+                                 body):
             callback = match.group(1)
-            count = len(_split_call_arguments(_without_comments(text),
-                                              match.end()))
-            found[callback] = (name, count)
+            count = len(_split_call_arguments(body, match.end()))
+            previous = found.get(callback)
+            if previous is None or count < previous[1]:
+                found[callback] = (name, count)
     return found
 
 
@@ -1621,12 +1682,21 @@ def test_every_page_accepts_the_arguments_its_picker_hands_it(
     starved = {}
     for callback, (picker, passed) in sorted(callbacks.items()):
         for page, text in sorted(page_text.items()):
+            # Every way this build's pages declare a callback, and the
+            # two it does not yet use.  An arrow function and a bare
+            # parameter without parentheses are both legal and both
+            # would otherwise read as "this page does not declare it",
+            # which is the quiet direction for a gate to fail in.
             for match in re.finditer(
                     r"(?:function\s+" + re.escape(callback)
                     + r"|" + re.escape(callback)
-                    + r"\s*=\s*(?:async\s+)?function)\s*\(([^)]*)\)",
+                    + r"\s*=\s*(?:async\s+)?(?:function)?)\s*"
+                    r"(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*(?:=>|\{)",
                     _without_comments(text)):
-                declared = [p for p in match.group(1).split(",") if p.strip()]
+                inside = match.group(1)
+                if inside is None:
+                    inside = match.group(2) or ""
+                declared = [p for p in inside.split(",") if p.strip()]
                 if len(declared) > passed:
                     starved[f"{page}.{callback}"] = (
                         f"declares {len(declared)} "
