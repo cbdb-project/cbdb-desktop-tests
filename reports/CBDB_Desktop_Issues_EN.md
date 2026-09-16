@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260915_2.7z_
 
-_Generated 2026-09-16 02:45 UTC from a run of 1382 tests (427s)._
+_Generated 2026-09-16 02:56 UTC from a run of 1382 tests (429s)._
 
 Dear maintainer,
 
@@ -18,19 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1182 |
-| failed | 16 |
+| passed | 1184 |
+| failed | 14 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 181 |
 
-Of the 16 failures, **14** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **2** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
-
-**2** of them are this suite's own business rather than defects in the distribution: something the interface offers that we have not yet driven, or a piece of our own bookkeeping that has slipped.  Ours to close, not yours.
-
-| Check | What it reported about us |
-| --- | --- |
-| `test_the_committed_report_still_says_what_the_registry_says` | 7 findings are filed in the registry but reports/CBDB_Desktop_Issues_EN.md is not in the tree. The report is the deliverable of a round, not an optional by-product. Write it: python reports\generate |
-| `test_the_committed_report_still_says_what_the_registry_says` | 7 findings are filed in the registry but reports/CBDB_Desktop_Issues_ZH-Hant.md is not in the tree. The report is the deliverable of a round, not an optional by-product. Write it: python reports\gen |
+Every one of the 14 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
