@@ -734,6 +734,102 @@ def test_each_place_category_contributes_its_own_part_of_the_whole(
         f"{len(categories)} switches and saying so is the point")
 
 
+def test_the_biog_address_type_filter_keeps_only_the_types_it_was_given(
+        app: CbdbApp, matrix):
+    """The Places form's new biographical-address-type filter.
+
+    New in the 2026-09-15 build, with its own picker: the Biography
+    branch can be narrowed to chosen ``BIOG_ADDR_CODES`` types --
+    *Basic Affiliation*, *Actual Residence*, and twenty more -- and
+    every row that branch returns carries the type it matched, as
+    ``relCode``.  So this needs no oracle outside the response.
+
+    Four properties, and the last is the one a naive ``IN`` gets wrong:
+
+    * every row carries a type that was asked for;
+    * narrowing never adds -- the filtered answer is inside the
+      unfiltered one;
+    * ``filterBac: false`` ignores the codes entirely, because the flag
+      is what turns the clause on and a page that sent codes without it
+      must change nothing;
+    * asking for two types returns exactly the two single answers added
+      together.  A row has one ``c_addr_type``, so the two are
+      disjoint; the equality is false when the filter is ignored, when
+      only the first code binds, and when the list is ANDed.
+
+    The types are read out of the unfiltered answer -- the
+    application's own account of what this address holds -- and
+    confirmed one at a time, so neither is a guess and neither can be
+    empty.
+    """
+    form = FORMS_BY_NAME["places"]
+    codes = _discovered_codes(matrix, "places")[-1:]
+    assert codes, "discovery found no address codes"
+
+    def ask(**extra) -> list[dict]:
+        body = dict(form.body(codes), includeBiog=True,
+                    includeAssocPlace=False, includeAssocPerson=False,
+                    includeEntry=False, includeKinship=False,
+                    includeOffice=False, includeInst=False, **extra)
+        return _query(app, form, body)
+
+    unfiltered = ask()
+    assert unfiltered, (
+        f"places code {codes} returns no biographical addresses, so the "
+        "type filter cannot be judged on this input")
+
+    present = Counter(row["relCode"] for row in unfiltered)
+    ranked = [code for code, _n in present.most_common() if code]
+    if not ranked:
+        pytest.skip(
+            f"every biographical address for places code {codes} has "
+            "address type 0, so there is no type to filter on")
+    first = ranked[0]
+
+    only_first = _pairs(form, ask(filterBac=True, bacCodes=[first]))
+    assert only_first, (
+        f"address type {first} is in the unfiltered answer for places "
+        f"code {codes} and asking for it alone returns nothing")
+
+    # 1. every row is of a type that was asked for
+    wrong = {row["relCode"] for row in ask(filterBac=True, bacCodes=[first])
+             } - {first}
+    assert not wrong, (
+        f"asking for biographical address type {first} returned rows of "
+        f"{sorted(wrong)} as well")
+
+    # 2. narrowing never adds
+    escaped = only_first - _pairs(form, unfiltered)
+    assert not escaped, (
+        f"filtering to address type {first} returned "
+        f"{sum(escaped.values())} row(s) the unfiltered query does not "
+        f"have: {sorted(escaped)[:5]}")
+
+    # 3. the flag is what turns the clause on
+    ignored = _pairs(form, ask(filterBac=False, bacCodes=[first]))
+    assert ignored == _pairs(form, unfiltered), (
+        f"sending bacCodes with filterBac false changed the answer "
+        f"({sum(ignored.values())} rows against "
+        f"{len(unfiltered)}).  The flag is what selects the clause, so "
+        "the codes alone must do nothing -- otherwise a page that "
+        "remembered a stale selection would filter without being asked")
+
+    # 4. two types are exactly the two single answers
+    if len(ranked) < 2:
+        return
+    second = ranked[1]
+    only_second = _pairs(form, ask(filterBac=True, bacCodes=[second]))
+    together = _pairs(form, ask(filterBac=True, bacCodes=[first, second]))
+    assert together == only_first + only_second, (
+        f"asking for biographical address types {first} and {second} "
+        f"together returned {sum(together.values())} rows, and the two "
+        f"alone return {sum(only_first.values())} and "
+        f"{sum(only_second.values())}.  A biographical address has one "
+        "type, so the two answers are disjoint and the pair is their "
+        "sum: more means the selection was widened, fewer means a code "
+        "was dropped")
+
+
 @pytest.mark.parametrize("toggle", [pytest.param(t, id=t.id) for t in TOGGLES])
 def test_a_switch_changes_the_result_in_the_direction_it_claims(
         app: CbdbApp, toggle: Toggle, matrix, sqlite_conn):

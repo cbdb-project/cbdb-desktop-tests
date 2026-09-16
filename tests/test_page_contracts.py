@@ -144,18 +144,6 @@ _ASSOCPAIRS_EXPORTS = {
     "export-neo4j":   {},
 }
 
-#: The exports that answer in the shape the page reads.  Naming them is
-#: what makes this test an agreement check between endpoints of one form
-#: rather than a rule this suite invented: same file, and two of the four
-#: already do it.
-#:
-#: Only ``export-neo4j`` is parametrised above, and so only it is driven
-#: as a control.  ``export-results`` takes no request body at all -- it
-#: reads the form's scratch tables -- so reaching it needs a query to have
-#: run first, which is a different test's setup and is where it is
-#: covered.  It is named here rather than silently omitted, because the
-#: count in the docstring below rests on it.
-_ANSWERS_IN_THE_PAGES_SHAPE = frozenset({"export-neo4j", "export-results"})
 
 
 def _assocpairs_person(person_id: int) -> dict:
@@ -172,7 +160,7 @@ def _assocpairs_person(person_id: int) -> dict:
 @pytest.mark.parametrize("endpoint", sorted(_ASSOCPAIRS_EXPORTS))
 def test_an_assocpairs_export_answers_in_the_envelope_its_page_reads(
         app: CbdbApp, endpoint: str):
-    """Four export buttons, one reply shape, and two handlers that use it.
+    """Four export buttons, one reply shape, and every handler using it.
 
     ``exportGIS``, ``exportSNA`` and ``exportNeo4j`` in the page share a
     recipe: post, ``if (!resp.ok) throw``, then
@@ -181,17 +169,21 @@ def test_an_assocpairs_export_answers_in_the_envelope_its_page_reads(
         if (j.status !== 'ok') throw new Error(j.status || 'Unknown error');
         (j.files || []).forEach(f => triggerDownload(f.url, f.name));
 
-    ``handleExportNeo4j`` and ``handleExportResults`` encode
-    ``{"status": "ok", "files": [...]}``, which that recipe reads.
-    ``handleExportGIS`` and ``handleExportSNA`` encode ``{"url": ...,
-    "name": ...}`` instead.  ``undefined !== 'ok'`` is true, so the page
-    throws ``Error(undefined || 'Unknown error')`` and shows *"GIS export
-    error: Unknown error"* -- on a 200 whose body holds the finished
-    file, correctly built, base64 in hand.
+    Until the 2026-09-15 build, ``handleExportGIS`` and
+    ``handleExportSNA`` encoded ``{"url": ..., "name": ...}`` instead.
+    ``undefined !== 'ok'`` is true, so the page threw
+    ``Error(undefined || 'Unknown error')`` and showed *"GIS export
+    error: Unknown error"* -- on a 200 whose body held the finished
+    file, correctly built, base64 in hand.  Four buttons the user could
+    not use, failing in neither half on its own, which is why no
+    handler test and no page test found it.
 
-    That is four buttons the user cannot use: GIS, and the three SNA
-    formats behind ``export-sna``.  The failure is not in either half on
-    its own, which is why no handler test and no page test finds it.
+    All four answer ``{"status": "ok", "files": [...]}`` now, and this
+    is the regression test.  It is still driven per endpoint rather than
+    collapsed into one assertion, because what makes it a defect rather
+    than a convention this suite invented is that the *same file*
+    disagreed with itself -- and that only shows when each is asked
+    separately.
     """
     body = dict(_ASSOCPAIRS_EXPORTS[endpoint])
     body["people"] = [_assocpairs_person(SUBJECT)]
@@ -203,23 +195,15 @@ def test_an_assocpairs_export_answers_in_the_envelope_its_page_reads(
         f"HTTP {response.status_code} {response.text[:200]}")
 
     payload = response.json()
-    understood = payload.get("status") == "ok"
-
-    if endpoint in _ANSWERS_IN_THE_PAGES_SHAPE:
-        assert understood, (
-            f"{endpoint} was the control for this test and no longer "
-            f"answers as the page reads it: keys {sorted(payload)}")
-        return
-
-    if not understood:
-        raise KnownShippedDefect(
-            f"/api/assocpairs/{endpoint} built the export and answered "
-            f"with keys {sorted(payload)}; its page throws unless the "
-            "reply carries status=='ok', so it reports 'Unknown error' "
-            "and downloads nothing.  Two exports of the same form "
-            "(export-neo4j, export-results) answer in the shape the page "
-            "reads, so this is a disagreement inside one file rather "
-            "than a convention this suite is imposing")
+    assert payload.get("status") == "ok", (
+        f"/api/assocpairs/{endpoint} built the export and answered with "
+        f"keys {sorted(payload)}; its page throws unless the reply "
+        "carries status=='ok', so it would report 'Unknown error' and "
+        "download nothing, on a 200 holding the finished file")
+    assert payload.get("files"), (
+        f"/api/assocpairs/{endpoint} answered status ok and no files; "
+        "the page iterates j.files, so the user is told it succeeded "
+        f"and gets nothing: {sorted(payload)}")
 
 
 # ===========================================================================
@@ -556,51 +540,53 @@ def test_a_kml_the_handler_can_write_is_a_kml_the_page_can_ask_for(
 
 def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
         go_text: dict[str, str], page_text: dict[str, str]):
-    """``filterBac`` is a place filter that is hard-wired off.
+    """``filterBac`` was hard-wired off.  Now a picker sets it.
 
-    ``PlaceQueryParams`` declares ``FilterBAC bool `json:"filterBac"``,
-    and the handler acts on it.  The page sends it, so the field is not
-    dead in the sense the test above checks -- but it sends a literal:
+    ``PlaceQueryParams`` declares ``FilterBAC bool `json:"filterBac"```
+    and the handler acts on it, restricting the Biography branch to the
+    chosen ``BIOG_ADDR_CODES`` types.  Until the 2026-09-15 build the
+    page sent a literal --
 
         filterBac:          false,   // set to true and populate bacCodes when
 
-    There is no control anywhere on the page that writes to it, and the
-    comment beside it is an instruction to a future developer rather
-    than a feature.  A user cannot reach the filter, which makes the
-    difference from the Networks case worth stating: there the value is
-    live and the handler ignores it; here the handler honours it and the
-    value can never be anything but ``false``.
+    -- with no control anywhere that wrote to it, so the filter could
+    never be switched on by any user.  That build added
+    ``bac_picker.html`` and the *Select Biog Addr Types* button, and the
+    page now sends the variable the picker's callback fills.
+
+    This is the regression test, and it asserts the *value*, not the
+    key: a page that reverted to ``filterBac: false`` would go on
+    sending the field, and a check that only looked for the field would
+    go on passing.
+
+    Comments are stripped first, and that is not housekeeping.  The page
+    carries a comment reading ``down to filterBac: false, codes: []``,
+    which the previous version of this test matched as the literal it
+    was looking for -- so it drew its conclusion from a sentence about
+    the code rather than from the code.
     """
-    page = page_text["places"]
-    literal = re.search(r"filterBac\s*:\s*(?P<value>true|false)\s*,", page)
-    assert literal, (
-        "the Places page no longer sends filterBac as a literal; if a "
-        "control now sets it, delete this test")
+    page = _without_comments(page_text["places"])
 
     reads_it = re.search(r"\bFilterBAC\b", go_text["places_form_backend.go"])
     assert reads_it, "places_form_backend.go no longer declares FilterBAC"
 
-    # Every place the page writes filterBac, and every element whose id
-    # looks like a BAC control.  Capturing the value and testing it is
-    # what this needs: a lookahead written after ``\s*`` can backtrack
-    # onto the whitespace and "succeed" against the very literal it was
-    # meant to exclude, which is how the first version of this test
-    # passed on a build that has the defect.
-    written = re.findall(r"filterBac\s*[:=]\s*(\S+?)\s*[,;)]", page)
-    settable = [v for v in written if v not in ("true", "false")]
-    # Anchored on the two names the build actually uses -- `bacCodes`,
-    # the companion field the page's own comment says to populate, and
-    # `filterBac` itself.  `[Bb]ac` as a substring matched "back" and
-    # "background" too, so a single getElementById('btn-back') would have
-    # made this pass on a build that still has the defect.
-    settable += re.findall(r"getElementById\([^)]*\b(?:bacCodes|filterBac)\b",
-                           page, re.IGNORECASE)
-    if not settable:
-        raise KnownShippedDefect(
-            f"the Places page hard-codes filterBac: {literal.group('value')} "
-            "and offers no control that can change it, so the BAC filter "
-            "PlaceQueryParams declares and places_form_backend.go honours "
-            "cannot be switched on by any user of the page")
+    sent = re.search(r"filterBac\s*:\s*([^,\n]+)", page)
+    assert sent, (
+        "the Places page no longer sends filterBac at all, so the BAC "
+        "filter the handler honours cannot be switched on")
+    value = sent.group(1).strip()
+    assert value not in ("true", "false"), (
+        f"the Places page sends a literal `filterBac: {value}`, so the "
+        "BAC filter PlaceQueryParams declares and "
+        "places_form_backend.go honours is whatever that literal says "
+        "and nothing a user does can change it")
+
+    # And the variable has to be one the picker writes, not merely a
+    # variable: `let filterBac = false` with no writer is the same
+    # defect spelled differently.
+    assert re.search(re.escape(value) + r"\s*=\s*[^=]", page), (
+        f"the Places page sends `filterBac: {value}` and nothing ever "
+        f"assigns to {value}, so it is a constant with a longer name")
 
 
 #: Routed endpoints no page calls.  Pinned exactly, from a survey of
@@ -746,6 +732,115 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
               "a user")
 
 
+#: A page's Run Query button greyed out whenever some list is empty.
+#: Both spellings the build uses -- the assignment may wrap onto the
+#: next line, which is why this is not anchored to one line.
+_RUN_QUERY_GATE = re.compile(
+    r"""getElementById\(\s*['"]btnRunQuery['"]\s*\)\s*\.disabled\s*=\s*"""
+    r"""([^;]{0,120}?\.length\s*===?\s*0)""", re.DOTALL)
+
+#: A handler that adds a filter only when the list is non-empty, which
+#: is how every form in this build spells "an empty selection means
+#: all of them".
+_EMPTY_MEANS_ALL = re.compile(r"if len\((?:p|q|params)\.(\w+)\) > 0 \{")
+
+#: Forms whose page greys Run Query until a code list is filled, and
+#: whose handler reads that same emptiness as "no filter".  Pinned
+#: exactly: this is a defect report, and a build that fixes one of them
+#: -- or breaks a fourth -- must fail here rather than pass quietly.
+_CANNOT_ASK_FOR_EVERYTHING = {
+    "associations": "btnClearAssoc, labelled All, calls clearAssoc(), "
+                    "which empties assoc-ids-json and re-greys Run Query",
+    "office": "btn-all-offices, labelled All Offices, calls clearOffice(), "
+              "which empties _officeCodes and re-greys Run Query",
+    "status": "no All button at all; selectedStatusCodes starts empty and "
+              "Run Query is greyed until a status is picked",
+}
+
+
+def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
+        go_text: dict[str, str], page_text: dict[str, str]):
+    """Every form whose handler means "all" by an empty list -- can a user send one?
+
+    Six of these forms are written to accept an empty primary code list
+    and treat it as *every* code: ``if len(p.OfficeCodes) > 0`` is the
+    only thing that adds the filter, and the Office page's own variable
+    says so -- ``let _officeCodes = [];   // [] = all offices``.  That
+    is a real capability, and on three forms no user can reach it,
+    because the page greys Run Query whenever the list is empty.
+
+    Two of the three make it worse by offering the button for it.
+    *All Offices* and *All* (Associations) exist to put the form into
+    exactly that state, and both call a clear function that empties the
+    list and then re-greys the button that would have run it.  Pressing
+    the control for "everything" disables the control for "go".
+
+    Found by sweeping rather than by testing the form somebody noticed.
+    The first version of this was one hand-written browser test for the
+    Office form; the Associations page has carried the same shape since
+    at least the 2026-09-10 build, and its own comment says it copied
+    the Office pattern deliberately.  A report that named one of three
+    would have understated it -- AGENTS.md § *A finding is not finished
+    until a test would find it again*, point 4.
+
+    Read from the shipped source on both sides, and deliberately **not**
+    driven: the request in question is a form query with no filter, and
+    no form query in this build applies a ``LIMIT``.  One entry code
+    returned 89 MB; the whole table would be worse.  What a browser can
+    show cheaply is the Office sequence, and
+    ``test_ui_pages.py::test_all_offices_leaves_the_office_form_able_to
+    _query`` shows it.
+    """
+    accepts_empty = {}
+    for name, text in sorted(go_text.items()):
+        form = gosource.form_of(name)
+        if form == gosource.SHARED:
+            continue
+        fields = sorted(set(_EMPTY_MEANS_ALL.findall(
+            gosource.strip_comments(text))))
+        if fields:
+            accepts_empty[form] = fields
+    assert accepts_empty, (
+        "no handler in the build reads an empty list as 'all', which "
+        "cannot be right -- the reader has gone stale")
+
+    gated = {}
+    for page, text in sorted(page_text.items()):
+        match = _RUN_QUERY_GATE.search(gosource.strip_comments(text))
+        if match:
+            gated[page] = " ".join(match.group(1).split())
+
+    # The join is the finding: a page that refuses an empty list, on a
+    # form whose handler is written to accept one.  Page directories and
+    # handler stems differ for three forms, so the name is normalised
+    # rather than assumed equal.
+    _PAGE_TO_FORM = {"association_pairs": "assocpairs",
+                     "group_data": "groupdata", "index_addr": "indexaddr"}
+    unreachable = {
+        page: (expression, accepts_empty[_PAGE_TO_FORM.get(page, page)])
+        for page, expression in gated.items()
+        if _PAGE_TO_FORM.get(page, page) in accepts_empty
+    }
+
+    assert set(unreachable) == set(_CANNOT_ASK_FOR_EVERYTHING), (
+        "the set of forms whose page cannot ask for an unfiltered query "
+        f"changed: found {sorted(unreachable)}, recorded "
+        f"{sorted(_CANNOT_ASK_FOR_EVERYTHING)}.  If one was fixed, delete "
+        "its row; if one is new, read it before adding one")
+
+    if unreachable:
+        raise KnownShippedDefect(
+            f"{len(unreachable)} of the six forms that accept an "
+            "unfiltered query give no way to ask for one -- the page "
+            "greys Run Query whenever the code list is empty, which is "
+            "the state the handler reads as 'every code': "
+            + "; ".join(
+                f"{page} ({expression}; {_CANNOT_ASK_FOR_EVERYTHING[page]})"
+                for page, (expression, _fields) in sorted(unreachable.items()))
+            + ".  Two of them offer a button for exactly that state and "
+              "it disables the one that would run it")
+
+
 # ===========================================================================
 # 4. the answer that is quietly partial
 # ===========================================================================
@@ -785,12 +880,20 @@ def test_no_handler_scans_a_text_column_into_a_number(
     do not exist yet.  The endpoint test it replaces could only ever ask
     the one endpoint.
 
-    The tell is the numeric default in the ``COALESCE`` -- ``COALESCE(
-    c_admin_type, 0)`` -- which is how both offenders were written and
-    is only ever written for a value about to be read as a number.
+    The tell is a **numeric default** supplied for the column --
+    ``COALESCE(c_admin_type, 0)``, or the same thing spelled
+    ``IFNULL`` -- plus an explicit numeric ``CAST``.  A default is only
+    ever chosen to match the type the value is about to be read as, so
+    a number there is the scan declaring itself.  Both offenders were
+    written the first way.
 
-    Scoped honestly: a scan of the bare column, with no ``COALESCE`` at
-    all, is not seen.  The obvious second tell -- a Go field named
+    Tested for a numeric *literal* rather than for "not an empty
+    string": ``COALESCE(c_admin_type, 'unknown')`` and
+    ``COALESCE(a.c_admin_type, b.c_admin_type)`` are both correct code,
+    and the looser rule called both of them defects.
+
+    Scoped honestly: a scan of the bare column, with no default at all,
+    is not seen.  The obvious further tell -- a Go field named
     ``AdminType`` declared ``int`` -- was tried and withdrawn, because
     ``associations_form_backend.go`` has one that reads
     ``BIOG_ADDR_CODES.c_addr_type``, a genuine smallint primary key.
@@ -820,11 +923,17 @@ def test_no_handler_scans_a_text_column_into_a_number(
             # `COALESCE(c_admin_type, 0)` -- a numeric default is only
             # ever written for a value about to be read as a number.
             for match in re.finditer(
-                    r"COALESCE\(\s*(?:\w+\.)?" + re.escape(column)
-                    + r"\s*,\s*([^)\s]+)\s*\)", body):
-                if match.group(1) not in ("''", '""'):
+                    r"(COALESCE|IFNULL)\(\s*(?:\w+\.)?" + re.escape(column)
+                    + r"\s*,\s*([^)\s]+)\s*\)", body, re.IGNORECASE):
+                if re.match(r"-?\d", match.group(2)):
                     offenders.setdefault(name, []).append(
-                        f"COALESCE({column}, {match.group(1)})")
+                        f"{match.group(1)}({column}, {match.group(2)})")
+            for _cast in re.finditer(
+                    r"CAST\(\s*(?:\w+\.)?" + re.escape(column)
+                    + r"\s+AS\s+(INT\w*|REAL|NUMERIC|DECIMAL)", body,
+                    re.IGNORECASE):
+                offenders.setdefault(name, []).append(
+                    f"CAST({column} AS {_cast.group(1)})")
     assert not offenders, (
         "a handler reads a text column as a number: "
         + "; ".join(f"{name}: {found}" for name, found in offenders.items())
@@ -878,18 +987,20 @@ def test_a_query_that_keeps_only_some_rows_says_which_ones(
         go_text: dict[str, str]):
     """``LIMIT`` without ``ORDER BY``, surveyed and classified.
 
-    This build has three, and one of them is arbitrary.
-    ``handleRecallIDs`` answers *GET /api/assocpairs/recall-ids* with
+    This build has two, and both are keyed -- a lookup whose predicate
+    already selects the single intended row, with the ``LIMIT`` as
+    belt and braces.  Neither is a defect, and the survey is what
+    establishes that rather than a reading of the two it happens to
+    find.
 
-        SELECT s.c_personid, ... FROM ZZ_STORE_PERSON_ID s
-        LEFT JOIN BIOG_MAIN bm ON ... LIMIT 2
-
-    ``ZZ_STORE_PERSON_ID`` is the form's stored-person list, and the
-    Association Pairs page recalls two people from it into the two ends
-    of the pair.  Which two is left to the query plan.  A user who stored
-    five people and pressed Recall gets a pair the application chose and
-    did not name -- and pressing it again is not guaranteed to give the
-    same one.
+    The third was arbitrary and is fixed.  ``handleRecallIDs`` answered
+    *GET /api/assocpairs/recall-ids* with a bare ``LIMIT 2`` over
+    ``ZZ_STORE_PERSON_ID``, the form's stored-person list, from which
+    the Association Pairs page recalls two people into the two ends of
+    the pair -- so which two was left to the query plan, and a user who
+    had stored five got a pair the application chose and did not name.
+    It reads ``ORDER BY s.rowid`` now, which is the two that were
+    stored first.
     """
     unordered = {}
     for name, text in go_text.items():
@@ -1130,7 +1241,7 @@ def test_the_function_body_reader_stops_at_the_function(layout: AppLayout):
 
 def test_select_all_filtered_selects_every_address_the_filter_matched(
         layout: AppLayout):
-    """The button selects what is *rendered*, and 100 rows are rendered.
+    """The button must select what the filter matched, not what is drawn.
 
     ``Templates/pickers/address_picker.html`` keeps three lists: the full
     table, ``filteredAddresses`` (*"full match set (all rows matching the
@@ -1138,19 +1249,24 @@ def test_select_all_filtered_selects_every_address_the_filter_matched(
     ``filteredAddresses.slice(0, MAX_RENDER)`` with ``MAX_RENDER = 100``.
     Only the rendered slice becomes ``<option>`` elements.
 
-    ``selectAllFiltered()`` then walks ``sel.options``, and ``sendResult``
-    walks ``sel.options`` again to build what it hands back -- so on a
-    filter matching more than a hundred addresses the button returns the
-    first hundred, and returns them with
+    Until the 2026-09-15 build ``sendResult`` built its answer by walking
+    ``sel.options``, so on a filter matching more than a hundred
+    addresses the button returned the first hundred -- and returned them
+    with
 
         isSelectAllFiltered: true, filterPY: ..., filterChn: ...
 
     which every host page reads as *"the user chose the whole filter"*
-    and displays as the filter text.  The truncation is invisible in the
-    result: the query runs on a hundred addresses while the page says it
-    ran on the filter.  The status bar does say *"Showing first 100 of
-    N"*, but the button is not disabled in that state and its own comment
-    says it *"selects every visible (filtered) item"*.
+    and displays as the filter text.  The truncation was invisible in
+    the result: the query ran on a hundred addresses while the page said
+    it ran on the filter.
+
+    ``sendResult`` now takes ``filteredAddresses.slice()`` on that path,
+    and this is the regression test.  The waiver that tolerated the old
+    behaviour is retired -- it XPASSed, which is what a waiver outliving
+    its defect is designed to do.  The truncation prompt it rested on is
+    still asserted below, because it is still what tells a user the
+    *list* they are looking at is not the whole match set.
     """
     picker = (layout.templates_dir / "pickers" / "address_picker.html")
     text = picker.read_text(encoding="utf-8", errors="replace")
@@ -1381,3 +1497,145 @@ def test_every_link_the_navigation_offers_resolves(app: CbdbApp, layout: AppLayo
             + ".  Static/ ships cbdb_styles.css and nothing else, so the "
               "Users Guide the front page offers is not in the "
               "distribution")
+
+
+# ===========================================================================
+# 5. the picker and the page that opened it
+# ===========================================================================
+#
+# A picker is a popup that hands its result back by calling a function on
+# ``window.opener``.  Nine of them ship, every form page opens two or
+# three, and the contract between them is a positional argument list
+# written in two files that nothing links.  Change the picker and the
+# pages go on compiling, go on loading, and go on reporting success --
+# the argument the page expected is simply ``undefined``, and every
+# value read off it is ``undefined`` too.
+#
+# That is not hypothetical: it is how this build's Association Pairs
+# dynasty filter came to be inert.
+
+#: How many arguments a picker may pass that its opener ignores without
+#: anything being wrong.  Zero would be wrong: JavaScript discards extra
+#: arguments silently and by design, and several of these pickers pass a
+#: single object where a page destructures nothing.  What is never
+#: harmless is the other direction.
+_EXPECTED_PICKER_CALLBACKS = 9
+
+
+def _split_call_arguments(text: str, start: int) -> list[str]:
+    """The arguments of a call whose ``(`` ends at ``start``.
+
+    Counting commas is not enough and the difference matters here:
+    ``callback({ codes, desc, descChn })`` is *one* argument, and read
+    as three it makes four correct pages look like the broken one.
+    Nesting and string literals are tracked for that reason.
+    """
+    depth = {"(": 0, "[": 0, "{": 0}
+    closes = {")": "(", "]": "[", "}": "{"}
+    args: list[str] = []
+    current: list[str] = []
+    quote = None
+    index = start
+    while index < len(text):
+        char = text[index]
+        if quote:
+            current.append(char)
+            if char == "\\":
+                index += 1
+                if index < len(text):
+                    current.append(text[index])
+            elif char == quote:
+                quote = None
+        elif char in "'\"`":
+            quote = char
+            current.append(char)
+        elif char in "([{":
+            depth[char] += 1
+            current.append(char)
+        elif char in ")]}":
+            if char == ")" and depth["("] == 0:
+                args.append("".join(current))
+                break
+            depth[closes[char]] -= 1
+            current.append(char)
+        elif char == "," and not any(depth.values()):
+            args.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    return [arg.strip() for arg in args if arg.strip()]
+
+
+def _picker_callbacks(all_pages: dict[str, str]) -> dict[str, tuple[str, int]]:
+    """``{callback: (picker, how many arguments it is called with)}``."""
+    found = {}
+    for name, text in all_pages.items():
+        if not name.startswith("pickers/"):
+            continue
+        for match in re.finditer(r"window\.opener\.([A-Za-z_$][\w$]*)\s*\(",
+                                 _without_comments(text)):
+            callback = match.group(1)
+            count = len(_split_call_arguments(_without_comments(text),
+                                              match.end()))
+            found[callback] = (name, count)
+    return found
+
+
+def test_every_page_accepts_the_arguments_its_picker_hands_it(
+        all_pages: dict[str, str], page_text: dict[str, str]):
+    """A picker's call, against the function each page declares for it.
+
+    The rule is one-directional, and the direction is what makes it
+    right.  A picker that passes *more* than a page declares is
+    harmless: JavaScript discards the extra silently, and four of these
+    pickers pass a single object that their openers accept as one
+    parameter.  A page that declares *more* than it is passed is never
+    harmless -- the surplus parameter is ``undefined`` on every call,
+    and a page that reads a property off it gets ``undefined`` back
+    with no error anywhere.
+
+    That is exactly what this build ships.  ``dynasty_picker.html``
+    became multi-select and now calls
+    ``handleDynastySelection(records)`` with one array; seven pages
+    were rewritten to match and Association Pairs was not, so it still
+    declares ``handleDynastySelection(dynasty, type)``, assigns the
+    array whole to ``selectedFromDynasty``, and reads ``.code`` off it
+    -- ``undefined``, which ``JSON.stringify`` then drops from the
+    request.  The user picks a dynasty, the From and To boxes stay
+    blank, and the query runs unfiltered.
+
+    Read from the shipped pages as data, both sides, so this generalises
+    past the one instance: it is the check that would have caught the
+    migration stopping one page short, and it is the check that will
+    catch the next picker whose signature moves.
+    """
+    callbacks = _picker_callbacks(all_pages)
+    assert len(callbacks) == _EXPECTED_PICKER_CALLBACKS, (
+        f"{len(callbacks)} picker callbacks were read out of the shipped "
+        f"pickers, not {_EXPECTED_PICKER_CALLBACKS}: {sorted(callbacks)}.  "
+        "If the build gained or lost a picker, update the number in the "
+        "same commit as the reason; if it did not, the reader has stopped "
+        "matching some and this gate is judging fewer than it reports")
+
+    starved = {}
+    for callback, (picker, passed) in sorted(callbacks.items()):
+        for page, text in sorted(page_text.items()):
+            for match in re.finditer(
+                    r"(?:function\s+" + re.escape(callback)
+                    + r"|" + re.escape(callback)
+                    + r"\s*=\s*(?:async\s+)?function)\s*\(([^)]*)\)",
+                    _without_comments(text)):
+                declared = [p for p in match.group(1).split(",") if p.strip()]
+                if len(declared) > passed:
+                    starved[f"{page}.{callback}"] = (
+                        f"declares {len(declared)} "
+                        f"({', '.join(p.strip() for p in declared)}) and "
+                        f"{picker} passes {passed}")
+
+    assert not starved, (
+        "these pages declare a picker callback with more parameters than "
+        "the picker passes, so the surplus is undefined on every call and "
+        f"whatever the page reads off it is undefined too: {starved}.  "
+        "Nothing throws: the popup closes, the page updates nothing a "
+        "user can see, and the value never reaches the request")
