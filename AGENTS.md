@@ -41,9 +41,9 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1429 tests collected against
-`CBDB-Desktop_20260910.7z`, and the defect registry holds this round's
-findings.**  It was cleared on 2026-09-11, together with the previous
+**Current state: 1382 tests collected against
+`CBDB-Desktop_20260915_2.7z`, and the defect registry holds this round's
+findings.**  It was cleared on 2026-09-15, together with the previous
 round's reports and every run artefact, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
@@ -72,16 +72,15 @@ tolerated*. A failure is either something to fix, something to file, or
 something to agree to leave alone in the waiver table; it is never
 something the suite quietly expects.
 
-Of those tests, 418 are generated from the shipped data
+Of those tests, 420 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep) and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; last measured, on the 2026-09-08
-build, **105 of 105** endpoints reachable from the user interface were
-actually requested, with nothing excused.  The denominator has since
-moved with the build -- `EXPECTED_REACHABLE_ENDPOINTS` is 106 on
-20260910 -- so read the artefact rather than this paragraph for the
-current run.
+`artifacts/endpoint_coverage.json`; on the 2026-09-15_2 build,
+**107 of 107** endpoints reachable from the user interface were
+actually requested, with nothing excused.  The denominator moves with
+the build -- it was 105 on 20260908 and 106 on 20260910 -- so read the
+artefact rather than this paragraph for the current run.
 
 That number was not always earned.  It read 105 of 105 for a while
 because the denominator was built from what the suite happened to
@@ -94,9 +93,16 @@ travels from one form to another.  Read that file before adding to it:
 the endpoints are individually trivial and collectively are the
 feature, which is why driving them one at a time proves almost
 nothing.
-Enable-state coverage is the honest counterpart: 16 of the 109 controls
-that ship `disabled` have a declared precondition, and the other 93 are
-pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
+Enable-state coverage is the honest counterpart: 17 controls have a
+declared precondition across six `PRECONDITIONS` entries, and the other
+94 are pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
+Beside it sits the coverage number that says what a dead page costs:
+`test_every_button_is_wired_to_a_function_that_exists` checks, for each
+of the 205 buttons wired with an inline `onclick`, that the function it
+names exists once the page has loaded.  The 41 wired with
+`addEventListener` cannot be asked that way -- such a function need
+never be global -- and the split is pinned so a build that moved them
+would fail rather than quietly shrink the check.
 
 New here?  `README.md` has the three-line setup (install, copy
 `.env.example` to `.env`, point `CBDB_DESKTOP_ZIP` at the distribution
@@ -406,17 +412,46 @@ as the maintainer's own reports rather than as a test failure. The
 `cbdb_desktop/browser.py` drives the shipped pages in a real Chromium
 through Playwright and reports three things a page cannot hide: what it
 logged, what it downloaded, and which of its controls are disabled.
-`test_ui_pages.py` uses it for the two questions nothing else can ask:
+`test_ui_pages.py` uses it for the three questions nothing else can ask:
 
 1. **Does every page load without throwing?** A page that raises while
    attaching its handlers leaves every control inert — and every HTTP
-   test still passes. Thirteen page loads, and the page list is read
-   out of the routing table.
+   test still passes. The page list is read out of the routing table
+   and pinned exactly, because a floor survives a build that stops
+   serving four pages.
 2. **Is every control that ships disabled enabled by its
-   precondition?** 109 controls ship `disabled`. `PRECONDITIONS`
-   declares what a user does and what that must un-grey;
-   `UNDECLARED` pins the rest, may only shrink, and is the honest count
-   of what this file does *not* check.
+   precondition?** `PRECONDITIONS` declares what a user does and what
+   that must un-grey; `UNDECLARED` pins the rest, may only shrink, and
+   is the honest count of what this file does *not* check.
+3. **Does every button's handler exist once the page has loaded?**
+   Driven from `controls.inventory`, so it needs no list of its own.
+   This is the question that says what the first one *costs*: "the page
+   logged an error" and "0 of 37 of this page's functions reach
+   `window`" are the same fact, and only the second is a bug report.
+   Only the inline-`onclick` buttons can be asked — a listener's
+   function need never be global — so the split is pinned.
+
+**A page that loads and does nothing is a whole failure mode**, and it
+is worth stating separately because every instinct here points the
+wrong way. The server is fine. The HTML is fine. Every HTTP test
+passes. The user sees a complete form and presses buttons that do
+nothing, with no error, because the function that would have shown one
+was discarded with the rest of the block. One stray character does it:
+these pages keep all of their behaviour in a single inline `<script>`,
+so any syntax error anywhere in it is total. Two checks in two places
+(principle 9): `test_page_scripts.py` finds it in the shipped templates
+and names the line, needing no browser — which matters, because the
+browser test **skips itself when Chromium is absent** and is then not
+looking at all.
+
+**A shared picker is a contract nothing links.** Nine popups hand their
+result back by calling a function on `window.opener`, and the argument
+list is written in two files that no compiler, no test and no type
+checks against each other. Change the picker and every page goes on
+loading, goes on reporting success, and silently reads `undefined`.
+`test_page_contracts.py` gates it in the direction that is never
+harmless: a page may declare *fewer* parameters than it is passed —
+JavaScript discards extras by design — never more.
 
 Three traps, all paid for:
 
