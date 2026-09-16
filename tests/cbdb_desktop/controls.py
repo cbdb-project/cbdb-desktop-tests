@@ -247,7 +247,7 @@ def parse_page(page: str, html: str) -> tuple[list[Button], PageScript]:
     return buttons, script
 
 
-def _pages(layout: AppLayout) -> dict[str, Path]:
+def pages(layout: AppLayout) -> dict[str, Path]:
     """Every page with buttons: the form pages, plus the pickers and QBE."""
     pages = dict(layout.form_templates())
     pickers = layout.templates_dir / "pickers"
@@ -262,7 +262,7 @@ def _pages(layout: AppLayout) -> dict[str, Path]:
 def inventory(layout: AppLayout) -> dict[str, tuple[list[Button], PageScript]]:
     """``{page: (buttons, script)}`` for every page in the build."""
     out = {}
-    for page, path in sorted(_pages(layout).items()):
+    for page, path in sorted(pages(layout).items()):
         html = path.read_text(encoding="utf-8", errors="replace")
         out[page] = parse_page(page, html)
     assert out, "no page templates found in the staged build"

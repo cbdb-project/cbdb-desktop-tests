@@ -81,7 +81,7 @@ write a test that drives one hand-chosen value.
 and be honest that nothing checks it. The count is asserted, so a new
 build's new control cannot pass unnoticed either way.
 
-**A new page.** `controls.py::_pages` picks up form templates, pickers
+**A new page.** `controls.py::pages` picks up form templates, pickers
 and QBE automatically; the button count and the endpoint gate will fail
 until it is accounted for.
 

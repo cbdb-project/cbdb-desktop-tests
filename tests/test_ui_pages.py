@@ -321,7 +321,7 @@ def test_every_disabled_control_has_a_declared_precondition(layout):
         r"""\bid\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 
     actual: dict[str, set[str]] = {}
-    for page, path in controls._pages(layout).items():
+    for page, path in controls.pages(layout).items():
         html = path.read_text(encoding="utf-8", errors="replace")
         ids = set(pattern.findall(html)) | set(pattern2.findall(html))
         if ids:
