@@ -68,16 +68,22 @@ FILES = "files"
 #: and for a long time that was taken to settle the matter: the
 #: envelopes disagree, nobody chose it, and no user could see it.  That
 #: last clause was never checked against a page.  On Association Pairs
-#: it is false -- the page throws unless the reply carries
-#: ``status == 'ok'``, so ``SINGLE_FILE`` there is four export buttons
-#: that cannot succeed (the Unknown-error finding, and
-#: ``test_page_contracts.py`` is where a *page* is read).
+#: it was false -- the page throws unless the reply carries
+#: ``status == 'ok'``, so ``SINGLE_FILE`` there was four export buttons
+#: that reported an error on exports that had succeeded.
+#:
+#: The 2026-09-15 build fixed that by moving those five Association
+#: Pairs exports to ``STATUS_FILES``, which is why the ruling is worth
+#: keeping written down rather than deleting with the defect: what
+#: settled it was reading the *page*, and the rule that came out of it
+#: -- a page has to be read before "no user can see it" may be said --
+#: is what ``test_page_contracts.py`` exists for.
 #:
 #: The bodies below are another reason the suite could not have found
 #: it: they send what each handler reads (``format="kml"``), which is
 #: right for testing a handler and is not what the page sends.  Nothing
 #: here is wrong; it just answers a different question, and the two
-#: questions are now in two files.
+#: questions are in two files.
 SINGLE_FILE = "single"
 
 #: The file streamed as the response body, with a Content-Disposition
@@ -396,11 +402,15 @@ EXPORTS: tuple[ExportSpec, ...] = (
         form="associations", path="/api/associations/export-neo4j",
         family="neo4j", envelope=STATUS_FILES, content=TABLE,
         body=_data("records", encoding="unicode"),
-        files=_NEO4J_PEOPLE_PLACES + ("PeopleAssociations_UTF8.csv",
-                                      "PeoplePlacesCodes_UTF8.csv",
-                                      "AssociationCodes_UTF8.csv"),
-        notes="answers HTTP 500 on this build: it scans ADDR_CODES."
-              "c_admin_type, a text column, into an int",
+        files=("People_UTF8.csv", "PeopleAssociations_UTF8.csv",
+               "Places_UTF8.csv", "PeoplePlaces_UTF8.csv",
+               "PeoplePlacesCodes_UTF8.csv", "AssociationCodes_UTF8.csv",
+               "KinshipCodes_UTF8.csv"),
+        notes="the 2026-09-15 build scans ADDR_CODES.c_admin_type into a "
+              "string, so this answers at all for the first time; it also "
+              "adds KinshipCodes_UTF8.csv and no longer writes People, "
+              "Places and PeoplePlaces consecutively, which is why the "
+              "shared _NEO4J_PEOPLE_PLACES prefix no longer fits it",
         machine_import=True,
     ),
 
@@ -506,7 +516,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-gis", family="gis",
-        envelope=SINGLE_FILE, content=TABLE,
+        envelope=STATUS_FILES, content=TABLE,
         body=_whole_payload(format="tab"),
         files=("assocpairs_network.tsv",),
         notes="was the only GIS export named .txt; the 2026-09-08 "
@@ -514,7 +524,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-gis", family="kml",
-        envelope=SINGLE_FILE, content=KML,
+        envelope=STATUS_FILES, content=KML,
         body=_whole_payload(format="kml"),
         files=("assocpairs_network.kml",),
     ),
@@ -527,20 +537,20 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-sna", family="pajek",
-        envelope=SINGLE_FILE, content=TABLE,
+        envelope=STATUS_FILES, content=TABLE,
         body=_whole_payload(format="pajek"),
         files=("assocpairs_network.net",),
         notes="one endpoint, three formats -- the button decides",
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-sna", family="gephi",
-        envelope=SINGLE_FILE, content=TABLE,
+        envelope=STATUS_FILES, content=TABLE,
         body=_whole_payload(format="gephi"),
         files=("assocpairs_network.gdf",),
     ),
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-sna", family="ucinet",
-        envelope=SINGLE_FILE, content=TABLE,
+        envelope=STATUS_FILES, content=TABLE,
         body=_whole_payload(format="ucinet"),
         files=("assocpairs_network.vna",),
     ),

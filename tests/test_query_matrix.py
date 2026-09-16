@@ -543,16 +543,42 @@ def test_turning_every_category_off_returns_nothing(app: CbdbApp, matrix):
         f"rows from somewhere: {sorted(nothing)[:5]}")
 
 
-#: The Places form's seven relation-type categories, in the order the
-#: page lists them.  Named here rather than extracted because the
-#: extraction already exists and disagreeing with it would be worse than
-#: repeating it: ``test_every_switch_the_build_declares_is_one_the_sweep
-#: _drives`` reads the boolean fields off ``PlaceQueryParams`` and fails
-#: if TOGGLES and the struct diverge, and every name below is one of
-#: those.  The check at the top of the test keeps the two in step.
-_PLACE_CATEGORIES = ("includeBiog", "includeAssocPlace", "includeAssocPerson",
-                     "includeEntry", "includeKinship", "includeOffice",
-                     "includeInst")
+#: How many relation-type categories the Places form offers.  Pinned so
+#: that a build which gains or loses a branch is read rather than
+#: silently changing what the test below covers; the set itself is
+#: extracted.
+_EXPECTED_PLACE_CATEGORIES = 7
+
+
+def _place_categories(layout: AppLayout) -> dict[str, str]:
+    """``{request field: the relType literal that branch writes}``.
+
+    Extracted from the shipped Go rather than listed, so a category the
+    build adds joins this test by itself.  Each branch is an
+    ``if p.Include<X> {`` block containing exactly one
+    ``'<literal>' AS rel_type``, and the request field name comes from
+    the struct's own JSON tag -- both read as data, neither
+    re-implementing what the branch then does.
+
+    The pairing is what lets this test see a *permutation*: two switches
+    whose branches were swapped leave the seven-way sum exactly right
+    and every single-category answer non-empty, and only the identity
+    stamped on the rows gives it away.
+    """
+    source = (layout.code_dir / "places_form_backend.go").read_text(
+        encoding="utf-8", errors="replace")
+    body = gosource.struct_body(source, "PlaceQueryParams")
+    assert body, "places_form_backend.go no longer declares PlaceQueryParams"
+    tags = dict(re.findall(r'^\s*(\w+)\s+bool\s+`json:"(\w+)"',
+                           body, re.MULTILINE))
+
+    out = {}
+    for guard in re.finditer(r"^\tif p\.(\w+) \{", source, re.MULTILINE):
+        literal = re.search(r"'([^']+)'\s+AS rel_type",
+                            source[guard.end():guard.end() + 4000])
+        if literal:
+            out[tags.get(guard.group(1), guard.group(1))] = literal.group(1)
+    return out
 
 
 def test_each_place_category_contributes_its_own_part_of_the_whole(
@@ -570,72 +596,142 @@ def test_each_place_category_contributes_its_own_part_of_the_whole(
     refuses that request with HTTP 400, which is a better answer to give
     a user and leaves the five switches undecided again.
 
-    So: ask for each category alone, and for all seven together.  The
-    handler assembles its answer as a ``UNION ALL`` across the enabled
-    branches (``places_form_backend.go``, "Assemble UNION ALL"), so the
-    seven single-category answers must sum -- as multisets, not as sets
-    -- to exactly the all-seven answer.  Nothing about that depends on
-    what the data contains, which is what makes it an oracle:
+    Three properties, and it takes all three:
 
-    * a switch that is decoded and never used puts its branch in every
-      answer, so the seven singles sum to more than the whole;
-    * a switch wired to the wrong branch makes two singles identical and
-      a third missing, and the sum moves either way;
-    * a substituted default -- the shape this form had -- adds the
-      Biography branch to a request that did not ask for it, so the sum
-      exceeds the whole by exactly that branch.
+    * **The parts sum to the whole.**  The handler assembles its answer
+      as a ``UNION ALL`` across the enabled branches, so the seven
+      single-category answers must sum -- as multisets, not as sets --
+      to exactly the all-seven answer.  A switch that is decoded and
+      never used leaves its branch in every answer and the sum exceeds
+      the whole.  Nothing here depends on what CBDB contains.
+    * **Each part is its own branch.**  Every row carries the
+      ``relType`` its branch stamped on it, so a single-category answer
+      must carry that category's literal and no other.  Without this
+      the sum is satisfied by any *permutation* of the seven switches:
+      each answer wrong, the total right.
+    * **A category contributes to its own part exactly when it
+      contributes to the whole.**  This is the liveness reading, and it
+      is two of the application's own answers compared with each other
+      rather than a count taken from the data: if ``Kinship`` rows are
+      in the all-seven answer, asking for Kinship alone must return
+      some, and if they are not, it must not.
 
-    It also gives each switch its own liveness reading, which the sweep
-    cannot: a category whose single-category answer is empty contributes
-    nothing on this input and is reported, rather than silently folded
-    into a skip.
+    The address code is the discovered one whose all-seven answer spans
+    the most categories, because a code with one live branch can only
+    judge one switch.  Choosing it is input selection -- the app is
+    asked which of its own codes are interesting, and nothing about the
+    answer is predicted.
     """
     form = FORMS_BY_NAME["places"]
-    codes = _discovered_codes(matrix, "places")[-1:]
-    assert codes, "discovery found no address codes"
+    codes_available = _discovered_codes(matrix, "places")
+    assert codes_available, "discovery found no address codes"
+
+    categories = _place_categories(layout)
+    assert len(categories) == _EXPECTED_PLACE_CATEGORIES, (
+        f"{len(categories)} relation-type branches were read out of "
+        f"places_form_backend.go, not {_EXPECTED_PLACE_CATEGORIES}: "
+        f"{categories}.  If the build gained or lost one, update the "
+        "number in the same commit as the reason; if it did not, the "
+        "reader has stopped matching some and this test is judging "
+        "fewer switches than it reports")
 
     declared = {toggle.option for toggle in TOGGLES if toggle.form == "places"}
-    unknown = sorted(set(_PLACE_CATEGORIES) - declared)
-    assert not unknown, (
-        f"these are listed here as Places categories and are in no row of "
-        f"TOGGLES: {unknown}.  One of the two is out of date, and the "
-        "switch sweep and this test would then be driving different forms")
+    unswept = sorted(set(categories) - declared)
+    assert not unswept, (
+        f"these relation-type categories are in the build and in no row "
+        f"of TOGGLES: {unswept}.  The switch sweep and this test would "
+        "then be driving different sets, so a category would be "
+        "identified here and never swept for direction")
 
-    def ask(selected: set[str]) -> Counter:
+    def ask(codes, selected) -> list[dict]:
         body = dict(form.body(codes),
-                    **{name: (name in selected) for name in _PLACE_CATEGORIES})
-        return _pairs(form, _query(app, form, body))
+                    **{name: (name in selected) for name in categories})
+        return _query(app, form, body)
 
-    whole = ask(set(_PLACE_CATEGORIES))
+    # The code whose answer spans the most categories.  Ties go to the
+    # first, which keeps the choice deterministic across runs.
+    everything = set(categories)
+    by_code = {code: ask([code], everything) for code in codes_available}
+    codes = [max(by_code, key=lambda code:
+                 (len({row["relType"] for row in by_code[code]}), -code))]
+    whole_rows = by_code[codes[0]]
+    whole = _pairs(form, whole_rows)
     assert whole, (
-        f"places code {codes} returns nothing with every category "
-        "selected, so the parts cannot be compared against the whole")
+        f"no discovered places code returns anything with every category "
+        f"selected ({codes_available}), so the parts cannot be compared "
+        "against the whole")
 
-    parts = {name: ask({name}) for name in _PLACE_CATEGORIES}
+    types_in_whole = {row["relType"] for row in whole_rows}
+    parts = {name: ask(codes, {name}) for name in categories}
+
+    # 1. Each part is its own branch, and only its own.
+    wrong_identity = {
+        name: sorted({row["relType"] for row in rows} - {literal})
+        for name, (literal, rows) in
+        ((n, (categories[n], parts[n])) for n in categories)
+        if {row["relType"] for row in rows} - {literal}
+    }
+    assert not wrong_identity, (
+        f"asking for one category returned rows stamped with another's "
+        f"relType: {wrong_identity}.  Each branch writes its own literal "
+        "into every row it produces, so a switch that selects somebody "
+        "else's branch shows up here and nowhere else -- a swap of two "
+        "switches leaves the totals below exactly right")
+
+    # 2. A category is live in its own part exactly when it is live in
+    #    the whole.  Two of the application's own answers, compared.
+    disagree = {
+        name: (bool(parts[name]), categories[name] in types_in_whole)
+        for name in categories
+        if bool(parts[name]) != (categories[name] in types_in_whole)
+    }
+    assert not disagree, (
+        "these categories contribute to the seven-way answer and not to "
+        "their own, or the reverse -- {category: (alone, in the whole)}: "
+        f"{disagree}.  The all-seven answer is the union of the branches, "
+        "so the two readings cannot differ unless the switch selects "
+        "something other than the branch it names")
+
+    # 3. The parts sum to the whole.
     summed = Counter()
-    for part in parts.values():
-        summed += part
-
-    sizes = {name: sum(part.values()) for name, part in parts.items()}
-    empty = sorted(name for name, size in sizes.items() if not size)
-
+    for rows in parts.values():
+        summed += _pairs(form, rows)
+    sizes = {name: len(rows) for name, rows in parts.items()}
     assert summed == whole, (
         "the seven categories asked for one at a time do not sum to the "
         f"seven asked for together: {sum(summed.values())} rows against "
         f"{sum(whole.values())}.  Per category: {sizes}.  "
         f"Only in the parts: {sorted((summed - whole))[:5]}; "
-        f"only in the whole: {sorted((whole - summed))[:5]}.  The handler "
-        "unions the enabled branches, so a difference means a switch "
-        "selects a branch other than its own, selects nothing, or is "
-        "ignored and leaves its branch in every answer")
+        f"only in the whole: {sorted((whole - summed))[:5]}")
 
-    # Not an assertion: on a narrow address code most branches are
-    # legitimately empty, and requiring otherwise would make this test
-    # about the input rather than about the switches.  It is recorded so
-    # that "this switch has never once been observed to do anything" is
-    # visible in the run rather than inferred from a green tick.
-    if empty:
-        print(f"\nplaces categories with no rows for code {codes}: {empty}")
+    # 4. What this run could not judge, pinned rather than printed.
+    #
+    # The three assertions above are all conditional on a category
+    # having rows: a branch that contributes nothing to the whole and
+    # nothing to its own part satisfies every one of them however it is
+    # wired.  So the undecided set is an exact pin, on the same terms as
+    # test_ui_pages.UNDECLARED -- it is the honest count of what this
+    # test does *not* check, and it may only shrink.
+    #
+    # Why these four.  The discovered places codes are drawn from
+    # BIOG_ADDR_DATA, so the Biography branch is live by construction
+    # and the Associate-Place and Office-Place branches happen to be;
+    # the other four key off tables an address chosen that way need not
+    # appear in.  All three discovered codes give the same answer, so
+    # this is a property of how the input is chosen, not of the code
+    # that happened to win.  Deciding them needs an address that is busy
+    # in those branches, and finding one without reproducing the
+    # branch's own joins is the open problem -- a lead for the next
+    # round, written here because that is where it will be read.
+    silent = sorted(name for name in categories if not parts[name])
+    assert silent == ["includeAssocPlace", "includeEntry", "includeInst",
+                      "includeKinship"], (
+        f"the Places categories no discovered address code can decide "
+        f"are now {silent}, and this test records four.  If the list "
+        "shrank, delete the names from it in the same commit -- the "
+        "build or the data just became more testable.  If it grew, this "
+        f"test is now judging {len(categories) - len(silent)} of "
+        f"{len(categories)} switches and saying so is the point")
 
 
 @pytest.mark.parametrize("toggle", [pytest.param(t, id=t.id) for t in TOGGLES])
