@@ -308,7 +308,7 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "That the shipped binary starts, serves, and releases its database"),
     ("test_routes.py",
      "Every registered route",
-     "All 141 routes read out of the shipped Go source, driven for real"),
+     "All 142 routes read out of the shipped Go source, driven for real"),
     ("test_cross_form_channel.py",
      "Passing a result from one form to another",
      "The stored-person list: what one form stores, another recalls"),
@@ -394,7 +394,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
     "test_app_driver.py": ("應用程式行程",
                            "釋出的執行檔能啟動、能服務、並能釋放資料庫"),
     "test_routes.py": ("所有已註冊的路由",
-                       "從釋出的 Go 原始碼讀出的全部 141 條路由，逐一實測"),
+                       "從釋出的 Go 原始碼讀出的全部 142 條路由，逐一實測"),
     "test_cross_form_channel.py": ("在表單之間傳遞查詢結果",
                                   "已儲存人物清單：一個表單存入的，"
                                   "另一個表單取回的"),
