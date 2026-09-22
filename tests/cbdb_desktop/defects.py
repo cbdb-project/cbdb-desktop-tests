@@ -182,350 +182,131 @@ _DEFECTS: tuple[Defect, ...] = (
     Defect(
         key="CBDB-D-001",
         priority="P0", severity="high", origin="software",
-        title="Three of the thirteen forms are completely inert: a stray "
-              "quote leaves their whole script unparsed",
-        title_zh="十三個表單中有三個完全失效：一個多餘的引號使整段程式碼無法解析",
-        area="Association Pairs, Entry and Group Data pages "
-             "(/LookAtAssociationPairs, /LookAtEntry, /LookAtGroupData)",
-        area_zh="關聯配對、入仕、分群資料三個頁面"
-                "（/LookAtAssociationPairs、/LookAtEntry、/LookAtGroupData）",
-        summary="Nine lines across the three pages open a JavaScript string "
-                "that the line never closes.  All nine are the same shape -- "
-                "a sentence about downloads that was rewritten across the "
-                "build, where the opening quote of the second fragment went "
-                "missing and a stray `'\"` was left at the end.  A "
-                "JavaScript string may not span a line, so each of these is "
-                "a syntax error; and because every one of these pages keeps "
-                "the whole of its behaviour in a single inline `<script>`, "
-                "the browser discards the entire block.  Every function the "
+        title="The Group Data form is completely inert: three unclosed "
+              "quotes leave its whole script unparsed",
+        title_zh="分群資料表單完全失效：三處未closing的引號使整段程式碼無法解析",
+        area="Group Data page (/LookAtGroupData)",
+        area_zh="分群資料頁面（/LookAtGroupData）",
+        summary="Three lines on this page open a JavaScript string that the "
+                "line never closes.  All three are the same shape -- a "
+                "sentence about downloads where the opening quote of the "
+                "second fragment is missing and a stray `'\"` was left at "
+                "the end.  A JavaScript string may not span a line, so each "
+                "is a syntax error; and because this page keeps the whole "
+                "of its behaviour in a single inline `<script>`, the "
+                "browser discards the entire block.  Every function the "
                 "page declares then does not exist.  The page still loads, "
-                "still draws every control, and does nothing at all.",
-        summary_zh="這三個頁面共有九行程式碼開啟了字串卻沒有在同一行收尾。九"
-                   "處的錯誤形狀完全相同：一句關於下載的訊息在本次改版中被"
-                   "重寫，後半段的起始引號不見了，結尾還多留了一個 `'\"`。"
-                   "JavaScript 的字串不能跨行，所以這每一處都是語法錯誤；而"
-                   "這些頁面把全部行為都寫在單一的內嵌 `<script>` 裡，因此"
-                   "瀏覽器會整塊放棄不執行。頁面宣告的每一個函式都因此不存"
-                   "在。頁面照樣載入、照樣畫出所有控制項，然後什麼也不做。",
-        evidence="Measured in a real Chromium: of the functions each page's "
-                 "own buttons are wired to, 0 of 14 exist on Association "
-                 "Pairs, 0 of 15 on Entry and 0 of 10 on Group Data, while "
-                 "the other ten pages lose none.  Every enabled button "
-                 "fires and raises `ReferenceError: <name> is not defined`; "
-                 "the twenty controls that ship disabled can never be "
-                 "un-greyed, because the code that would enable them is "
-                 "gone.  The server answers HTTP 200 for all three and "
-                 "serves the broken text verbatim.  The same sentence is "
-                 "written correctly twelve times across seven other pages, "
-                 "which is what identifies this as a botched "
-                 "search-and-replace rather than a change anyone chose; the "
-                 "previous build's three pages parse clean.",
-        evidence_zh="以真實的 Chromium 實測：各頁面自己的按鈕所連結的函式中，"
-                    "關聯配對頁 14 個有 0 個存在、入仕頁 15 個有 0 個、分群"
-                    "資料頁 10 個有 0 個，其餘十個頁面則一個都沒少。每一個"
-                    "可按的按鈕按下去都會拋出 "
-                    "`ReferenceError: <名稱> is not defined`；那二十個一開始"
+                "still draws every control, and does nothing at all.\n\n"
+                "The same three lines were among nine across three pages in "
+                "the 2026-09-15_2 build.  The Association Pairs and Entry "
+                "pages were repaired in 2026-09-16_2; Group Data was not.",
+        summary_zh="這個頁面有三行程式碼開啟了字串卻沒有在同一行收尾。三處的"
+                   "錯誤形狀相同：一句關於下載的訊息，後半段的起始引號不見"
+                   "了，結尾還多留了一個 `'\"`。JavaScript 的字串不能跨行，"
+                   "所以每一處都是語法錯誤；而這個頁面把全部行為都寫在單一"
+                   "的內嵌 `<script>` 裡，因此瀏覽器會整塊放棄不執行。頁面"
+                   "宣告的每一個函式都因此不存在。頁面照樣載入、照樣畫出所有"
+                   "控制項，然後什麼也不做。\n\n"
+                   "在 2026-09-15_2 版中，同樣形狀的錯誤共有九處、分布於三"
+                   "個頁面。關聯配對與入仕兩頁已在 2026-09-16_2 版修好，分群"
+                   "資料這一頁沒有。",
+        evidence="Measured in a real Chromium: of the ten functions this "
+                 "page's own buttons are wired to, none exists after the "
+                 "page has loaded, while the other fifteen pages lose none.  "
+                 "Every enabled button fires and raises `ReferenceError: "
+                 "<name> is not defined`; the thirteen controls that ship "
+                 "disabled can never be un-greyed, because the code that "
+                 "would enable them is gone.  The page logs "
+                 "`SyntaxError: missing ) after argument list` on load and "
+                 "the server answers HTTP 200, serving the broken text "
+                 "verbatim.  The same sentence is written correctly "
+                 "eighteen times elsewhere in the build, which is what "
+                 "identifies this as an unfinished repair rather than a "
+                 "change anyone chose.",
+        evidence_zh="以真實的 Chromium 實測：這個頁面的按鈕所連結的十個函式，"
+                    "在頁面載入後一個都不存在，其餘十五個頁面則一個都沒少。"
+                    "每一個可按的按鈕按下去都會拋出 "
+                    "`ReferenceError: <名稱> is not defined`；那十三個一開始"
                     "就設為停用的控制項永遠無法啟用，因為負責啟用它們的程式"
-                    "碼已經不存在。三個頁面伺服器都回 HTTP 200，並原封不動"
-                    "送出這段壞掉的文字。同一句話在另外七個頁面上總共寫對了"
-                    "十二次——這正說明它是一次失手的全域取代，而不是有人刻意"
-                    "改成這樣；上一版這三個頁面都能正常解析。",
-        impact="A historian who opens any of these three forms can do "
-               "nothing on it.  Run Query does not run, the pickers do not "
-               "open, the language buttons do not switch, the tabs do not "
-               "change, and every export button is dead -- with no error "
-               "message anywhere, because the function that would show one "
-               "was discarded with the rest.  Twenty endpoints are "
-               "reachable from no page at all as a result.  It is filed P0 "
-               "under the band's own words -- the application returns empty "
-               "results with no error shown to the user -- and the reason "
-               "for saying so plainly is that nothing is computed wrongly "
-               "here: nothing is computed at all.",
-        impact_zh="研究者打開這三個表單中的任何一個，都什麼事也做不了。執行"
-                  "查詢按了沒反應、選擇視窗打不開、語言切換無效、分頁切不"
-                  "動，所有匯出按鈕也全部失效——而且完全看不到任何錯誤訊息，"
-                  "因為負責顯示錯誤的函式也一起被丟掉了。連帶使得二十個 API "
-                  "端點再也沒有任何頁面到得了。本項列為 P0，依據的是該級別"
-                  "本身的定義——程式回傳空白結果且沒有任何錯誤提示；要特別"
-                  "說明的是，這裡並不是算錯了什麼，而是根本沒有進行任何運算。",
-        fix="One character per line, nine lines.  Each reads\n\n"
-            "    showSuccess('X: ' + n +  file(s) offered for download "
-            "— check each Save dialog.'\");\n\n"
+                    "碼已經不存在。頁面載入時會記錄 "
+                    "`SyntaxError: missing ) after argument list`，伺服器則"
+                    "回 HTTP 200，原封不動送出這段壞掉的文字。同一句話在這"
+                    "個版本的其他地方總共寫對了十八次——這說明它是一次沒有做"
+                    "完的修補，而不是有人刻意改成這樣。",
+        impact="A historian who opens this form can do nothing on it.  Run "
+               "Query does not run, Import does not import, the language "
+               "buttons do not switch, the tabs do not change, and every "
+               "export button is dead -- with no error message anywhere, "
+               "because the function that would show one was discarded with "
+               "the rest.  Seven endpoints are reachable from no page at all "
+               "as a result.  It is filed P0 under the band's own words -- "
+               "the application returns empty results with no error shown "
+               "to the user -- and the reason for saying so plainly is that "
+               "nothing is computed wrongly here: nothing is computed at "
+               "all.",
+        impact_zh="研究者打開這個表單後什麼事也做不了。執行查詢按了沒反應、"
+                  "匯入沒有作用、語言切換無效、分頁切不動，所有匯出按鈕也"
+                  "全部失效——而且完全看不到任何錯誤訊息，因為負責顯示錯誤的"
+                  "函式也一起被丟掉了。連帶使得七個 API 端點再也沒有任何頁面"
+                  "到得了。本項列為 P0，依據的是該級別本身的定義——程式回傳"
+                  "空白結果且沒有任何錯誤提示；要特別說明的是，這裡並不是算"
+                  "錯了什麼，而是根本沒有進行任何運算。",
+        fix="One character per line, three lines.  Each reads\n\n"
+            "    showSuccess('X: ' + (j.files || []).length +  file(s) "
+            "offered for download — check each Save dialog.'\");\n\n"
             "and should read\n\n"
-            "    showSuccess('X: ' + n + ' file(s) offered for download "
-            "— check each Save dialog.');\n\n"
+            "    showSuccess('X: ' + (j.files || []).length + ' file(s) "
+            "offered for download — check each Save dialog.');\n\n"
             "-- the opening quote restored before ` file(s)`, and the "
-            "trailing `'\");` reduced to `');`.  Worth running the three "
-            "pages through `node --check` afterwards, or simply opening "
-            "each one and watching the browser console: a page whose "
-            "script parsed logs nothing.",
-        fix_zh="九行、每行一個字元。每一行目前是\n\n"
-               "    showSuccess('X: ' + n +  file(s) offered for download "
-               "— check each Save dialog.'\");\n\n"
+            "trailing `'\");` reduced to `');`.  The Entry and Association "
+            "Pairs pages already carry the repaired form and can be copied "
+            "from.  Worth running the page through `node --check` "
+            "afterwards, or opening it and watching the browser console: a "
+            "page whose script parsed logs nothing.",
+        fix_zh="三行、每行一個字元。每一行目前是\n\n"
+               "    showSuccess('X: ' + (j.files || []).length +  file(s) "
+               "offered for download — check each Save dialog.'\");\n\n"
                "應該改為\n\n"
-               "    showSuccess('X: ' + n + ' file(s) offered for download "
-               "— check each Save dialog.');\n\n"
+               "    showSuccess('X: ' + (j.files || []).length + ' file(s) "
+               "offered for download — check each Save dialog.');\n\n"
                "——在 ` file(s)` 前補回起始引號，並把結尾的 `'\");` 改成 "
-               "`');`。改完後建議用 `node --check` 檢查這三個頁面，或直接"
-               "打開每一頁看瀏覽器主控台：只要程式能解析，就不會有任何輸出。",
+               "`');`。入仕與關聯配對兩個頁面已經是改好的樣子，可以直接照"
+               "抄。改完後建議用 `node --check` 檢查這個頁面，或直接打開它"
+               "看瀏覽器主控台：只要程式能解析，就不會有任何輸出。",
         steps=(
-            "Open the Entry form (/LookAtEntry).",
-            "Press any button -- Choose an entry code, Run Query, or one "
-            "of the language buttons.",
+            "Open the Group Data form (/LookAtGroupData).",
+            "Press any button -- Import, Run Query, or one of the language "
+            "buttons.",
             "Nothing happens, and no message appears.",
             "Open the browser's developer console: it shows "
             "'SyntaxError: missing ) after argument list' from the page "
             "itself, and a ReferenceError for each button pressed.",
-            "The same on /LookAtAssociationPairs and /LookAtGroupData.",
         ),
         steps_zh=(
-            "打開入仕表單（/LookAtEntry）。",
-            "按下任何一個按鈕——選擇入仕途徑代碼、執行查詢，或任一個語言"
-            "切換按鈕。",
+            "打開分群資料表單（/LookAtGroupData）。",
+            "按下任何一個按鈕——匯入、執行查詢，或任一個語言切換按鈕。",
             "什麼都不會發生，也不會出現任何訊息。",
             "打開瀏覽器的開發者主控台：可以看到頁面本身拋出 "
             "'SyntaxError: missing ) after argument list'，以及每按一次"
             "按鈕就多一則 ReferenceError。",
-            "/LookAtAssociationPairs 與 /LookAtGroupData 的情況相同。",
         ),
-        source=("Templates/association_pairs/index.html:968",
-                "Templates/association_pairs/index.html:993",
-                "Templates/association_pairs/index.html:1014",
-                "Templates/association_pairs/index.html:1037",
-                "Templates/entry/index.html:1063",
-                "Templates/entry/index.html:1088",
-                "Templates/group_data/index.html:923",
+        source=("Templates/group_data/index.html:923",
                 "Templates/group_data/index.html:956",
                 "Templates/group_data/index.html:982"),
         tests=("test_every_page_script_closes_every_string_it_opens",
                "test_every_page_the_build_serves_loads_without_throwing",
-               "test_every_button_is_wired_to_a_function_that_exists",
-               "test_a_control_is_enabled_once_its_precondition_is_met",
-               "test_an_export_does_not_claim_more_files_than_it_delivered"),
+               "test_every_button_is_wired_to_a_function_that_exists"),
     ),
     Defect(
         key="CBDB-D-002",
-        priority="P0", severity="high", origin="software",
-        title="The Association Pairs dynasty filter does nothing: the "
-              "shared picker changed shape and this one page did not",
-        title_zh="關聯配對表單的朝代篩選完全無效：共用的選擇視窗改了介面，"
-                 "只有這一頁沒有跟上",
-        area="Association Pairs page and its query "
-             "(/LookAtAssociationPairs, POST /api/assocpairs/query)",
-        area_zh="關聯配對頁面與其查詢（/LookAtAssociationPairs、"
-                "POST /api/assocpairs/query）",
-        summary="`dynasty_picker.html` became multi-select in this build.  "
-                "It now hands its opener a single array of chosen "
-                "dynasties -- `handleDynastySelection(records)`.  Seven of "
-                "the eight pages that open it were rewritten to match.  "
-                "Association Pairs was not: it still declares "
-                "`handleDynastySelection(dynasty, type)`, so it stores the "
-                "whole array where it expects one dynasty, reads `.code` "
-                "off it and gets `undefined`, and `JSON.stringify` then "
-                "drops the key from the request altogether.  The query runs "
-                "with no dynasty filter, and the form's own From and To "
-                "boxes stay blank, so the page does not even show what was "
-                "chosen.",
-        summary_zh="本版的 `dynasty_picker.html` 改成了可複選。它現在只回傳"
-                   "一個陣列給開啟它的頁面——`handleDynastySelection(records)`。"
-                   "會開啟它的八個頁面中有七個都已配合改寫，只有關聯配對沒"
-                   "有：它仍然宣告 `handleDynastySelection(dynasty, type)`，"
-                   "於是把整個陣列存進原本只放單一朝代的變數，再去讀它的 "
-                   "`.code`，拿到的是 `undefined`；接著 `JSON.stringify` "
-                   "會直接把這個欄位從請求中拿掉。查詢因此完全沒有套用朝代"
-                   "篩選，而表單上的「起」「終」兩個欄位也一片空白，連使用者"
-                   "選了什麼都顯示不出來。",
-        evidence="Read from both sides of the contract in the shipped "
-                 "pages: the picker calls its opener with one argument, "
-                 "and Association Pairs is the only page of the eight that "
-                 "declares two.  The handler half agrees -- of the eight "
-                 "request structs in the build that decode a dynasty, "
-                 "`AssocPairsQueryParams` is the only one that does not "
-                 "declare `dynastyCodes`, and it still declares the "
-                 "retired From/To pair.  Two of the six fields it does "
-                 "declare, `fromDynastyEnd` and `toDynastyBegin`, are read "
-                 "by no line of Go in the build, so they would be inert "
-                 "even if the page spoke the right vocabulary.",
-        evidence_zh="從釋出頁面的契約雙方分別讀出：選擇視窗只用一個引數回呼，"
-                    "而八個頁面中只有關聯配對宣告了兩個參數。後端的情況一"
-                    "致——本版中會解析朝代的八個請求結構裡，只有 "
-                    "`AssocPairsQueryParams` 沒有宣告 `dynastyCodes`，並且"
-                    "仍保留已淘汰的起／終欄位。它宣告的六個欄位當中，"
-                    "`fromDynastyEnd` 與 `toDynastyBegin` 在整個 Go 程式碼"
-                    "裡沒有任何一行讀取，因此就算頁面說對了語彙，這兩個欄位"
-                    "依然是空轉的。",
-        impact="A researcher who restricts an Association Pairs query to "
-               "one or more dynasties gets the unrestricted answer.  "
-               "Nothing warns them: the popup closes normally, the query "
-               "runs, and the result looks like a result.  This is the "
-               "shape of error that is hardest to catch downstream, "
-               "because the numbers are plausible and only wrong.",
-        impact_zh="研究者若在關聯配對查詢中限定一個或多個朝代，得到的會是"
-                  "完全未經限定的結果。過程中沒有任何提示：選擇視窗正常關閉、"
-                  "查詢正常執行，結果看起來也像一份正常的結果。這種錯誤在"
-                  "後續分析中最難察覺，因為數字看來合理，只是錯的。",
-        fix="Bring the page to the contract the other seven already use: "
-            "declare `handleDynastySelection(records)`, keep the array in "
-            "a `selectedDynasties` variable, and send "
-            "`dynastyCodes: selectedDynasties.map(d => d.code)`.  On the "
-            "handler side, replace the six From/To fields on "
-            "`AssocPairsQueryParams` with `DynastyCodes []int "
-            "`json:\"dynastyCodes\"`` and the year-overlap branch with the "
-            "`c_dy IN (...)` the other seven forms now use.  The Office, "
-            "Status and Texts backends are the model.",
-        fix_zh="把這個頁面改成與其他七頁相同的契約：宣告 "
-               "`handleDynastySelection(records)`，把陣列存進 "
-               "`selectedDynasties`，再送出 "
-               "`dynastyCodes: selectedDynasties.map(d => d.code)`。後端"
-               "則把 `AssocPairsQueryParams` 上那六個起／終欄位改成 "
-               "`DynastyCodes []int `json:\"dynastyCodes\"``，並把年份重疊"
-               "的判斷換成其他七個表單已採用的 `c_dy IN (...)`。可參考官職、"
-               "身份、文獻三個後端的寫法。",
-        steps=(
-            "Open the Association Pairs form and pick two people.",
-            "Set the year filter to Dynasty and press Pick beside From.",
-            "Choose a dynasty in the popup and press Select.",
-            "The From boxes stay blank -- the first sign.",
-            "Press Run Query and compare the row count with the same "
-            "query run with no dynasty filter at all: they are the same.",
-        ),
-        steps_zh=(
-            "打開關聯配對表單，選定兩個人物。",
-            "把年份篩選切換到「朝代」，按下「起」旁邊的選擇鈕。",
-            "在彈出的視窗中選一個朝代，然後按下 Select。",
-            "「起」的欄位仍然空白——這是第一個徵兆。",
-            "按下執行查詢，再與完全不設朝代篩選的同一查詢比較筆數："
-            "兩者完全相同。",
-        ),
-        source=("Templates/pickers/dynasty_picker.html:139",
-                "Templates/association_pairs/index.html:624",
-                "Templates/association_pairs/index.html:700",
-                "Code/assocpairs_form_backend.go:49"),
-        tests=("test_every_page_accepts_the_arguments_its_picker_hands_it",
-               "test_every_form_reads_the_dynasty_choice_the_picker_now_sends",
-               "test_a_field_the_json_declares_is_a_field_the_program_uses"),
-    ),
-    Defect(
-        key="CBDB-D-003",
-        priority="P5", severity="medium", origin="software",
-        title="Three forms accept an unfiltered query and give no way to "
-              "ask for one -- and two of them offer the button for it",
-        title_zh="三個表單接受不設條件的查詢，卻沒有任何途徑可以送出——"
-                 "其中兩個還特地提供了那顆按鈕",
-        area="Office, Associations and Status pages (/LookAtOffice, "
-             "/LookAtAssociations, /LookAtStatus)",
-        area_zh="官職、人際關係、身份三個頁面（/LookAtOffice、"
-                "/LookAtAssociations、/LookAtStatus）",
-        summary="Each of these three handlers adds its primary code filter "
-                "only when the list is non-empty -- `if "
-                "len(p.OfficeCodes) > 0` -- so an empty list means *every "
-                "code*, and the Office page's own variable says so: "
-                "`let _officeCodes = [];   // [] = all offices`.  Each "
-                "page then greys out Run Query whenever that list is "
-                "empty, which is exactly the state the handler reads as "
-                "'no filter'.  On Office and Associations the button that "
-                "puts the form into that state -- *All Offices*, and *All* "
-                "-- calls a clear function that empties the list and "
-                "re-greys Run Query.  Pressing the control for 'everything' "
-                "disables the control for 'go'.",
-        summary_zh="這三個後端都只有在代碼清單非空時才加上主要篩選條件——"
-                   "例如 `if len(p.OfficeCodes) > 0`——因此空清單的意思就是"
-                   "「全部代碼」，官職頁面自己的變數也這樣註明："
-                   "`let _officeCodes = [];   // [] = all offices`。然而"
-                   "每一頁只要那份清單是空的，就會把執行查詢按鈕變成停用，"
-                   "而那正是後端理解為「不設篩選」的狀態。官職與人際關係兩頁"
-                   "更進一步：讓表單進入該狀態的按鈕（*All Offices* 與 "
-                   "*All*）會呼叫清空函式，把清單清空後再次停用執行查詢。"
-                   "按下「全部」那顆鈕，等於關掉「執行」那顆鈕。",
-        evidence="Swept over the build rather than observed on one form: "
-                 "six of the handlers are written to accept an empty "
-                 "primary list, and three of the pages grey Run Query on "
-                 "`.length === 0` -- associations (`assocCodes`), office "
-                 "(`_officeCodes`), status (`selectedStatusCodes`).  The "
-                 "Office case is confirmed end to end in a browser: pick "
-                 "an office and Run Query is enabled; press *All Offices* "
-                 "and it is disabled again, while the same request sent "
-                 "over HTTP with `officeCodes: []` answers 200.  The "
-                 "Associations page has carried this since at least the "
-                 "2026-09-10 build and its own comment says it copied the "
-                 "Office pattern deliberately.",
-        evidence_zh="這是對整個版本的普查，而非單一表單的觀察：六個後端寫成"
-                    "可接受空的主要清單，其中三個頁面會在 `.length === 0` "
-                    "時停用執行查詢——人際關係（`assocCodes`）、官職"
-                    "（`_officeCodes`）、身份（`selectedStatusCodes`）。"
-                    "官職這一例已在瀏覽器中完整重現：選定一個官職後執行查詢"
-                    "可用；按下 *All Offices* 後又變成停用，而同樣內容的請求"
-                    "（`officeCodes: []`）直接以 HTTP 送出則回 200。人際關係"
-                    "頁面至少從 2026-09-10 版就是如此，且其註解明白寫著是"
-                    "刻意仿照官職頁面的做法。",
-        impact="Three of the six main forms cannot be asked for their "
-               "unfiltered result.  A researcher who wants every office "
-               "posting in a place, or every association of a person, or "
-               "every status in a dynasty, has no way to say so through "
-               "the page -- and on two of them the button that appears to "
-               "offer it makes the form less usable rather than more.  The "
-               "work behind that query is written, tested and reachable "
-               "over HTTP; only the interface refuses.",
-        impact_zh="六個主要表單中有三個無法被要求給出不設條件的結果。研究者"
-                  "若想查某地的全部官職任命、某人的全部人際關係，或某朝代的"
-                  "全部身份，透過頁面都無從表達；而在其中兩頁，那顆看起來正"
-                  "是為此而設的按鈕，反而讓表單更不可用。支撐這項查詢的程式"
-                  "碼都已寫好、可運作，直接以 HTTP 也叫得到，卡住的只有介面。",
-        fix="Decide per form what an empty selection means and make the "
-            "page agree with the handler.  If the unfiltered query is "
-            "intended -- and the Office page's own comment says it is -- "
-            "then Run Query should not be gated on the list being "
-            "non-empty, and the *All* buttons should leave it enabled.  If "
-            "it is not intended, the handlers should refuse an empty list "
-            "with a message, the way the Places form now refuses an empty "
-            "category selection, rather than accepting a request no user "
-            "can send.",
-        fix_zh="請就每個表單決定「空選擇」的意義，並讓頁面與後端一致。若原本"
-               "就允許不設條件的查詢——官職頁面自己的註解正是這樣寫的——那麼"
-               "執行查詢就不該以清單非空作為啟用條件，「全部」類按鈕按下後"
-               "也應維持可用。若原本不允許，則後端應該像地點表單現在拒絕空"
-               "類別選擇那樣，明確回一個錯誤訊息，而不是接受一個沒有使用者"
-               "送得出來的請求。",
-        steps=(
-            "Open the Office form (/LookAtOffice).",
-            "Press Select Office and choose any office; Run Query becomes "
-            "available.",
-            "Press All Offices.",
-            "Run Query is greyed out again, and there is no way to run the "
-            "query the button just asked for.",
-            "On the Associations form the same sequence with Select "
-            "Associations and the All button does the same thing.",
-        ),
-        steps_zh=(
-            "打開官職表單（/LookAtOffice）。",
-            "按下選擇官職並任選一個官職，此時執行查詢變為可用。",
-            "按下 All Offices。",
-            "執行查詢又變回停用，而剛才那顆按鈕所要求的查詢已無從執行。",
-            "在人際關係表單上，用選擇關係與 All 按鈕重複同樣步驟，結果相同。",
-        ),
-        source=("Templates/office/index.html:343",
-                "Templates/office/index.html:357",
-                "Code/office_form_backend.go:659",
-                "Templates/associations/index.html:304",
-                "Templates/status/index.html:474",
-                "Code/associations_form_backend.go:534",
-                "Code/status_form_backend.go:496"),
-        tests=("test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one",
-               "test_all_offices_leaves_the_office_form_able_to_query"),
-    ),
-    Defect(
-        key="CBDB-D-004",
         priority="P0", severity="high", origin="software",
         title="Looking a person up in the Browser silently replaces the "
               "Kinship form's result, and the export then describes two "
               "people at once",
         title_zh="在瀏覽器中查閱某個人物，會無聲地取代親屬表單的查詢結果，"
                  "接著匯出的檔案會同時描述兩個不同的人",
-        area="Kinship form and the Browser "
-             "(GET /api/browser/person/{id}/kinship, "
-             "POST /api/kinship/export-results)",
-        area_zh="親屬表單，以及瀏覽器的親屬分頁。涉及的端點是瀏覽器的"
-                "人物親屬查詢與親屬表單的查詢結果匯出",
+        area="Kinship form and the Browser's kinship tab",
+        area_zh="親屬表單，以及瀏覽器的親屬分頁",
         summary="`handleGetKinship` begins by deleting `ZZ_KIN_LIST`, "
                 "`ZZ_KIN_LIST_TMP`, `ZZ_SCRATCH_KIN` and "
                 "`ZZ_SCRATCH_KINNET` -- which is where the Kinship form's "
@@ -546,44 +327,42 @@ _DEFECTS: tuple[Defect, ...] = (
                    "`ZZ_SP_KINSHIP`，描述的仍是原來那個人。",
         evidence="Driven: with a Kinship result for person 1 on screen, a "
                  "GET of person 10's kinship changes what Export Query "
-                 "Results returns -- `EgoRelativeKinship.tsv` goes from "
-                 "920 to 9,795 characters and `KinshipNetwork.tsv` from "
-                 "1,067 to 295 -- while `KinshipPeople.tsv` comes back "
-                 "byte for byte the same.  Neither page says anything.  "
-                 "Re-running the Kinship query returns 6 records, so the "
-                 "result was replaced rather than damaged: the user is "
-                 "exporting somebody else's traversal.  The form's five "
-                 "other exports build their rows from what the page posts "
-                 "to them and are unaffected; this is Export Query Results "
-                 "alone.",
+                 "Results returns -- `EgoRelativeKinship.tsv` and "
+                 "`KinshipNetwork.tsv` both come back with different "
+                 "content -- while `KinshipPeople.tsv` comes back byte for "
+                 "byte the same.  Neither page says anything.  Re-running "
+                 "the Kinship query returns its rows, so the result was "
+                 "replaced rather than damaged: the user is exporting "
+                 "somebody else's traversal.  The form's five other exports "
+                 "build their rows from what the page posts to them and are "
+                 "unaffected; this is Export Query Results alone.",
         evidence_zh="實測結果：畫面上是人物 1 的親屬查詢結果時，對人物 10 "
                     "發出一次親屬查詢，Export Query Results 的輸出就變了——"
-                    "`EgoRelativeKinship.tsv` 從 920 字元變成 9,795，"
-                    "`KinshipNetwork.tsv` 從 1,067 變成 295——而 "
-                    "`KinshipPeople.tsv` 則一個位元組都沒變。兩個頁面都沒有"
-                    "任何提示。重新執行親屬查詢會回傳 6 筆記錄，可見結果是被"
-                    "取代而非毀損：使用者匯出的是別人的親屬網絡。該表單另外"
-                    "五個匯出功能都是依頁面送過去的資料組成，不受影響；出問"
-                    "題的只有 Export Query Results。",
+                    "`EgoRelativeKinship.tsv` 與 `KinshipNetwork.tsv` 的"
+                    "內容都不同了——而 `KinshipPeople.tsv` 則一個位元組都"
+                    "沒變。兩個頁面都沒有任何提示。重新執行親屬查詢仍會回傳"
+                    "資料，可見結果是被取代而非毀損：使用者匯出的是別人的"
+                    "親屬網絡。該表單另外五個匯出功能都是依頁面送過去的資料"
+                    "組成，不受影響；出問題的只有 Export Query Results。",
         impact="The three files in one download describe two different "
-               "people, and nothing in them says so.  A researcher who "
-               "runs a kinship query, glances somebody up in the Browser "
-               "and then exports -- an ordinary sequence -- gets a bundle "
-               "whose parts disagree.  Because the file names and the row "
-               "shapes are unchanged, the mistake survives into whatever "
-               "is built from them.",
+               "people, and nothing in them says so.  A researcher who runs "
+               "a kinship query, glances somebody up in the Browser and "
+               "then exports -- an ordinary sequence -- gets a bundle whose "
+               "parts disagree.  Because the file names and the row shapes "
+               "are unchanged, the mistake survives into whatever is built "
+               "from them.",
         impact_zh="同一次下載的三個檔案描述的是兩個不同的人物，而檔案本身"
                   "沒有任何說明。研究者先執行一次親屬查詢，順手在瀏覽器裡"
                   "查了另一個人，再回來匯出——這是很自然的操作順序——拿到的"
                   "就是一份自相矛盾的檔案組。由於檔名與欄位結構都沒有變化，"
                   "這個錯誤會一路帶進後續用它們做出來的任何成果。",
-        fix="Either give the Browser its own scratch tables for the "
-            "kinship tab, as the 2026-09-07 build did for the forms that "
-            "used to share theirs, or have it build the tab's answer "
-            "without truncating anything.  If the sharing has to stay, the "
-            "Kinship page at least needs to know its displayed result is "
-            "no longer the one in the tables -- and Export Query Results "
-            "should refuse rather than export a mixture.",
+        fix="Either give the Browser its own scratch tables for the kinship "
+            "tab, as the 2026-09-07 build did for the forms that used to "
+            "share theirs, or have it build the tab's answer without "
+            "truncating anything.  If the sharing has to stay, the Kinship "
+            "page at least needs to know its displayed result is no longer "
+            "the one in the tables -- and Export Query Results should "
+            "refuse rather than export a mixture.",
         fix_zh="兩種做法：一是像 2026-09-07 版為原本共用暫存表的那些表單所"
                "做的那樣，讓瀏覽器的親屬分頁擁有自己的暫存表；二是讓它在不"
                "清空任何東西的前提下組出該分頁的答案。若共用的設計必須保留，"
@@ -610,13 +389,13 @@ _DEFECTS: tuple[Defect, ...] = (
             "那個人，KinshipPeople 描述的卻仍是最初那一位。",
         ),
         source=("Code/browser_form_backend.go:2104",
-                "Code/kinship_form_backend.go:153",
+                "Code/browser_form_backend.go:2117",
                 "Templates/browser/index.html:182"),
         tests=("test_looking_a_person_up_does_not_discard_a_kinship_result",
                "test_export_profile_loads_the_kinship_tab_it_lists"),
     ),
     Defect(
-        key="CBDB-D-005",
+        key="CBDB-D-003",
         priority="P0", severity="medium", origin="software",
         title="Every multi-file export reports the server's file count as "
               "though the browser had saved them all",
@@ -630,8 +409,8 @@ _DEFECTS: tuple[Defect, ...] = (
                 "count the *server* returned -- '3 file(s) offered for "
                 "download' -- without asking the browser what it accepted. "
                 " Chrome treats several downloads from one gesture as a "
-                "permission to be granted, and a user who does not grant "
-                "it gets fewer files than the page says they got.",
+                "permission to be granted, and a user who does not grant it "
+                "gets fewer files than the page says they got.",
         summary_zh="所有會產生多個檔案的匯出，都是在一次點擊之後，對清單中的"
                    "每個元素各呼叫一次下載函式來送出檔案。頁面接著回報的是"
                    "*伺服器*送回的數量——「3 file(s) offered for download」"
@@ -639,16 +418,15 @@ _DEFECTS: tuple[Defect, ...] = (
                    "觸發的多個下載視為需要另行允許的權限，使用者若沒有允許，"
                    "拿到的檔案就會比頁面宣稱的少。",
         evidence="Read from the pages: 22 handlers across ten pages loop a "
-                 "list and trigger one download per element, and 21 of "
-                 "them then print the server's count as a success message. "
-                 " The counting half is confirmed under automation; the "
-                 "blocking half is not reproducible there and is not "
-                 "claimed to be -- a headless browser with "
-                 "`accept_downloads` accepts every file, so Chrome's "
-                 "multiple-download permission never engages.  What the "
-                 "browser test does establish is that the page never "
-                 "consults the browser at all: the number it prints comes "
-                 "only from the response.",
+                 "list and trigger one download per element, and 21 of them "
+                 "then print the server's count as a success message.  The "
+                 "counting half is confirmed under automation; the blocking "
+                 "half is not reproducible there and is not claimed to be "
+                 "-- a headless browser with `accept_downloads` accepts "
+                 "every file, so Chrome's multiple-download permission "
+                 "never engages.  What the browser test does establish is "
+                 "that the page never consults the browser at all: the "
+                 "number it prints comes only from the response.",
         evidence_zh="自頁面讀出：十個頁面共 22 個處理程序會走訪清單、每個"
                     "元素觸發一次下載，其中 21 個接著把伺服器回報的數量當成"
                     "成功訊息印出來。計數這一半已由自動化測試確認；被阻擋的"
@@ -658,16 +436,16 @@ _DEFECTS: tuple[Defect, ...] = (
                     "頁面從頭到尾沒有問過瀏覽器，它印出的數字只來自回應內容。",
         impact="A user can be told an export succeeded with three files "
                "when one arrived.  The missing files are not named and no "
-               "error is shown, so the gap is discovered later, in the "
-               "tool that needed them -- if at all.",
+               "error is shown, so the gap is discovered later, in the tool "
+               "that needed them -- if at all.",
         impact_zh="使用者可能被告知匯出成功、共三個檔案，實際上只收到一個。"
                   "缺少的檔案不會被指出，也不會顯示任何錯誤，因此這個落差"
                   "往往要到後續使用那些檔案的工具裡才會被發現——如果還發現"
                   "得了的話。",
         fix="Report what was delivered rather than what was built.  The "
-            "download helper can resolve per file, and the message can "
-            "then name the count the browser accepted, or say plainly "
-            "that several files are on their way and a prompt may appear.  "
+            "download helper can resolve per file, and the message can then "
+            "name the count the browser accepted, or say plainly that "
+            "several files are on their way and a prompt may appear.  "
             "Offering one archive per export instead of N files would "
             "remove the permission question altogether.",
         fix_zh="回報實際送達的數量，而不是產生的數量。下載函式可以逐檔回報"
@@ -689,39 +467,38 @@ _DEFECTS: tuple[Defect, ...] = (
             "若瀏覽器尚未對本網站授予多檔下載權限，實際存下的檔案會比較少，"
             "而該訊息不會有任何不同。",
         ),
-        source=("Templates/office/index.html:847",
+        source=("Templates/office/index.html:854",
                 "Templates/status/index.html:797",
                 "Templates/texts/index.html:833"),
         tests=("test_no_page_asks_the_browser_for_more_than_one_download",
                "test_an_export_does_not_claim_more_files_than_it_delivered"),
     ),
     Defect(
-        key="CBDB-D-006",
+        key="CBDB-D-004",
         priority="P0", severity="medium", origin="software",
         title="The ASCII Pajek export begins with a UTF-8 byte order mark",
         title_zh="ASCII 版的 Pajek 匯出檔開頭仍然帶著 UTF-8 的位元組順序記號",
-        area="Networks form, Pajek export "
-             "(POST /api/networks/export-pajek)",
-        area_zh="網絡表單的 Pajek 匯出（POST /api/networks/export-pajek）",
-        summary="`handleExportPajek` writes `utf8BOM` before anything "
-                "else, whatever encoding was asked for.  The body honours "
-                "the request -- the ASCII file's labels really are pinyin "
-                "-- but the first three bytes of a file a user asked to be "
+        area="Networks form, Pajek export",
+        area_zh="網絡表單的 Pajek 匯出",
+        summary="`handleExportPajek` writes `utf8BOM` before anything else, "
+                "whatever encoding was asked for.  The body honours the "
+                "request -- the ASCII file's labels really are pinyin -- "
+                "but the first three bytes of a file a user asked to be "
                 "ASCII are a UTF-8 marker.",
         summary_zh="`handleExportPajek` 不論要求的是哪種編碼，都會先寫入 "
                    "`utf8BOM`。檔案內容本身有遵守要求——ASCII 版的標籤確實"
                    "是拼音——但使用者指定要 ASCII 的檔案，開頭三個位元組卻"
                    "是 UTF-8 的記號。",
-        evidence="`network_ascii.net` and `network_UTF8.net`, built from "
-                 "the same records in the same run, both open with the "
-                 "same three bytes.  Past the mark the ASCII file holds 0 "
-                 "byte values above 0x7F against 18 in the Unicode one, so "
-                 "the encoding flag reached the body and was ignored only "
-                 "for the mark.",
+        evidence="`network_ascii.net` and `network_UTF8.net`, built from the "
+                 "same records in the same run, both open with the same "
+                 "three bytes.  Past the mark the ASCII file holds no byte "
+                 "values above 0x7F while the Unicode one holds eighteen, "
+                 "so the encoding flag reached the body and was ignored "
+                 "only for the mark.",
         evidence_zh="同一次執行、由相同記錄產生的 `network_ascii.net` 與 "
                     "`network_UTF8.net`，開頭三個位元組完全相同。跳過該記號"
                     "之後，ASCII 檔中沒有任何大於 0x7F 的位元組，Unicode 檔"
-                    "則有 18 個——可見編碼選項有傳到內容產生的部分，只有這個"
+                    "則有十八個——可見編碼選項有傳到內容產生的部分，只有這個"
                     "記號沒有跟著處理。",
         impact="A Pajek reader that takes the file as plain ASCII meets "
                "three unexpected bytes before `*Vertices`, which is either "
@@ -733,9 +510,9 @@ _DEFECTS: tuple[Defect, ...] = (
                   "結果可能是解析錯誤，也可能是第一行變成亂碼。使用者選擇 "
                   "ASCII，本來正是為了避開這一類問題。",
         fix="Write the mark only on the Unicode path, as the same file's "
-            "Neo4j writers already do -- they omit it deliberately, "
-            "because `LOAD CSV` reads it as part of the first column's "
-            "name.  The condition is already available at that point in "
+            "Neo4j writers already do -- they omit it deliberately, because "
+            "`LOAD CSV` reads it as part of the first column's name.  The "
+            "condition is already available at that point in "
             "`handleExportPajek`.",
         fix_zh="只在 Unicode 的路徑上寫入該記號，就像同一個檔案裡的 Neo4j "
                "匯出已經在做的那樣——它們是刻意略過的，因為 `LOAD CSV` 會把"
@@ -757,15 +534,197 @@ _DEFECTS: tuple[Defect, ...] = (
         tests=("test_an_export_named_ascii_contains_ascii",),
     ),
     Defect(
+        key="CBDB-D-005",
+        priority="P5", severity="medium", origin="software",
+        title="Three forms accept an unfiltered query and give no way to "
+              "ask for one -- and two of them offer the button for it",
+        title_zh="三個表單接受不設條件的查詢，卻沒有任何途徑可以送出——"
+                 "其中兩個還特地提供了那顆按鈕",
+        area="Office, Associations and Status pages",
+        area_zh="官職、人際關係、身份三個頁面",
+        summary="Each of these three handlers adds its primary code filter "
+                "only when the list is non-empty -- `if "
+                "len(p.OfficeCodes) > 0` -- so an empty list means *every "
+                "code*, and the Office page's own variable says so: "
+                "`let _officeCodes = [];   // [] = all offices`.  Each page "
+                "then greys out Run Query whenever that list is empty, "
+                "which is exactly the state the handler reads as 'no "
+                "filter'.  On Office and Associations the button that puts "
+                "the form into that state -- *All Offices*, and *All* -- "
+                "calls a clear function that empties the list and re-greys "
+                "Run Query.  Pressing the control for 'everything' disables "
+                "the control for 'go'.",
+        summary_zh="這三個後端都只有在代碼清單非空時才加上主要篩選條件——"
+                   "例如 `if len(p.OfficeCodes) > 0`——因此空清單的意思就是"
+                   "「全部代碼」，官職頁面自己的變數也這樣註明："
+                   "`let _officeCodes = [];   // [] = all offices`。然而"
+                   "每一頁只要那份清單是空的，就會把執行查詢按鈕變成停用，"
+                   "而那正是後端理解為「不設篩選」的狀態。官職與人際關係兩頁"
+                   "更進一步：讓表單進入該狀態的按鈕（*All Offices* 與 "
+                   "*All*）會呼叫清空函式，把清單清空後再次停用執行查詢。"
+                   "按下「全部」那顆鈕，等於關掉「執行」那顆鈕。",
+        evidence="Swept over the build rather than observed on one form, "
+                 "and the chain is followed all three steps: the quantity "
+                 "each page's Run Query gate tests, the request field the "
+                 "page builds from it, and the Go field that field decodes "
+                 "into.  Three forms meet on all three -- associations "
+                 "(`assocCodes`), office (`_officeCodes` sent as "
+                 "`officeCodes`), status (`selectedStatusCodes` sent as "
+                 "`statusCodes`).  The Office case is confirmed end to end "
+                 "in a browser: pick an office and Run Query is enabled; "
+                 "press *All Offices* and it is disabled again, while the "
+                 "same request sent over HTTP with `officeCodes: []` "
+                 "answers 200.",
+        evidence_zh="這是對整個版本的普查，而非單一表單的觀察，而且完整追"
+                    "了三個環節：每個頁面執行查詢按鈕所檢查的那份清單、頁面"
+                    "用它組出的請求欄位，以及該欄位對應的 Go 欄位。三個表單"
+                    "在三個環節上都吻合——人際關係（`assocCodes`）、官職"
+                    "（`_officeCodes`，送出時為 `officeCodes`）、身份"
+                    "（`selectedStatusCodes`，送出時為 `statusCodes`）。"
+                    "官職這一例已在瀏覽器中完整重現：選定一個官職後執行查詢"
+                    "可用；按下 *All Offices* 後又變成停用，而同樣內容的請求"
+                    "（`officeCodes: []`）直接以 HTTP 送出則回 200。",
+        impact="Three of the six main forms cannot be asked for their "
+               "unfiltered result.  A researcher who wants every office "
+               "posting in a place, or every association of a person, or "
+               "every status in a dynasty, has no way to say so through the "
+               "page -- and on two of them the button that appears to offer "
+               "it makes the form less usable rather than more.  The work "
+               "behind that query is written, tested and reachable over "
+               "HTTP; only the interface refuses.",
+        impact_zh="六個主要表單中有三個無法被要求給出不設條件的結果。研究者"
+                  "若想查某地的全部官職任命、某人的全部人際關係，或某朝代的"
+                  "全部身份，透過頁面都無從表達；而在其中兩頁，那顆看起來正"
+                  "是為此而設的按鈕，反而讓表單更不可用。支撐這項查詢的程式"
+                  "碼都已寫好、可運作，直接以 HTTP 也叫得到，卡住的只有介面。",
+        fix="Decide per form what an empty selection means and make the "
+            "page agree with the handler.  If the unfiltered query is "
+            "intended -- and the Office page's own comment says it is -- "
+            "then Run Query should not be gated on the list being "
+            "non-empty, and the *All* buttons should leave it enabled.  If "
+            "it is not intended, the handlers should refuse an empty list "
+            "with a message, the way the Places form refuses an empty "
+            "category selection, rather than accepting a request no user "
+            "can send.",
+        fix_zh="請就每個表單決定「空選擇」的意義，並讓頁面與後端一致。若原本"
+               "就允許不設條件的查詢——官職頁面自己的註解正是這樣寫的——那麼"
+               "執行查詢就不該以清單非空作為啟用條件，「全部」類按鈕按下後"
+               "也應維持可用。若原本不允許，則後端應該像地點表單拒絕空類別"
+               "選擇那樣，明確回一個錯誤訊息，而不是接受一個沒有使用者送得"
+               "出來的請求。",
+        steps=(
+            "Open the Office form (/LookAtOffice).",
+            "Press Select Office and choose any office; Run Query becomes "
+            "available.",
+            "Press All Offices.",
+            "Run Query is greyed out again, and there is no way to run the "
+            "query the button just asked for.",
+            "On the Associations form the same sequence with Select "
+            "Associations and the All button does the same thing.",
+        ),
+        steps_zh=(
+            "打開官職表單（/LookAtOffice）。",
+            "按下選擇官職並任選一個官職，此時執行查詢變為可用。",
+            "按下 All Offices。",
+            "執行查詢又變回停用，而剛才那顆按鈕所要求的查詢已無從執行。",
+            "在人際關係表單上，用選擇關係與 All 按鈕重複同樣步驟，結果相同。",
+        ),
+        source=("Templates/office/index.html:343",
+                "Templates/office/index.html:357",
+                "Code/office_form_backend.go:659",
+                "Templates/associations/index.html:304",
+                "Templates/status/index.html:473",
+                "Code/associations_form_backend.go:534",
+                "Code/status_form_backend.go:496"),
+        tests=("test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one",
+               "test_all_offices_leaves_the_office_form_able_to_query"),
+    ),
+    Defect(
+        key="CBDB-D-006",
+        priority="P5", severity="low", origin="software",
+        title="Two lookup endpoints were orphaned by the picker rework: "
+              "implemented, routed, and called by no page",
+        title_zh="選擇視窗改版後，有兩個查詢端點成了孤兒：程式還在、路由還在，"
+                 "卻沒有任何頁面會呼叫",
+        area="/api/entry-code-type-rel and /api/status-code-type-rel",
+        area_zh="入仕代碼類型對照與身份代碼類型對照兩個查詢端點",
+        summary="The entry and status pickers each had their search "
+                "reworked in this build -- it now filters the codes already "
+                "loaded rather than stepping through matches, and the "
+                "*Next* button is gone.  Both pickers stopped fetching the "
+                "code-to-type relation they had been loading alongside the "
+                "type tree.  The two endpoints, their handlers and their "
+                "SQL are all still in the build; nothing calls them.",
+        summary_zh="這一版把入仕與身份兩個選擇視窗的搜尋功能都改寫了——現在"
+                   "是對已載入的代碼做篩選，而不是逐筆跳到下一個符合項，"
+                   "*Next* 按鈕也一併移除。兩個選擇視窗都不再抓取原本會連同"
+                   "類型樹一起載入的「代碼—類型對照」資料。這兩個端點、它們"
+                   "的處理程序與 SQL 都還在版本裡，只是沒有任何東西會呼叫。",
+        evidence="Surveyed rather than noticed: every `/api/` route the "
+                 "build registers, against every shipped page including the "
+                 "pickers.  116 routes, two of them called by nothing.  "
+                 "Both still answer when requested directly, so this is "
+                 "work that runs and cannot be reached rather than work "
+                 "that is broken.  The same survey found and reported two "
+                 "Networks autocomplete helpers in the same state two builds "
+                 "earlier; those were removed, which is one of the two "
+                 "reasonable answers here.",
+        evidence_zh="這是普查出來的，不是碰巧看到的：把版本註冊的每一條 "
+                    "`/api/` 路由，對照每一個釋出的頁面（含各選擇視窗）。"
+                    "共 116 條路由，其中兩條沒有任何東西呼叫。兩者若直接請求"
+                    "都仍會正常回應，所以這是「能跑但到不了」的程式，而不是"
+                    "壞掉的程式。同一項普查在兩版之前找出並回報過兩個處於相同"
+                    "狀態的網絡自動完成端點；那兩個後來被刪除了，而刪除正是"
+                    "這裡兩種合理處理方式之一。",
+        impact="No user-visible consequence today: the pickers work, and "
+               "what they stopped fetching they no longer need.  It is "
+               "reported because dead-but-live code is a maintenance cost "
+               "that grows quietly -- the handler, its SQL and its route "
+               "will be read, updated and tested by somebody who does not "
+               "know nothing calls them.",
+        impact_zh="目前沒有使用者看得到的影響：選擇視窗運作正常，而不再抓取"
+                  "的那份資料它們也確實不再需要。之所以回報，是因為「還活著"
+                  "的死程式」會悄悄累積維護成本——日後總會有人去讀、去改、去"
+                  "測這些處理程序、SQL 與路由，卻不知道根本沒有東西會呼叫"
+                  "它們。",
+        fix="Either delete the two handlers and their routes, as was done "
+            "with the Networks search helpers, or wire them back to "
+            "whatever still needs the relation.  Worth checking first "
+            "whether the reworked search lost a capability along with the "
+            "fetch: the old picker used the relation to search across "
+            "types, and the new one filters within the loaded node.",
+        fix_zh="兩種做法：一是像處理網絡搜尋端點那樣，把這兩個處理程序與其"
+               "路由一併刪除；二是把它們重新接回仍然需要這份對照資料的地方。"
+               "動手之前建議先確認：改寫後的搜尋是否連同那次抓取一起失去了"
+               "某項能力——舊的選擇視窗是用這份對照跨類型搜尋的，新的則只在"
+               "已載入的節點內篩選。",
+        steps=(
+            "Search the shipped Templates directory for "
+            "'entry-code-type-rel' or 'status-code-type-rel': no page "
+            "mentions either.",
+            "Request either endpoint directly: it answers 200 with its "
+            "rows.",
+        ),
+        steps_zh=(
+            "在釋出的 Templates 目錄中搜尋 'entry-code-type-rel' 或 "
+            "'status-code-type-rel'：沒有任何頁面提到它們。",
+            "直接請求其中任一端點：仍會回 200 並送出資料。",
+        ),
+        source=("Code/entry_form_backend.go:182",
+                "Code/status_form_backend.go:170",
+                "Templates/pickers/entry_picker.html",
+                "Templates/pickers/status_picker.html"),
+        tests=("test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it",),
+    ),
+    Defect(
         key="CBDB-D-007",
-        priority="P3", severity="low", origin="release",
+        priority="P3", severity="low", origin="software",
         title="A uniqueness the Kinship code declares is missing from the "
               "shipped table",
         title_zh="親屬功能的程式碼宣告了唯一性條件，釋出的資料表卻沒有它",
-        area="ZZ_SP_KINSHIP, built by "
-             "CBDB_AdditionalTablesViewsIndices.sql",
-        area_zh="親屬功能的結果暫存表 ZZ_SP_KINSHIP，由資料庫建置指令檔"
-                "建立（CBDB_AdditionalTablesViewsIndices.sql）",
+        area="The Kinship result scratch table ZZ_SP_KINSHIP, built by the "
+             "database setup script",
+        area_zh="親屬功能的結果暫存表 ZZ_SP_KINSHIP，由資料庫建置指令檔建立",
         summary="The Kinship backend declares `ZZ_SP_KINSHIP` with "
                 "`UNIQUE(c_person_id)` and inserts into it with `INSERT OR "
                 "IGNORE`.  The table that actually ships is created by the "
@@ -781,15 +740,30 @@ _DEFECTS: tuple[Defect, ...] = (
                  "against `sqlite_master` and `PRAGMA index_list` for each "
                  "table.  Five constraints are declared; four are enforced "
                  "by the shipped database and this one is not.  "
-                 "`ZZ_SIP_NETWORK` was in the same state in the previous "
-                 "build and has been repaired in this one, in the same "
-                 "file, which is what shows the omission is an oversight "
-                 "rather than a policy.",
+                 "`ZZ_SIP_NETWORK` was in the same state two builds ago and "
+                 "has since been repaired in the same file, which is what "
+                 "shows the omission is an oversight rather than a policy.\n\n"
+                 "Origin is `software`, not `release`, and the deciding "
+                 "experiment is what settles it: the constraint is missing "
+                 "from the *builder's source*, so a clean rebuild from the "
+                 "current CBDB data using this same code reproduces it "
+                 "exactly.  Nothing about how the archive was assembled "
+                 "would have prevented it, and the fix below is a source "
+                 "edit.  The band still reads P3 because that describes the "
+                 "symptom -- a released file lacking something it should "
+                 "have -- while the origin says who fixes it.",
         evidence_zh="把釋出 Go 程式碼中的 `UNIQUE(...)` 宣告，逐表與 "
                     "`sqlite_master` 及 `PRAGMA index_list` 比對。共宣告了"
                     "五個條件，其中四個在釋出的資料庫裡確實存在，只有這一個"
-                    "沒有。`ZZ_SIP_NETWORK` 在上一版也是同樣狀況，本版已經"
-                    "在同一個檔案中修好——由此可見這是疏漏而非刻意的設計。",
+                    "沒有。`ZZ_SIP_NETWORK` 在兩版之前也是同樣狀況，後來已"
+                    "在同一個檔案中修好——由此可見這是疏漏而非刻意的設計。\n\n"
+                    "來源歸類為 `software` 而非 `release`，判定的依據是那個"
+                    "決定性的實驗：缺少的條件就在*建置程式的原始碼*裡，因此"
+                    "用同一套程式碼、以現有的 CBDB 資料重新建置一次，這個"
+                    "問題會原封不動再出現。發行檔怎麼打包都阻止不了它，而"
+                    "底下的修法也是改原始碼。級別仍維持 P3，因為級別描述的"
+                    "是症狀——釋出的檔案缺少了應該有的東西——而來源說的是"
+                    "該由誰來修。",
         impact="No user-visible consequence was found: importing a "
                "duplicate inflates the Kinship person-count, which reads a "
                "different table, but the query deduplicates downstream and "
@@ -802,15 +776,15 @@ _DEFECTS: tuple[Defect, ...] = (
                   "步驟會去除重複，匯出的人物資料是正確的。之所以記錄下來，"
                   "是因為這個宣告與事實不符，而下一個針對這張表所寫的查詢，"
                   "會理所當然地以為它是真的。",
-        fix="Add `UNIQUE(c_person_id)` to the `ZZ_SP_KINSHIP` definition "
-            "in CBDB_AdditionalTablesViewsIndices.sql, exactly as "
-            "`ZZ_SIP_NETWORK` received it in this build.",
+        fix="Add `UNIQUE(c_person_id)` to the `ZZ_SP_KINSHIP` definition in "
+            "CBDB_AdditionalTablesViewsIndices.sql, exactly as "
+            "`ZZ_SIP_NETWORK` received it.",
         fix_zh="在 CBDB_AdditionalTablesViewsIndices.sql 的 ZZ_SP_KINSHIP "
-               "定義中加上 `UNIQUE(c_person_id)`，做法與本版為 "
-               "`ZZ_SIP_NETWORK` 所加的完全相同。",
+               "定義中加上 `UNIQUE(c_person_id)`，做法與 `ZZ_SIP_NETWORK` "
+               "當時的修法完全相同。",
         steps=(
-            "Open Data/cbdb.db and run: SELECT sql FROM sqlite_master "
-            "WHERE name = 'ZZ_SP_KINSHIP';",
+            "Open Data/cbdb.db and run: SELECT sql FROM sqlite_master WHERE "
+            "name = 'ZZ_SP_KINSHIP';",
             "The definition has no UNIQUE clause.",
             "Compare with the CREATE TABLE in the Kinship backend, which "
             "declares one.",
@@ -821,8 +795,8 @@ _DEFECTS: tuple[Defect, ...] = (
             "可以看到定義中沒有 UNIQUE 子句。",
             "再對照親屬後端的 CREATE TABLE，那裡是有宣告的。",
         ),
-        source=("Code/kinship_form_backend.go:153",
-                "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql"),
+        source=("Code/kinship_form_backend.go:479",
+                "CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql:895"),
         tests=("test_a_uniqueness_a_form_declares_is_one_the_table_enforces",),
     ),
 )

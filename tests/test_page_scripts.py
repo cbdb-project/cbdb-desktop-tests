@@ -55,33 +55,22 @@ from cbdb_desktop.staging import AppLayout
 #:
 #: Keyed on the broken lines' **text**, deliberately not on their line
 #: numbers.  Nothing about this defect depends on a line number: an
-#: unrelated edit anywhere above line 923 in any of the three templates
-#: would shift all nine, the signature would stop matching, and the very
-#: same defect would report as an unrecognised failure and land in the
-#: report's *unclassified* table.  That is brittle in the direction the
-#: project cares about, and simultaneously loose in the other -- line
-#: numbers would equally match nine *different* breakages that happened
-#: to fall on those lines.  The text is exact, and it moves with the
-#: defect rather than with the file.  The line numbers still appear in
-#: the message, where they are what a reader needs and cost nothing if
-#: they move.
+#: unrelated edit above one of them would shift the rest, the signature
+#: would stop matching, and the very same defect would report as an
+#: unrecognised failure and land in the report's *unclassified* table.
+#: That is brittle in the direction the project cares about, and
+#: simultaneously loose in the other -- line numbers would equally match
+#: different breakages that happened to fall on them.  The text is
+#: exact, and it moves with the defect rather than with the file.  The
+#: line numbers still appear in the message, where they are what a
+#: reader needs and cost nothing if they move.
+#:
+#: Nine lines across three pages in the 2026-09-15_2 build; three on one
+#: page here, the Association Pairs and Entry repairs having landed and
+#: Group Data's not.  The signature refusing to match a partial repair
+#: is the mechanism working: the round that sees it has to look before
+#: the finding may keep its name.
 _SHIPPED_BREAKAGE: dict[str, tuple[str, ...]] = {
-    "association_pairs": (
-        "showSuccess('Export: ' + (j.files || []).length +  file(s) "
-        "offered for download — check each Save dialog.'\");",
-        "showSuccess('GIS export: ' + (j.files || []).length +  file(s) "
-        "offered for download — check each Save dialog.'\");",
-        "showSuccess('Neo4j export: ' + (j.files || []).length +  file(s) "
-        "offered for download — check each Save dialog.'\");",
-        "' export: ' + (j.files || []).length +  file(s) offered for "
-        "download — check each Save dialog.'\");",
-    ),
-    "entry": (
-        "showSuccess('Neo4j export: ' + (j.files || []).length +  file(s) "
-        "offered for download — check each Save dialog.'\");",
-        "showSuccess('Query results export: ' + (j.files || []).length +  "
-        "file(s) offered for download — check each Save dialog.'\");",
-    ),
     "group_data": (
         "showSuccess('Query results export: ' + (j.files || []).length +  "
         "file(s) offered for download — check each Save dialog.'\");",
@@ -92,8 +81,7 @@ _SHIPPED_BREAKAGE: dict[str, tuple[str, ...]] = {
     ),
 }
 
-
-#: The sentence the nine broken lines were trying to write.  Counting
+#: The sentence the broken lines were trying to write.  Counting
 #: where it *did* come out right is what turns "three pages are broken"
 #: into "a search-and-replace went wrong on three of ten", which is a
 #: different and more actionable sentence for a maintainer -- and it is
@@ -142,7 +130,7 @@ def test_every_page_script_closes_every_string_it_opens(layout: AppLayout):
                  for page, findings in found.items()}
 
     if signature == _SHIPPED_BREAKAGE:
-        example = found["association_pairs"][0]
+        example = next(iter(sorted(found.items())))[1][0]
         broken = sum(len(lines) for lines in found.values())
         intact = _intact_siblings(layout)
         raise KnownShippedDefect(

@@ -42,8 +42,8 @@ catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
 **Current state: 1382 tests collected against
-`CBDB-Desktop_20260915_2.7z`, and the defect registry holds this round's
-findings.**  It was cleared on 2026-09-15, together with the previous
+`CBDB-Desktop_20260916_2.7z`, and the defect registry holds this round's
+findings.**  It was cleared on 2026-09-22, together with the previous
 round's reports and every run artefact, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
@@ -76,10 +76,11 @@ Of those tests, 420 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep) and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; on the 2026-09-15_2 build,
-**107 of 107** endpoints reachable from the user interface were
+`artifacts/endpoint_coverage.json`; on the 2026-09-16_2 build,
+**105 of 105** endpoints reachable from the user interface were
 actually requested, with nothing excused.  The denominator moves with
-the build -- it was 105 on 20260908 and 106 on 20260910 -- so read the
+the build -- 105 on 20260908, 106 on 20260910, 107 on 20260915_2 --
+so read the
 artefact rather than this paragraph for the current run.
 
 That number was not always earned.  It read 105 of 105 for a while
@@ -98,7 +99,7 @@ declared precondition across six `PRECONDITIONS` entries, and the other
 94 are pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
 Beside it sits the coverage number that says what a dead page costs:
 `test_every_button_is_wired_to_a_function_that_exists` checks, for each
-of the 205 buttons wired with an inline `onclick`, that the function it
+of the 202 buttons wired with an inline `onclick`, that the function it
 names exists once the page has loaded.  The 41 wired with
 `addEventListener` cannot be asked that way -- such a function need
 never be global -- and the split is pinned so a build that moved them

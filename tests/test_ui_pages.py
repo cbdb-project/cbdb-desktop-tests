@@ -245,10 +245,13 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
     # which is the harness this file does not have.
     "pickers/bac_picker": ("btn-bac-search", "btn-bac-select"),
     "pickers/dynasty_picker": ("btn-dynasty-search", "btn-dynasty-select"),
+    # Both pickers lost their search "Next" button in the 2026-09-16_2
+    # build, which reworked their search to filter the loaded list
+    # rather than step through matches one at a time.
     "pickers/entry_picker": ("btn-entry-select", "btn-search",
-                             "btn-search-next", "btn-select-all"),
+                             "btn-select-all"),
     "pickers/office_picker": ("btn-select",),
-    "pickers/status_picker": ("btn-search", "btn-search-next",
+    "pickers/status_picker": ("btn-search",
                               "btn-select-all", "btn-status-select"),
     "pickers/texts_picker": ("btn-select",),
     "places": ("btnExportNeo4j", "btnExportResults", "btnRunQuery",
@@ -459,9 +462,9 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
     # silent shrink the guard exists to prevent, and which nothing else
     # would notice, because EXPECTED_BUTTONS pins the totals and not the
     # split.  Operating principle 5, applied to this file's own coverage.
-    assert (inline, listeners) == (205, 41), (
+    assert (inline, listeners) == (202, 41), (
         f"{inline} buttons are wired with an inline onclick and "
-        f"{listeners} with addEventListener, against 205 and 41.  Only "
+        f"{listeners} with addEventListener, against 202 and 41.  Only "
         "the first kind can be checked here -- a listener's function "
         "need never be global -- so a build that moved them would "
         "shrink this test without failing it")
