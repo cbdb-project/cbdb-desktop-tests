@@ -53,7 +53,10 @@ EXPECTED_BUTTONS = {
     # now a single "Select Dynasties", and the Places form gained
     # "Select Biog Addr Types" for the new BAC filter.  The picker that
     # filter opens is the new pickers/bac_picker page below.
-    "association_pairs": 21,
+    # 20 since the 2026-09-16_2 build, which brought this form across to
+    # the multi-select dynasty picker: two Pick buttons became one
+    # Select Dynasties.
+    "association_pairs": 20,
     "associations": 17,
     # The Browser page has grown twice: 13 on the 20260908 build, 16 on
     # the 20260909 one, 18 here.
@@ -86,10 +89,13 @@ EXPECTED_BUTTONS = {
     "pickers/associations_picker": 4,
     "pickers/bac_picker": 3,
     "pickers/dynasty_picker": 3,
-    "pickers/entry_picker": 5,
+    # Both pickers lost their search "Next" button in the
+    # 2026-09-16_2 build, which reworked their search to filter
+    # the loaded list rather than step through matches.
+    "pickers/entry_picker": 4,
     "pickers/office_picker": 4,
     "pickers/people_picker": 3,
-    "pickers/status_picker": 5,
+    "pickers/status_picker": 4,
     "pickers/texts_picker": 4,
     "places": 13,
     "qbe": 8,
@@ -107,7 +113,14 @@ EXPECTED_BUTTONS = {
 #: helpers it deleted were never in this number -- no page called them,
 #: which is what made them a finding -- so the only movement is
 #: ``/api/biog-addr-codes``, which the new bac_picker fetches.
-EXPECTED_REACHABLE_ENDPOINTS = 107
+#
+# 105 on 2026-09-16_2: the entry and status pickers stopped
+# fetching the two code-to-type relations when their search was
+# reworked.  Both endpoints still exist -- see
+# test_page_contracts.py::test_every_api_endpoint_the_build_
+# routes_has_a_page_that_calls_it, which is where that is a
+# finding rather than a number.
+EXPECTED_REACHABLE_ENDPOINTS = 105
 
 #: Endpoints the pages can reach that this suite deliberately does not
 #: request, with the reason.  Every entry is a decision; the gate

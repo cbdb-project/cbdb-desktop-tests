@@ -330,18 +330,14 @@ _UNREAD_REQUEST_FIELDS = {
     # first is remembered under the form's mutex and read again at
     # export time, the second raises the walk's loop bound.
     #
-    # These two replaced them, and they are the same shape of thing
-    # seen from the other end of a migration.  Association Pairs is the
-    # one form the dynasty picker's move to multi-select did not reach
-    # (test_query_matrix.py::test_every_form_reads_the_dynasty_choice_
-    # the_picker_now_sends), and of the six From/To fields it still
-    # declares, its own handler reads four.  So even a page that spoke
-    # its vocabulary correctly would be sending two numbers into
-    # nothing.
-    ("assocpairs_form_backend.go", "AssocPairsQueryParams",
-     "FromDynastyEnd"): "fromDynastyEnd",
-    ("assocpairs_form_backend.go", "AssocPairsQueryParams",
-     "ToDynastyBegin"): "toDynastyBegin",
+    # Two Association Pairs fields replaced them and have themselves
+    # gone: that form was the one the dynasty picker's move to
+    # multi-select had not reached, and the 2026-09-16_2 build brought
+    # it across, taking the whole From/To vocabulary -- including the
+    # two fields its own handler never read -- with it.
+    #
+    # Empty is the goal, and empty is not the same as unchecked: the
+    # survey below reads every json-tagged field in the build.
 }
 _UNPOPULATED_RESPONSE_FIELDS = {
     ("kinship_form_backend.go", "KinRecord", "KinRel0"): "kinRel0",
@@ -612,14 +608,23 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 # reachable from no page at all, and the fix it asked for.
 EXPECTED_API_ROUTES = 116
 
-# Empty, and empty is the goal.  The 2026-09-15 build removed the two
-# that were here -- the Networks person and place autocomplete helpers,
-# each documented in its own comment as serving a picker that never
-# called it -- by deleting the handlers rather than wiring them up.
-# The survey stays: it is extracted from the build, so the next
-# endpoint that ships with no way in fails the first assertion below
-# rather than needing anyone to look for it.
-_ROUTED_AND_UNCALLED: dict[str, str] = {}
+# The 2026-09-15 build emptied this by deleting the two Networks
+# autocomplete helpers no picker called -- and the 2026-09-16_2 build
+# refilled it with two more, the same way and by accident.  Both
+# pickers were reworked in that build, and both stopped fetching the
+# code-to-type relation they had been loading; the endpoints, their
+# handlers and their SQL are all still there.
+#
+# This is why the survey is extracted rather than listed: nobody set
+# out to orphan these, and nobody would have gone looking.
+_ROUTED_AND_UNCALLED = {
+    "/api/entry-code-type-rel":
+        "the entry picker fetched it until its search was reworked in "
+        "the 2026-09-16_2 build; it now loads only /api/entry-types",
+    "/api/status-code-type-rel":
+        "the status picker fetched it until the same rework, and now "
+        "loads only /api/status-types",
+}
 
 
 def _without_comments(page: str) -> str:
@@ -736,9 +741,9 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
             + "; ".join(f"{path} ({uncalled[path]}) -- "
                         f"{_ROUTED_AND_UNCALLED[path]}"
                         for path in sorted(uncalled))
-            + ".  Both are autocomplete helpers written for pickers "
-              "that do not use them, so neither piece of work reaches "
-              "a user")
+            + ".  Each entry above says which page stopped calling it "
+              "and when.  The work behind them runs and answers; only "
+              "the way in is gone, so nothing a user does reaches it")
 
 
 #: A page's Run Query button greyed out whenever some list is empty,

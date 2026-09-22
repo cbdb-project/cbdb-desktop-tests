@@ -2,9 +2,9 @@
 
 _A respectful summary of issues uncovered during automated regression testing._
 
-_Build under test: CBDB-Desktop_20260915_2.7z_
+_Build under test: CBDB-Desktop_20260916_2.7z_
 
-_Generated 2026-09-16 02:56 UTC from a run of 1382 tests (429s)._
+_Generated 2026-09-22 06:21 UTC from a run of 1382 tests (442s)._
 
 Dear maintainer,
 
@@ -18,12 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1184 |
-| failed | 14 |
+| passed | 1188 |
+| failed | 10 |
 | xfailed (a known defect, still present) | 3 |
 | skipped | 181 |
 
-Every one of the 14 failures is a test that demonstrates an issue below.
+Every one of the 10 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
@@ -73,29 +73,29 @@ These outcomes are known and were agreed to be left as they are for the time bei
 
 | ID | Priority | Status in this run | Issue |
 | --- | --- | --- | --- |
-| CBDB-D-001 | P0 | CONFIRMED | Three of the thirteen forms are completely inert: a stray quote leaves their whole script unparsed |
-| CBDB-D-002 | P0 | CONFIRMED | The Association Pairs dynasty filter does nothing: the shared picker changed shape and this one page did not |
-| CBDB-D-004 | P0 | CONFIRMED | Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once |
-| CBDB-D-005 | P0 | CONFIRMED | Every multi-file export reports the server's file count as though the browser had saved them all |
-| CBDB-D-006 | P0 | CONFIRMED | The ASCII Pajek export begins with a UTF-8 byte order mark |
+| CBDB-D-001 | P0 | CONFIRMED | The Group Data form is completely inert: three unclosed quotes leave its whole script unparsed |
+| CBDB-D-002 | P0 | CONFIRMED | Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once |
+| CBDB-D-003 | P0 | CONFIRMED | Every multi-file export reports the server's file count as though the browser had saved them all |
+| CBDB-D-004 | P0 | CONFIRMED | The ASCII Pajek export begins with a UTF-8 byte order mark |
 | CBDB-D-007 | P3 | CONFIRMED | A uniqueness the Kinship code declares is missing from the shipped table |
-| CBDB-D-003 | P5 | CONFIRMED | Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it |
+| CBDB-D-005 | P5 | CONFIRMED | Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it |
+| CBDB-D-006 | P5 | CONFIRMED | Two lookup endpoints were orphaned by the picker rework: implemented, routed, and called by no page |
 
 ## Table of contents
 
-- [CBDB-D-001 — Three of the thirteen forms are completely inert: a stray quote leaves their whole script unparsed](#cbdb-d-001--three-of-the-thirteen-forms-are-completely-inert-a-stray-quote-leaves-their-whole-script-unparsed)
-- [CBDB-D-002 — The Association Pairs dynasty filter does nothing: the shared picker changed shape and this one page did not](#cbdb-d-002--the-association-pairs-dynasty-filter-does-nothing-the-shared-picker-changed-shape-and-this-one-page-did-not)
-- [CBDB-D-004 — Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once](#cbdb-d-004--looking-a-person-up-in-the-browser-silently-replaces-the-kinship-forms-result-and-the-export-then-describes-two-people-at-once)
-- [CBDB-D-005 — Every multi-file export reports the server's file count as though the browser had saved them all](#cbdb-d-005--every-multi-file-export-reports-the-servers-file-count-as-though-the-browser-had-saved-them-all)
-- [CBDB-D-006 — The ASCII Pajek export begins with a UTF-8 byte order mark](#cbdb-d-006--the-ascii-pajek-export-begins-with-a-utf-8-byte-order-mark)
+- [CBDB-D-001 — The Group Data form is completely inert: three unclosed quotes leave its whole script unparsed](#cbdb-d-001--the-group-data-form-is-completely-inert-three-unclosed-quotes-leave-its-whole-script-unparsed)
+- [CBDB-D-002 — Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once](#cbdb-d-002--looking-a-person-up-in-the-browser-silently-replaces-the-kinship-forms-result-and-the-export-then-describes-two-people-at-once)
+- [CBDB-D-003 — Every multi-file export reports the server's file count as though the browser had saved them all](#cbdb-d-003--every-multi-file-export-reports-the-servers-file-count-as-though-the-browser-had-saved-them-all)
+- [CBDB-D-004 — The ASCII Pajek export begins with a UTF-8 byte order mark](#cbdb-d-004--the-ascii-pajek-export-begins-with-a-utf-8-byte-order-mark)
 - [CBDB-D-007 — A uniqueness the Kinship code declares is missing from the shipped table](#cbdb-d-007--a-uniqueness-the-kinship-code-declares-is-missing-from-the-shipped-table)
-- [CBDB-D-003 — Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it](#cbdb-d-003--three-forms-accept-an-unfiltered-query-and-give-no-way-to-ask-for-one----and-two-of-them-offer-the-button-for-it)
+- [CBDB-D-005 — Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it](#cbdb-d-005--three-forms-accept-an-unfiltered-query-and-give-no-way-to-ask-for-one----and-two-of-them-offer-the-button-for-it)
+- [CBDB-D-006 — Two lookup endpoints were orphaned by the picker rework: implemented, routed, and called by no page](#cbdb-d-006--two-lookup-endpoints-were-orphaned-by-the-picker-rework-implemented-routed-and-called-by-no-page)
 - [Severity legend](#severity-legend)
 - [Reproducing this report](#reproducing-this-report)
 
-## CBDB-D-001 — Three of the thirteen forms are completely inert: a stray quote leaves their whole script unparsed
+## CBDB-D-001 — The Group Data form is completely inert: three unclosed quotes leave its whole script unparsed
 
-**Affected area:** Association Pairs, Entry and Group Data pages (/LookAtAssociationPairs, /LookAtEntry, /LookAtGroupData)
+**Affected area:** Group Data page (/LookAtGroupData)
 
 **Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
 
@@ -105,101 +105,50 @@ These outcomes are known and were agreed to be left as they are for the time bei
 
 #### Description
 
-Nine lines across the three pages open a JavaScript string that the line never closes.  All nine are the same shape -- a sentence about downloads that was rewritten across the build, where the opening quote of the second fragment went missing and a stray `'"` was left at the end.  A JavaScript string may not span a line, so each of these is a syntax error; and because every one of these pages keeps the whole of its behaviour in a single inline `<script>`, the browser discards the entire block.  Every function the page declares then does not exist.  The page still loads, still draws every control, and does nothing at all.
+Three lines on this page open a JavaScript string that the line never closes.  All three are the same shape -- a sentence about downloads where the opening quote of the second fragment is missing and a stray `'"` was left at the end.  A JavaScript string may not span a line, so each is a syntax error; and because this page keeps the whole of its behaviour in a single inline `<script>`, the browser discards the entire block.  Every function the page declares then does not exist.  The page still loads, still draws every control, and does nothing at all.
+
+The same three lines were among nine across three pages in the 2026-09-15_2 build.  The Association Pairs and Entry pages were repaired in 2026-09-16_2; Group Data was not.
 
 #### Evidence
 
-Measured in a real Chromium: of the functions each page's own buttons are wired to, 0 of 14 exist on Association Pairs, 0 of 15 on Entry and 0 of 10 on Group Data, while the other ten pages lose none.  Every enabled button fires and raises `ReferenceError: <name> is not defined`; the twenty controls that ship disabled can never be un-greyed, because the code that would enable them is gone.  The server answers HTTP 200 for all three and serves the broken text verbatim.  The same sentence is written correctly twelve times across seven other pages, which is what identifies this as a botched search-and-replace rather than a change anyone chose; the previous build's three pages parse clean.
+Measured in a real Chromium: of the ten functions this page's own buttons are wired to, none exists after the page has loaded, while the other fifteen pages lose none.  Every enabled button fires and raises `ReferenceError: <name> is not defined`; the thirteen controls that ship disabled can never be un-greyed, because the code that would enable them is gone.  The page logs `SyntaxError: missing ) after argument list` on load and the server answers HTTP 200, serving the broken text verbatim.  The same sentence is written correctly eighteen times elsewhere in the build, which is what identifies this as an unfinished repair rather than a change anyone chose.
 
 #### Impact
 
-A historian who opens any of these three forms can do nothing on it.  Run Query does not run, the pickers do not open, the language buttons do not switch, the tabs do not change, and every export button is dead -- with no error message anywhere, because the function that would show one was discarded with the rest.  Twenty endpoints are reachable from no page at all as a result.  It is filed P0 under the band's own words -- the application returns empty results with no error shown to the user -- and the reason for saying so plainly is that nothing is computed wrongly here: nothing is computed at all.
+A historian who opens this form can do nothing on it.  Run Query does not run, Import does not import, the language buttons do not switch, the tabs do not change, and every export button is dead -- with no error message anywhere, because the function that would show one was discarded with the rest.  Seven endpoints are reachable from no page at all as a result.  It is filed P0 under the band's own words -- the application returns empty results with no error shown to the user -- and the reason for saying so plainly is that nothing is computed wrongly here: nothing is computed at all.
 
 #### Steps to reproduce
 
-1. Open the Entry form (/LookAtEntry).
-2. Press any button -- Choose an entry code, Run Query, or one of the language buttons.
+1. Open the Group Data form (/LookAtGroupData).
+2. Press any button -- Import, Run Query, or one of the language buttons.
 3. Nothing happens, and no message appears.
 4. Open the browser's developer console: it shows 'SyntaxError: missing ) after argument list' from the page itself, and a ReferenceError for each button pressed.
-5. The same on /LookAtAssociationPairs and /LookAtGroupData.
 
 #### Suggested fix
 
-One character per line, nine lines.  Each reads
+One character per line, three lines.  Each reads
 
-    showSuccess('X: ' + n +  file(s) offered for download — check each Save dialog.'");
+    showSuccess('X: ' + (j.files || []).length +  file(s) offered for download — check each Save dialog.'");
 
 and should read
 
-    showSuccess('X: ' + n + ' file(s) offered for download — check each Save dialog.');
+    showSuccess('X: ' + (j.files || []).length + ' file(s) offered for download — check each Save dialog.');
 
--- the opening quote restored before ` file(s)`, and the trailing `'");` reduced to `');`.  Worth running the three pages through `node --check` afterwards, or simply opening each one and watching the browser console: a page whose script parsed logs nothing.
+-- the opening quote restored before ` file(s)`, and the trailing `'");` reduced to `');`.  The Entry and Association Pairs pages already carry the repaired form and can be copied from.  Worth running the page through `node --check` afterwards, or opening it and watching the browser console: a page whose script parsed logs nothing.
 
 #### Where it lives in the build
 
-- `Templates/association_pairs/index.html:968`
-- `Templates/association_pairs/index.html:993`
-- `Templates/association_pairs/index.html:1014`
-- `Templates/association_pairs/index.html:1037`
-- `Templates/entry/index.html:1063`
-- `Templates/entry/index.html:1088`
 - `Templates/group_data/index.html:923`
 - `Templates/group_data/index.html:956`
 - `Templates/group_data/index.html:982`
 
 #### Demonstrated by
 
-- 5 × failed: `test_every_page_script_closes_every_string_it_opens`, `test_every_page_the_build_serves_loads_without_throwing`, `test_every_button_is_wired_to_a_function_that_exists`, `test_a_control_is_enabled_once_its_precondition_is_met[entry-btnExportResults+btnGIS+btnNeo4j+btnStoreIDs]` (+1)
-- 5 × passed: `test_a_control_is_enabled_once_its_precondition_is_met[networks-btn-run+chk-kin-param]`, `test_a_control_is_enabled_once_its_precondition_is_met[associations-btnRunQuery]`, `test_a_control_is_enabled_once_its_precondition_is_met[kinship-btn-export-results+btn-tab+btn-kml+btn-neo4j+btn-pajek+btn-gephi+btn-uci-net]`, `test_a_control_is_enabled_once_its_precondition_is_met[office-btnRunQuery]` (+1)
+- 3 × failed: `test_every_page_script_closes_every_string_it_opens`, `test_every_page_the_build_serves_loads_without_throwing`, `test_every_button_is_wired_to_a_function_that_exists`
 
-## CBDB-D-002 — The Association Pairs dynasty filter does nothing: the shared picker changed shape and this one page did not
+## CBDB-D-002 — Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once
 
-**Affected area:** Association Pairs page and its query (/LookAtAssociationPairs, POST /api/assocpairs/query)
-
-**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
-
-**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-`dynasty_picker.html` became multi-select in this build.  It now hands its opener a single array of chosen dynasties -- `handleDynastySelection(records)`.  Seven of the eight pages that open it were rewritten to match.  Association Pairs was not: it still declares `handleDynastySelection(dynasty, type)`, so it stores the whole array where it expects one dynasty, reads `.code` off it and gets `undefined`, and `JSON.stringify` then drops the key from the request altogether.  The query runs with no dynasty filter, and the form's own From and To boxes stay blank, so the page does not even show what was chosen.
-
-#### Evidence
-
-Read from both sides of the contract in the shipped pages: the picker calls its opener with one argument, and Association Pairs is the only page of the eight that declares two.  The handler half agrees -- of the eight request structs in the build that decode a dynasty, `AssocPairsQueryParams` is the only one that does not declare `dynastyCodes`, and it still declares the retired From/To pair.  Two of the six fields it does declare, `fromDynastyEnd` and `toDynastyBegin`, are read by no line of Go in the build, so they would be inert even if the page spoke the right vocabulary.
-
-#### Impact
-
-A researcher who restricts an Association Pairs query to one or more dynasties gets the unrestricted answer.  Nothing warns them: the popup closes normally, the query runs, and the result looks like a result.  This is the shape of error that is hardest to catch downstream, because the numbers are plausible and only wrong.
-
-#### Steps to reproduce
-
-1. Open the Association Pairs form and pick two people.
-2. Set the year filter to Dynasty and press Pick beside From.
-3. Choose a dynasty in the popup and press Select.
-4. The From boxes stay blank -- the first sign.
-5. Press Run Query and compare the row count with the same query run with no dynasty filter at all: they are the same.
-
-#### Suggested fix
-
-Bring the page to the contract the other seven already use: declare `handleDynastySelection(records)`, keep the array in a `selectedDynasties` variable, and send `dynastyCodes: selectedDynasties.map(d => d.code)`.  On the handler side, replace the six From/To fields on `AssocPairsQueryParams` with `DynastyCodes []int `json:"dynastyCodes"`` and the year-overlap branch with the `c_dy IN (...)` the other seven forms now use.  The Office, Status and Texts backends are the model.
-
-#### Where it lives in the build
-
-- `Templates/pickers/dynasty_picker.html:139`
-- `Templates/association_pairs/index.html:624`
-- `Templates/association_pairs/index.html:700`
-- `Code/assocpairs_form_backend.go:49`
-
-#### Demonstrated by
-
-- 3 × failed: `test_a_field_the_json_declares_is_a_field_the_program_uses`, `test_every_page_accepts_the_arguments_its_picker_hands_it`, `test_every_form_reads_the_dynasty_choice_the_picker_now_sends`
-
-## CBDB-D-004 — Looking a person up in the Browser silently replaces the Kinship form's result, and the export then describes two people at once
-
-**Affected area:** Kinship form and the Browser (GET /api/browser/person/{id}/kinship, POST /api/kinship/export-results)
+**Affected area:** Kinship form and the Browser's kinship tab
 
 **Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
 
@@ -213,7 +162,7 @@ Bring the page to the contract the other seven already use: declare `handleDynas
 
 #### Evidence
 
-Driven: with a Kinship result for person 1 on screen, a GET of person 10's kinship changes what Export Query Results returns -- `EgoRelativeKinship.tsv` goes from 920 to 9,795 characters and `KinshipNetwork.tsv` from 1,067 to 295 -- while `KinshipPeople.tsv` comes back byte for byte the same.  Neither page says anything.  Re-running the Kinship query returns 6 records, so the result was replaced rather than damaged: the user is exporting somebody else's traversal.  The form's five other exports build their rows from what the page posts to them and are unaffected; this is Export Query Results alone.
+Driven: with a Kinship result for person 1 on screen, a GET of person 10's kinship changes what Export Query Results returns -- `EgoRelativeKinship.tsv` and `KinshipNetwork.tsv` both come back with different content -- while `KinshipPeople.tsv` comes back byte for byte the same.  Neither page says anything.  Re-running the Kinship query returns its rows, so the result was replaced rather than damaged: the user is exporting somebody else's traversal.  The form's five other exports build their rows from what the page posts to them and are unaffected; this is Export Query Results alone.
 
 #### Impact
 
@@ -233,7 +182,7 @@ Either give the Browser its own scratch tables for the kinship tab, as the 2026-
 #### Where it lives in the build
 
 - `Code/browser_form_backend.go:2104`
-- `Code/kinship_form_backend.go:153`
+- `Code/browser_form_backend.go:2117`
 - `Templates/browser/index.html:182`
 
 #### Demonstrated by
@@ -241,7 +190,7 @@ Either give the Browser its own scratch tables for the kinship tab, as the 2026-
 - 1 × failed: `test_looking_a_person_up_does_not_discard_a_kinship_result`
 - 1 × passed: `test_export_profile_loads_the_kinship_tab_it_lists`
 
-## CBDB-D-005 — Every multi-file export reports the server's file count as though the browser had saved them all
+## CBDB-D-003 — Every multi-file export reports the server's file count as though the browser had saved them all
 
 **Affected area:** Ten pages, 22 export handlers
 
@@ -276,17 +225,18 @@ Report what was delivered rather than what was built.  The download helper can r
 
 #### Where it lives in the build
 
-- `Templates/office/index.html:847`
+- `Templates/office/index.html:854`
 - `Templates/status/index.html:797`
 - `Templates/texts/index.html:833`
 
 #### Demonstrated by
 
-- 2 × failed: `test_no_page_asks_the_browser_for_more_than_one_download`, `test_an_export_does_not_claim_more_files_than_it_delivered`
+- 1 × failed: `test_no_page_asks_the_browser_for_more_than_one_download`
+- 1 × passed: `test_an_export_does_not_claim_more_files_than_it_delivered`
 
-## CBDB-D-006 — The ASCII Pajek export begins with a UTF-8 byte order mark
+## CBDB-D-004 — The ASCII Pajek export begins with a UTF-8 byte order mark
 
-**Affected area:** Networks form, Pajek export (POST /api/networks/export-pajek)
+**Affected area:** Networks form, Pajek export
 
 **Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
 
@@ -300,7 +250,7 @@ Report what was delivered rather than what was built.  The download helper can r
 
 #### Evidence
 
-`network_ascii.net` and `network_UTF8.net`, built from the same records in the same run, both open with the same three bytes.  Past the mark the ASCII file holds 0 byte values above 0x7F against 18 in the Unicode one, so the encoding flag reached the body and was ignored only for the mark.
+`network_ascii.net` and `network_UTF8.net`, built from the same records in the same run, both open with the same three bytes.  Past the mark the ASCII file holds no byte values above 0x7F while the Unicode one holds eighteen, so the encoding flag reached the body and was ignored only for the mark.
 
 #### Impact
 
@@ -326,11 +276,11 @@ Write the mark only on the Unicode path, as the same file's Neo4j writers alread
 
 ## CBDB-D-007 — A uniqueness the Kinship code declares is missing from the shipped table
 
-**Affected area:** ZZ_SP_KINSHIP, built by CBDB_AdditionalTablesViewsIndices.sql
+**Affected area:** The Kinship result scratch table ZZ_SP_KINSHIP, built by the database setup script
 
 **Severity:** P3 — Packaging — the released files contain something they should not, or lack something they should.
 
-**Where it comes from:** `release` — In how this particular release was assembled -- a working copy shipped in place of a freshly built one, a file that was not regenerated.  Fixed in the release process by whoever builds the distribution.
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
 
 **Status in this run:** CONFIRMED
 
@@ -340,7 +290,9 @@ The Kinship backend declares `ZZ_SP_KINSHIP` with `UNIQUE(c_person_id)` and inse
 
 #### Evidence
 
-Compared the `UNIQUE(...)` declarations in the shipped Go against `sqlite_master` and `PRAGMA index_list` for each table.  Five constraints are declared; four are enforced by the shipped database and this one is not.  `ZZ_SIP_NETWORK` was in the same state in the previous build and has been repaired in this one, in the same file, which is what shows the omission is an oversight rather than a policy.
+Compared the `UNIQUE(...)` declarations in the shipped Go against `sqlite_master` and `PRAGMA index_list` for each table.  Five constraints are declared; four are enforced by the shipped database and this one is not.  `ZZ_SIP_NETWORK` was in the same state two builds ago and has since been repaired in the same file, which is what shows the omission is an oversight rather than a policy.
+
+Origin is `software`, not `release`, and the deciding experiment is what settles it: the constraint is missing from the *builder's source*, so a clean rebuild from the current CBDB data using this same code reproduces it exactly.  Nothing about how the archive was assembled would have prevented it, and the fix below is a source edit.  The band still reads P3 because that describes the symptom -- a released file lacking something it should have -- while the origin says who fixes it.
 
 #### Impact
 
@@ -354,20 +306,20 @@ No user-visible consequence was found: importing a duplicate inflates the Kinshi
 
 #### Suggested fix
 
-Add `UNIQUE(c_person_id)` to the `ZZ_SP_KINSHIP` definition in CBDB_AdditionalTablesViewsIndices.sql, exactly as `ZZ_SIP_NETWORK` received it in this build.
+Add `UNIQUE(c_person_id)` to the `ZZ_SP_KINSHIP` definition in CBDB_AdditionalTablesViewsIndices.sql, exactly as `ZZ_SIP_NETWORK` received it.
 
 #### Where it lives in the build
 
-- `Code/kinship_form_backend.go:153`
-- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql`
+- `Code/kinship_form_backend.go:479`
+- `CBDBSetUpCode/CBDB_AdditionalTablesViewsIndices.sql:895`
 
 #### Demonstrated by
 
 - 1 × failed: `test_a_uniqueness_a_form_declares_is_one_the_table_enforces`
 
-## CBDB-D-003 — Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it
+## CBDB-D-005 — Three forms accept an unfiltered query and give no way to ask for one -- and two of them offer the button for it
 
-**Affected area:** Office, Associations and Status pages (/LookAtOffice, /LookAtAssociations, /LookAtStatus)
+**Affected area:** Office, Associations and Status pages
 
 **Severity:** P5 — Unreachable feature — the application implements something no page can ask for.  The band says only that no user can get to it.  Whether the code behind it is correct is a separate question with a separate answer, so an unreachable feature that is also broken is recorded in both places rather than argued about in one.
 
@@ -381,7 +333,7 @@ Each of these three handlers adds its primary code filter only when the list is 
 
 #### Evidence
 
-Swept over the build rather than observed on one form: six of the handlers are written to accept an empty primary list, and three of the pages grey Run Query on `.length === 0` -- associations (`assocCodes`), office (`_officeCodes`), status (`selectedStatusCodes`).  The Office case is confirmed end to end in a browser: pick an office and Run Query is enabled; press *All Offices* and it is disabled again, while the same request sent over HTTP with `officeCodes: []` answers 200.  The Associations page has carried this since at least the 2026-09-10 build and its own comment says it copied the Office pattern deliberately.
+Swept over the build rather than observed on one form, and the chain is followed all three steps: the quantity each page's Run Query gate tests, the request field the page builds from it, and the Go field that field decodes into.  Three forms meet on all three -- associations (`assocCodes`), office (`_officeCodes` sent as `officeCodes`), status (`selectedStatusCodes` sent as `statusCodes`).  The Office case is confirmed end to end in a browser: pick an office and Run Query is enabled; press *All Offices* and it is disabled again, while the same request sent over HTTP with `officeCodes: []` answers 200.
 
 #### Impact
 
@@ -397,7 +349,7 @@ Three of the six main forms cannot be asked for their unfiltered result.  A rese
 
 #### Suggested fix
 
-Decide per form what an empty selection means and make the page agree with the handler.  If the unfiltered query is intended -- and the Office page's own comment says it is -- then Run Query should not be gated on the list being non-empty, and the *All* buttons should leave it enabled.  If it is not intended, the handlers should refuse an empty list with a message, the way the Places form now refuses an empty category selection, rather than accepting a request no user can send.
+Decide per form what an empty selection means and make the page agree with the handler.  If the unfiltered query is intended -- and the Office page's own comment says it is -- then Run Query should not be gated on the list being non-empty, and the *All* buttons should leave it enabled.  If it is not intended, the handlers should refuse an empty list with a message, the way the Places form refuses an empty category selection, rather than accepting a request no user can send.
 
 #### Where it lives in the build
 
@@ -405,13 +357,55 @@ Decide per form what an empty selection means and make the page agree with the h
 - `Templates/office/index.html:357`
 - `Code/office_form_backend.go:659`
 - `Templates/associations/index.html:304`
-- `Templates/status/index.html:474`
+- `Templates/status/index.html:473`
 - `Code/associations_form_backend.go:534`
 - `Code/status_form_backend.go:496`
 
 #### Demonstrated by
 
 - 2 × failed: `test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one`, `test_all_offices_leaves_the_office_form_able_to_query`
+
+## CBDB-D-006 — Two lookup endpoints were orphaned by the picker rework: implemented, routed, and called by no page
+
+**Affected area:** /api/entry-code-type-rel and /api/status-code-type-rel
+
+**Severity:** P5 — Unreachable feature — the application implements something no page can ask for.  The band says only that no user can get to it.  Whether the code behind it is correct is a separate question with a separate answer, so an unreachable feature that is also broken is recorded in both places rather than argued about in one.
+
+**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
+
+**Status in this run:** CONFIRMED
+
+#### Description
+
+The entry and status pickers each had their search reworked in this build -- it now filters the codes already loaded rather than stepping through matches, and the *Next* button is gone.  Both pickers stopped fetching the code-to-type relation they had been loading alongside the type tree.  The two endpoints, their handlers and their SQL are all still in the build; nothing calls them.
+
+#### Evidence
+
+Surveyed rather than noticed: every `/api/` route the build registers, against every shipped page including the pickers.  116 routes, two of them called by nothing.  Both still answer when requested directly, so this is work that runs and cannot be reached rather than work that is broken.  The same survey found and reported two Networks autocomplete helpers in the same state two builds earlier; those were removed, which is one of the two reasonable answers here.
+
+#### Impact
+
+No user-visible consequence today: the pickers work, and what they stopped fetching they no longer need.  It is reported because dead-but-live code is a maintenance cost that grows quietly -- the handler, its SQL and its route will be read, updated and tested by somebody who does not know nothing calls them.
+
+#### Steps to reproduce
+
+1. Search the shipped Templates directory for 'entry-code-type-rel' or 'status-code-type-rel': no page mentions either.
+2. Request either endpoint directly: it answers 200 with its rows.
+
+#### Suggested fix
+
+Either delete the two handlers and their routes, as was done with the Networks search helpers, or wire them back to whatever still needs the relation.  Worth checking first whether the reworked search lost a capability along with the fetch: the old picker used the relation to search across types, and the new one filters within the loaded node.
+
+#### Where it lives in the build
+
+- `Code/entry_form_backend.go:182`
+- `Code/status_form_backend.go:170`
+- `Templates/pickers/entry_picker.html`
+- `Templates/pickers/status_picker.html`
+
+#### Demonstrated by
+
+- 1 × failed: `test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`
 
 ## Severity legend
 
