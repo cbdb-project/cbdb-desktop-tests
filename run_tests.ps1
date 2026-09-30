@@ -146,8 +146,8 @@ if (-not $DryRun -and -not $Fast) {
     Write-Host ("                 {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues_ZH-Hant.*"))
 
     if ((Count "xpassed") -gt 0) {
-        Write-Host ("  {0} test(s) passed unexpectedly: a recorded defect may have been fixed." -f (Count "xpassed")) -ForegroundColor Yellow
-        Write-Host "  Check the issues report and remove that defect's xfail marker." -ForegroundColor Yellow
+        Write-Host ("  {0} test(s) passed unexpectedly: a waived outcome may have gone away." -f (Count "xpassed")) -ForegroundColor Yellow
+        Write-Host "  Confirm it by hand, then retire that entry from the CBDB_WAIVERS table." -ForegroundColor Yellow
     }
 }
 

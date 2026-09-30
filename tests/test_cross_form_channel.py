@@ -504,8 +504,8 @@ def test_rerun_seeds_the_working_list_with_the_people_the_query_found(
     #
     # Left as a count, and now described as one.  Comparing the people
     # would mean reading the working list back through the recall
-    # endpoint, which is CBDB-D-013's territory and would make this
-    # test fail for that reason rather than its own.
+    # endpoint, which is tested separately in this file and would make
+    # this test fail for that reason rather than its own.
     again = _run_a_query(app, "networks")
     assert again >= found, (
         f"expanding from {found} people reached {again}, fewer than "

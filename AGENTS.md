@@ -299,7 +299,7 @@ Five properties make these worth more than a checklist:
    So: prefer a gate that issues the requests itself, against a cheap
    input, and checks the build **honoured** each token rather than
    merely accepted it — this build answers HTTP 200 to criteria it
-   cannot parse (CBDB-D-023's shape), so "accepted" would have passed a
+   cannot parse, treating it as a bare value, so "accepted" would have passed a
    mis-spelled operator. Where a gate genuinely cannot drive what it
    counts, tie the credit to the object the test *sends*, never to a
    name it mentions.
