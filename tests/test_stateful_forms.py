@@ -37,7 +37,6 @@ effectively unbounded.
 """
 from __future__ import annotations
 
-import base64
 import re
 from collections import Counter
 
@@ -46,6 +45,7 @@ import pytest
 from cbdb_desktop import gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.exports import delivered_files
 from cbdb_desktop.forms import STORE_RESET, WORKING_LIST_RESETS
 from cbdb_desktop.subjects import SUBJECT
 
@@ -398,27 +398,21 @@ def test_a_deeper_kinship_query_reaches_at_least_as_far(
 def _kinship_export_files(app: CbdbApp) -> dict[str, str]:
     """``{filename: contents}`` from one *Export Query Results*.
 
-    The handler answers a JSON envelope of ``{Name, URL}`` where each
-    URL is a base64 ``data:`` payload -- three files, one per table it
-    reads.  Unpacked here so a caller can say *which* file changed
-    rather than only that the bundle did.
+    The handler answers a JSON envelope whose files are base64 ``data:``
+    payloads -- three files, one per table it reads, packed into one
+    ZIP from 20260925.  Unpacked here, bundle included, so a caller can
+    say *which* file changed rather than only that the bundle did.  The
+    unpacking matters for more than the message: a ZIP stamps each
+    member with the time it was written, so two bundles of identical
+    files differ byte for byte, and comparing the bundle itself would
+    report a change on every call.
     """
     got = app.json("POST", "/api/kinship/export-results", json={})
     files = got.get("files") or got.get("Files") or []
     assert files, (
         f"the Kinship export returned no files: {str(got)[:200]}")
-    out = {}
-    for entry in files:
-        name = entry.get("Name") or entry.get("name")
-        url = entry.get("URL") or entry.get("url") or ""
-        head, _, payload = url.partition(",")
-        assert head.endswith(";base64"), (
-            f"the Kinship export no longer base64-encodes {name}: its "
-            f"URL begins {head!r}.  Decoding it as base64 anyway would "
-            "compare two pieces of garbage, which can differ or agree "
-            "for reasons that have nothing to do with this test")
-        out[name] = base64.b64decode(payload).decode("utf-8", "replace")
-    return out
+    return {name: raw.decode("utf-8", "replace")
+            for name, raw in delivered_files("kinship:results", files)}
 
 
 def test_looking_a_person_up_does_not_discard_a_kinship_result(

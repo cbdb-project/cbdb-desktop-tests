@@ -108,7 +108,10 @@ def open_page(base_url: str, path: str) -> Iterator[tuple[Any, PageLog]]:
     ``127.0.0.1``, never ``localhost``: the two are not always the same
     address family, and a Chromium that resolves the name to ``::1``
     against a server bound to IPv4 reports ERR_CONNECTION_REFUSED --
-    which reads exactly like the application being broken.
+    which reads exactly like the application being broken.  From 20260925
+    the application announces ``127.0.0.1`` itself and the driver passes
+    that on, so the rewrite below is a no-op against it; it stays for a
+    caller that builds a URL by hand, or a build that goes back.
     """
     from playwright.sync_api import sync_playwright
 

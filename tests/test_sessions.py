@@ -15,35 +15,44 @@ of those tables, which fixed cross-form interference and
 left cross-request interference exactly as it was.
 
 The tests here are deliberately small and structural.  Two of them drive
-the running application; the third reads the shipped ``main.go`` as data
-and needs nothing running, because "there is no single-instance lock" is
-a property of the source and a reader should not have to take a test
-runner's word for it.
+two tabs' worth of requests at one server; the third launches a second
+``cbdb.exe`` against the database the first one holds, and asks whether
+it is refused.  (Until 20260925 there was no single-instance guard, and
+that test read ``main.go`` to establish the absence.  An absence can be
+read; whether a guard that exists actually holds cannot.)
 
 They are written as an ordinary sequence of requests rather than with
 threads.  A real race would be a stronger demonstration and a much
 worse test -- flaky, slow, and unnecessary: sequential overwriting is
-already the whole user-visible defect, and the concurrent-write variant
-follows from the absence of any lock, which is checked directly.
+already the whole user-visible defect.
 """
 from __future__ import annotations
 
-import base64
 import csv
 import io
-import re
 
 import pytest
 
-from cbdb_desktop.app import CbdbApp
+from cbdb_desktop.app import AppError, CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
+from cbdb_desktop.exports import delivered_files
 from cbdb_desktop.forms import FORMS_BY_NAME
 
 pytestmark = pytest.mark.app
 
 
-def _rows(data_url: str) -> list[list[str]]:
-    text = base64.b64decode(data_url.split("base64,", 1)[1]).decode("utf-8")
+def _rows(envelope: dict) -> list[list[str]]:
+    """The first file an Associations export delivers, as rows.
+
+    From 20260925 the files arrive packed in one ZIP; the first member is
+    the association rows, as the first file was before.
+    """
+    (name, raw), *_rest = delivered_files("associations", envelope["files"])
+    expected = FORMS_BY_NAME["associations"].export_files[0]
+    assert name == expected, (
+        f"the Associations export's first file is {name!r}, not {expected!r}; "
+        "the row counts below would be comparing a different file")
+    text = raw.decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(text), delimiter="\t"))
     while rows and rows[-1] in ([], [""]):
         rows.pop()
@@ -103,7 +112,7 @@ def test_a_second_query_replaces_what_the_first_would_export(
     assert grid_a, "tab A's query returned nothing"
 
     export_a = app.json("POST", associations.export_path, json={})
-    rows_a = _rows(export_a["files"][0]["url"])
+    rows_a = _rows(export_a)
     assert len(rows_a) - 1 == len(grid_a), \
         "the export did not match the query it was for"
 
@@ -115,8 +124,7 @@ def test_a_second_query_replaces_what_the_first_would_export(
         "the two codes returned the same number of rows after all"
 
     # Tab A, still showing its own grid, presses Export.
-    again = _rows(app.json("POST", associations.export_path,
-                           json={})["files"][0]["url"])
+    again = _rows(app.json("POST", associations.export_path, json={}))
 
     if len(again) - 1 == len(grid_b):
         raise KnownShippedDefect(
@@ -183,37 +191,53 @@ def test_a_second_working_list_replaces_the_first(app: CbdbApp, sqlite_conn):
         f"the result is about neither list: {sorted(subjects)}"
 
 
-def test_nothing_stops_a_second_instance_opening_the_database(layout):
+def test_a_second_instance_on_the_same_database_is_refused(app: CbdbApp):
     """A second cbdb.exe against the same database must be refused.
 
-    Read out of the shipped source rather than by launching two copies.
-    Launching them would demonstrate less: both would start, and
-    whether their writes actually interleave depends on timing this
-    suite has no business trying to lose.  What can be established
-    exactly is that there is nothing in the program that *could* refuse
-    -- no mutex, no lock file, no PID file, no fixed port to collide on
-    -- and that is the whole finding.
+    Driven, by launching the second copy against the database the
+    session's server already holds -- which is what a user does who
+    double-clicks the shortcut again.  Earlier builds had no guard at
+    all, and this test read ``main.go`` to say so; reading source can
+    only establish an *absence*.  Once a guard exists, whether it holds
+    is a question only the running binary answers: a lock taken on the
+    wrong path, or on a file the second copy never opens, reads as a
+    guard and refuses nothing.
 
     The in-process mutexes the handlers take (``associationsMu``,
     ``kinshipMu``) are irrelevant here by construction: a second process
     gets its own copy of each, so they serialise nothing between the two.
+
+    Three things are asserted, each falsifiable on its own: the second
+    copy never announced a port (it did not serve), it said why (so the
+    user is not left with a window that closed on them), and the first
+    copy is still healthy (the refusal did not take the running one down
+    with it).
     """
-    source = (layout.code_dir / "main.go").read_text(encoding="utf-8",
-                                                     errors="replace")
-
-    guards = {
-        "a lock file": r"LockFile|flock|O_EXCL|LOCK_EX",
-        "a named mutex": r"CreateMutex|OpenMutex",
-        "a pid file": r"(?i)pid\s*file|\.pid\b",
-        "a fixed port": r"-port[\"'\s]*,\s*\d{2,5}",
-    }
-    found = sorted(name for name, pattern in guards.items()
-                   if re.search(pattern, source))
-
-    if not found:
+    second = CbdbApp(app.layout, app.db_path, app.config)
+    try:
+        second.start()
+    except AppError as exc:
+        refusal = str(exc)
+    else:
         raise KnownShippedDefect(
-            "main.go has no single-instance guard of any kind: two copies "
-            "of cbdb.exe can be launched against the same Data/cbdb.db, "
-            "each with its own in-process mutexes, and SQLite's WAL mode "
-            "lets both write to the same scratch tables")
-    assert found, found
+            f"a second cbdb.exe started against {app.db_path} and is "
+            f"serving at {second.base_url} while the first serves at "
+            f"{app.base_url}: nothing refused it, so both can write the "
+            "same scratch tables, each under its own in-process mutexes")
+    finally:
+        second.stop()
+
+    assert "already running" in refusal, (
+        "the second cbdb.exe did not serve, but not because it recognised "
+        f"the running instance.  What it said:\n{refusal}")
+    # main.go has two refusals: one that found the running copy's
+    # address (CBDB.db.url, written by recordInstanceURL) and sends the
+    # user's browser there, and one that could not and just exits.  With
+    # the first copy up and reachable, the first is the designed path --
+    # the second is a window that closes on the user.
+    assert app.base_url in refusal, (
+        f"the second cbdb.exe refused, but did not send the user to the "
+        f"running copy at {app.base_url}, which was reachable.  What it "
+        f"said:\n{refusal}")
+    assert app.json("GET", "/api/health")["database_connected"] is True, (
+        "refusing the second instance cost the first one its database")

@@ -31,16 +31,12 @@ def _keys(rows: list[dict]) -> set[str]:
 @pytest.mark.parametrize("path,expected_keys,rows_expected", [
     ("/api/entry-types",
      {"code", "desc", "descChn", "parentId"}, 29),
-    ("/api/entry-code-type-rel",
-     {"entryCode", "entryType"}, 284),
     ("/api/office/office-types",
      {"nodeId", "parentId", "desc", "descChn"}, 2742),
     ("/api/associations/assoc-types",
      {"nodeId", "parentId", "desc", "descChn", "level", "sortOrder"}, 45),
     ("/api/status-types",
      {"code", "parentCode", "desc", "descChn"}, 14),
-    ("/api/status-code-type-rel",
-     {"statusCode", "statusTypeCode"}, 285),
     ("/api/dynasties",
      {"code", "name", "nameChn", "startYear", "endYear"}, 85),
     ("/api/addresses",
@@ -90,26 +86,13 @@ def test_a_lookup_returns_its_declared_shape(app: CbdbApp, path: str,
 # agreement between endpoints
 # ---------------------------------------------------------------------------
 
-def test_every_entry_type_relation_names_a_type_the_app_offers(app: CbdbApp):
-    """The two entry lookups must describe the same taxonomy.
-
-    The picker builds its tree from /api/entry-types and then filters
-    codes with /api/entry-code-type-rel; a relation pointing at a type
-    the tree does not contain is a code the user can never reach.
-    """
-    types = {row["code"] for row in app.json("GET", "/api/entry-types")}
-    relations = app.json("GET", "/api/entry-code-type-rel")
-
-    orphans = sorted({r["entryType"] for r in relations} - types)
-    assert not orphans, f"entry types referenced but never offered: {orphans}"
-
-
-def test_every_status_relation_names_a_type_the_app_offers(app: CbdbApp):
-    types = {row["code"] for row in app.json("GET", "/api/status-types")}
-    relations = app.json("GET", "/api/status-code-type-rel")
-
-    orphans = sorted({r["statusTypeCode"] for r in relations} - types)
-    assert not orphans, f"status types referenced but never offered: {orphans}"
+# The two tests that stood here checked that every type the code-to-type
+# relation named (/api/entry-code-type-rel, /api/status-code-type-rel)
+# was one the picker offered.  20260916_2's pickers stopped fetching the
+# relation and 20260925 deleted both endpoints, so there is no second
+# statement of the taxonomy left to agree with.  What a picker shows
+# under each type is asked directly, of the endpoint it calls, in
+# test_pickers.py.
 
 
 @pytest.mark.parametrize("path,root_marker,roots", [

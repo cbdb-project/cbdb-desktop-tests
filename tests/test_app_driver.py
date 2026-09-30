@@ -86,10 +86,18 @@ def test_launch_arguments_name_every_path_explicitly(
 def test_the_application_starts_and_reports_a_usable_port(app: CbdbApp):
     assert app.alive
     assert app.port and 1024 < app.port < 65536
-    assert app.base_url == f"http://localhost:{app.port}"
+    # Pinned exactly, as every other shape of the build is.  20260925
+    # started binding 127.0.0.1 and announcing it; earlier builds said
+    # ``localhost``.  A change either way is to be read, not followed.
+    assert app.host == "127.0.0.1", (
+        f"the build announced {app.host!r} as its host; 20260925 announces "
+        "'127.0.0.1'.  The driver accepts either loopback spelling -- "
+        "decide whether this one is intended, then re-pin")
+    assert app.base_url == f"http://{app.host}:{app.port}"
 
-    # The port it announced is the port it is actually listening on.
-    with socket.create_connection(("localhost", app.port), timeout=10):
+    # The port it announced is the port it is actually listening on, at
+    # the host it announced.
+    with socket.create_connection((app.host, app.port), timeout=10):
         pass
 
     assert "CBDB server started" in app.log.text()
@@ -251,14 +259,22 @@ def test_stop_reaps_the_process_and_releases_the_database(
 
 
 def test_two_servers_can_run_side_by_side(
-        layout: AppLayout, app_db: Path, config: Config, private_db):
+        app: CbdbApp, layout: AppLayout, config: Config, private_db):
     """-port 0 must really mean "any free port".
 
     Two builds get compared often enough that a hardcoded port would be a
     standing trap; this pins the property before anything relies on it.
+
+    The first server is the session's own.  This test used to launch a
+    second one on ``app_db`` -- the file the session server runs on --
+    which worked only while nothing stopped two copies sharing a
+    database.  20260925 takes an OS lock on it, so the second copy
+    rightly refused whenever the session server was already up, and the
+    test's outcome depended on module order.  Two servers on two
+    databases is what "side by side" was ever meant to establish.
     """
-    with CbdbApp(layout, app_db, config) as first, \
-            CbdbApp(layout, private_db(), config) as second:
+    first = app
+    with CbdbApp(layout, private_db(), config) as second:
         assert first.port != second.port
         assert first.json("GET", "/api/health")["database_connected"] is True
         assert second.json("GET", "/api/health")["database_connected"] is True
@@ -289,7 +305,7 @@ def test_a_restarted_driver_never_reuses_the_previous_port(
         # ephemeral port -- so the assertion is about provenance, not
         # inequality: the log was reset at start(), so a stale port could
         # not appear in it.
-        assert f"http://localhost:{server.port}" in server.log.text()
+        assert f"http://{server.host}:{server.port}" in server.log.text()
         assert first_port is not None
     finally:
         server.stop()

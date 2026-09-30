@@ -49,7 +49,7 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     them must not slip through because a floor was set low enough to
     accommodate it.
     """
-    assert len(routes) == 142, "\n".join(_ids(routes))
+    assert len(routes) == 140, "\n".join(_ids(routes))
 
     methods = sorted({m for r in routes for m in r.methods})
     assert methods == ["GET", "POST"], methods
@@ -68,11 +68,19 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     #   places    9 -> 10  GET /api/biog-addr-codes added, feeding the new
     #                      bac_picker.html.
     #   main      8 ->  9  the static route serving that picker file.
+    #
+    # And 20260925 dropped two, 142 -> 140:
+    #
+    #   entry    10 ->  9  /api/entry-code-type-rel deleted, and
+    #   status   11 -> 10  /api/status-code-type-rel deleted -- the two
+    #                      relations the reworked pickers had stopped
+    #                      fetching, reported last round as reachable
+    #                      from no page.
     assert per_form == {
         "associations": 8, "assocpairs": 10, "browser": 14,
-        "cbdb_navigation_backend": 5, "entry": 10, "groupdata": 8,
+        "cbdb_navigation_backend": 5, "entry": 9, "groupdata": 8,
         "indexaddr": 5, "kinship": 15, "main": 9, "networks": 18,
-        "office": 8, "places": 10, "qbe_handlers": 3, "status": 11,
+        "office": 8, "places": 10, "qbe_handlers": 3, "status": 10,
         "texts": 8,
     }, per_form
 

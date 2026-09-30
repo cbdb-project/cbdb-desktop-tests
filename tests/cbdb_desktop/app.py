@@ -9,7 +9,8 @@ Three details of the application shape this module, all read out of
 ``Code/main.go``:
 
 * It logs through Go's ``log`` package, which writes to **stderr**, and
-  announces its address as ``CBDB server started: http://localhost:<port>``.
+  announces its address as ``CBDB server started: http://<host>:<port>``,
+  where ``<host>`` is ``127.0.0.1`` (``localhost`` before 20260925).
   Passing ``-port 0`` lets the OS pick a free port, so parallel sessions
   never collide -- but the port is then only discoverable from that line,
   which means the output must be consumed continuously.  Go logs every
@@ -48,8 +49,15 @@ import requests
 from .config import Config
 from .staging import AppLayout
 
-# "CBDB server started: http://localhost:57324" -- main.go
-_PORT_RE = re.compile(r"CBDB server started:\s*http://localhost:(\d+)")
+# "CBDB server started: http://127.0.0.1:57324" -- main.go.  Builds up to
+# 20260916_2 announced ``localhost``; 20260925 binds 127.0.0.1 explicitly
+# and says so.  The driver addresses the server by the host it announced,
+# never by a name of its own: a client that resolves ``localhost`` to
+# ``::1`` against a server bound to IPv4 is refused, and that reads
+# exactly like a broken application.  Only the two loopback spellings
+# are accepted, so a build that started announcing some other interface
+# fails here rather than being quietly followed there.
+_PORT_RE = re.compile(r"CBDB server started:\s*http://(localhost|127\.0\.0\.1):(\d+)")
 
 # Bounds on how long a single health probe may block while waiting for
 # startup.  The overall budget is CBDB_STARTUP_TIMEOUT; this only keeps
@@ -103,6 +111,8 @@ class CbdbApp:
         self.log_path = log_path
         self.log = AppLog()
         self.port: int | None = None
+        #: The host the application announced alongside its port.
+        self.host: str | None = None
         self.process: subprocess.Popen[str] | None = None
         self._reader: threading.Thread | None = None
         self._reader_error: BaseException | None = None
@@ -149,6 +159,7 @@ class CbdbApp:
         # value would be accepted immediately, and the ephemeral port may
         # by now belong to a different server entirely.
         self.port = None
+        self.host = None
         self.log = AppLog()
         self._reader_error = None
         self._port_found = threading.Event()
@@ -201,7 +212,8 @@ class CbdbApp:
                 if self.port is None:
                     match = _PORT_RE.search(line)
                     if match:
-                        self.port = int(match.group(1))
+                        self.host = match.group(1)
+                        self.port = int(match.group(2))
                         self._port_found.set()
         except BaseException as exc:  # noqa: BLE001 - reported, not swallowed
             self._reader_error = exc
@@ -330,6 +342,7 @@ class CbdbApp:
                 except (OSError, ValueError):
                     pass
             self.port = None
+            self.host = None
             self._session.close()
             self._session = requests.Session()
             if self.log_path is not None:
@@ -350,7 +363,7 @@ class CbdbApp:
     def base_url(self) -> str:
         if self.port is None:
             raise AppError("the application has not announced a port yet")
-        return f"http://localhost:{self.port}"
+        return f"http://{self.host}:{self.port}"
 
     def url(self, path: str) -> str:
         return self.base_url + path

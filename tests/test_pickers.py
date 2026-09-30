@@ -6,10 +6,11 @@ hangs from.  Two ways that can go wrong are checked here, and both
 are about the tree rather than about the codes.
 
 Most of what a first draft of this file tested was already tested,
-and better, in ``test_lookups.py``: that every type the relation
-names is one the picker offers (`:86`, `:100`), and that the
-codes-for-type endpoints agree with the relation (`:559`-`:668`).
-Those duplicates are gone.  One of them was also wrong -- it
+and better, in ``test_lookups.py``: that the codes-for-type endpoints
+narrow and nest as a prefix hierarchy should.  (It also checked that
+every type the code-to-type relation names is one the picker offers;
+20260925 deleted the relation endpoints, and those checks with them.)
+The duplicates are gone.  One of them was also wrong -- it
 asserted that the codes for a type *equal* the relation's exact
 rows, while the endpoint matches by prefix so that choosing a parent
 returns its descendants.  It passed only because the type it picked,
@@ -46,16 +47,14 @@ pytestmark = pytest.mark.app
 _PICKERS = {
     "entry": {
         "types": "/api/entry-types",
-        "relation": "/api/entry-code-type-rel",
-        "rel_type": "entryType",
+        "codes": ("/api/entry-codes-for-type", "entryTypeCode"),
         "parent": "parentId",
         "root": "0",
         "roots": 19,
     },
     "status": {
         "types": "/api/status-types",
-        "relation": "/api/status-code-type-rel",
-        "rel_type": "statusTypeCode",
+        "codes": ("/api/status-codes-for-type", "statusTypeCode"),
         "parent": "parentCode",
         "root": None,
         "roots": 13,
@@ -77,43 +76,38 @@ def test_every_type_the_picker_offers_has_codes_under_it(
         app: CbdbApp, name: str):
     """A type that opens onto nothing is a dead branch of the control.
 
-    Judged against the relation endpoint rather than against the
-    database: the application's own statement of which codes belong
-    to which type is what the picker will use, so a type absent from
-    it opens empty however many rows the database holds.
+    Asked of the endpoint the picker itself calls when a type is
+    chosen, once per type it offers -- which is exactly what a user
+    sees.  Until 20260916_2 this was judged against the code-to-type
+    relation endpoint instead; the pickers stopped fetching it in that
+    build, and 20260925 deleted it, so the relation is no longer the
+    application's statement of anything a user can reach.
 
-    Prefix matching is why this is asked of the relation and not of
-    ``codes-for-type``.  Choosing a parent type returns its
-    descendants' codes, so a parent with no codes of its own is not
-    a dead branch; a type that appears nowhere in the relation, at
-    any depth, is.
+    ``codes-for-type`` matches by prefix, so a parent with no codes of
+    its own but populated descendants is not a dead branch, and is not
+    reported as one: the endpoint's answer already includes them.
     """
     picker = _PICKERS[name]
     offered = {str(row.get("code")): row for row in _types(app, picker)}
 
-    relation = app.json("GET", picker["relation"])
-    assert isinstance(relation, list) and relation, (
-        f"{picker['relation']} answered {relation!r}, so no code can "
-        "be attributed to any type and this test judges nothing")
+    endpoint, request_key = picker["codes"]
+    empty = []
+    for code in sorted(offered):
+        rows = app.json("POST", endpoint, json={request_key: code})
+        assert isinstance(rows, list), (
+            f"{endpoint} answered {type(rows).__name__} for type {code!r}; "
+            "the picker reads a bare array")
+        if not rows:
+            empty.append(code)
 
-    populated = {str(row.get(picker["rel_type"])) for row in relation}
-    # A parent counts as populated when a descendant is, because the
-    # endpoint the picker calls matches by prefix.
-    reachable = {
-        code for code in offered
-        if any(kind == code or kind.startswith(code) for kind in populated)
-    }
-
-    empty = sorted(set(offered) - reachable)
     if empty:
         described = {code: offered[code].get("desc") for code in empty[:8]}
         raise KnownShippedDefect(
             f"the {name} picker offers {len(empty)} of its "
             f"{len(offered)} types with no code anywhere beneath "
             f"them: {described}.  Choosing one shows an empty second "
-            f"list, with nothing on the page to say why.  "
-            f"({len(populated)} distinct types carry codes in "
-            f"{picker['relation']}.)")
+            f"list, with nothing on the page to say why.  (Asked of "
+            f"{endpoint}, the call the picker makes on selection.)")
 
 
 @pytest.mark.parametrize("name", sorted(_PICKERS))

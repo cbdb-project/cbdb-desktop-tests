@@ -150,6 +150,21 @@ PRECONDITIONS: tuple[Precondition, ...] = (
         settle_ms=25000,
         must_enable=("btnExportResults", "btnGIS", "btnNeo4j", "btnStoreIDs"),
     ),
+    # The Entry form's Run Query, which ships disabled as of 20260925
+    # (updateEnableState: "Run Query needs at least one of: an entry
+    # selection or a place").  Driven through the page's own picker
+    # callback, which is what the popup calls on selection.
+    Precondition(
+        page="entry",
+        path="/LookAtEntry",
+        interact=f"""() => {{
+          handleEntrySelection([{ENTRY_CODE}], ['t'], ['t'], '', '', '');
+        }}""",
+        settle_ms=200,
+        # Save Codes un-greys on the same selection
+        # (``btnSaveCodes.disabled = false`` in handleEntrySelection).
+        must_enable=("btnQuery", "btnSaveCodes"),
+    ),
     # The Kinship form after a real query.
     Precondition(
         page="kinship",
@@ -214,7 +229,6 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
                           "btnStoreIDs", "btnUCINet"),
     "associations": ("btn-export-query", "btn-kml", "btn-neo4j", "btn-store",
                      "btn-tab"),
-    "entry": ("btnSaveCodes",),
     # chkGisKML is new in the 2026-09-15 build: an Export as KML
     # checkbox beside the six section boxes, enabled by the same
     # hasData path they are.
@@ -543,44 +557,74 @@ def test_every_disabled_control_has_a_declared_precondition(layout):
           f"have a declared precondition")
 
 
-def test_all_offices_leaves_the_office_form_able_to_query(app: CbdbApp):
-    """Press *All Offices* and Run Query must still work.
+def test_all_offices_leaves_the_office_form_able_to_query(
+        app: CbdbApp, sqlite_conn):
+    """*All Offices* within a place must still be a query a user can run.
 
-    The Office form's handler treats an empty ``officeCodes`` as *every
-    office* -- ``if len(p.OfficeCodes) > 0`` is the only thing that adds
-    the filter -- and the page's own variable says so: ``let
-    _officeCodes = [];   // [] = all offices``.  *All Offices* is the
-    button that puts the form into that state, and it is the only way a
-    user can ask for an unfiltered office query.
+    What *All Offices* means changed in 20260925, on both sides at once.
+    The handler now refuses a request with no office, no people address
+    and no office address ("Select at least one office or a place.",
+    HTTP 400), and says why: an empty ``officeCodes`` means every office
+    *within an address filter*.  The page's ``updateRunQueryState``
+    greys Run Query on exactly the same three conditions.  So the
+    earlier contract -- All Offices alone asks for every office in
+    CBDB -- is gone by design, and asserting it would be asserting a
+    feature the build no longer offers.
 
-    The 2026-09-15_2 build made Run Query start disabled until an office
-    is picked, which is right on its own, and wired it to
-    ``updateRunQueryState()``, which greys the button whenever
-    ``_officeCodes`` is empty.  *All Offices* calls ``clearOffice()``,
-    which empties ``_officeCodes`` -- so the button whose whole purpose
-    is to ask for every office now disables the button that would ask.
+    What is left, and still has to hold, is agreement between the two
+    halves, in both directions:
 
-    Driven rather than read, because the two halves of it are in
-    different functions and reading either alone says nothing: the
-    sequence is what a user does.  Pick an office, check Run Query is
-    live (which is the precondition entry above, asserted again here so
-    that a failure of *this* test cannot be the picker's fault), then
-    press All Offices and look again.
+    * All Offices with a place chosen: Run Query stays live, and the
+      request it sends -- no office codes, that place -- answers rows.
+    * All Offices with no place: Run Query is grey, and the server
+      refuses the same request.  A page that let it through would show
+      the user a 400; one that greyed a request the server would answer
+      would hide a query nothing else can ask for.
 
-    The control is the HTTP query the button is asking for: it is sent
-    with an empty ``officeCodes`` and must return rows, or the button
-    would be disabled in front of a request that does not work anyway
-    and this would be a different report.
+    Driven rather than read, because the halves are in different
+    functions: the sequence is what a user does.  What is observed on
+    the page is the button's state; the request is sent over HTTP by
+    hand, in the shape ``runQuery`` builds it (``officeAddrIds:
+    _officeAddrIDs``), not captured from the page.  The place is chosen
+    from the data (an office address with a handful of postings), then
+    checked against the application, as every input here is.
     """
-    unfiltered = app.post("/api/office/query", json={
-        "officeCodes": [], "addrIds": [], "peopleAddrIds": [],
-        "yearFilterType": "none", "includeSubUnits": False,
-    })
-    assert unfiltered.status_code == 200, (
-        "an office query with no codes -- which is what All Offices asks "
-        f"for -- answered HTTP {unfiltered.status_code}: "
-        f"{unfiltered.text[:200]}.  The button being disabled would then "
-        "be the smaller half of the problem")
+    candidates = [row[0] for row in sqlite_conn.execute(
+        "SELECT c_addr_id FROM POSTED_TO_ADDR_DATA WHERE c_addr_id > 0 "
+        "GROUP BY c_addr_id HAVING COUNT(*) BETWEEN 2 AND 12 "
+        "ORDER BY COUNT(*) DESC, 1 LIMIT 10")]
+    base = {"officeCodes": [], "peopleAddrIds": [], "officeAddrIds": [],
+            "yearFilterType": "none"}
+    place = None
+    for addr in candidates:
+        response = app.post("/api/office/query",
+                            json=dict(base, officeAddrIds=[addr]))
+        assert response.status_code == 200, (
+            f"every office at office address {addr} -- what All Offices "
+            f"plus a place asks for -- answered HTTP "
+            f"{response.status_code}: {response.text[:200]}")
+        rows = response.json()
+        # The cap and the per-row check are what make "answers rows" mean
+        # "answers the place".  No office query has a LIMIT, so a handler
+        # that stopped applying officeAddrIds would hand back the whole
+        # Office table here and, without them, still be taken as a place
+        # that works.
+        assert len(rows) < 5000, (
+            f"every office at office address {addr} returned {len(rows)} "
+            "rows for an address with a handful of postings -- the "
+            "address filter has stopped filtering")
+        stray = sorted({row.get("officeAddrId") for row in rows} - {addr},
+                       key=str)
+        assert not stray, (
+            f"asked for postings at office address {addr}, got rows at "
+            f"{stray[:5]}")
+        if rows:
+            place = addr
+            break
+    assert place is not None, (
+        f"none of the office addresses {candidates} returns a posting")
+
+    refused = app.post("/api/office/query", json=base)
 
     with browser.open_page(app.base_url, "/LookAtOffice") as (page, log):
         # The same guard the preconditions get: on a page whose script
@@ -588,49 +632,67 @@ def test_all_offices_leaves_the_office_form_able_to_query(app: CbdbApp):
         # the cause nowhere in it.
         absent = page.evaluate(
             "names => names.filter(n => typeof window[n] !== 'function')",
-            ["officePickerCallback", "clearOffice"])
+            ["officePickerCallback", "clearOffice", "handleAddressSelection",
+             "openOfficeAddressPicker", "clearOfficeAddress"])
         assert not absent, (
             f"the Office page has no {absent} after loading, so its "
             "inline <script> did not execute and there is no enable "
             f"state to judge.  The page logged {log.page_errors} "
             f"{log.console_errors}.  test_page_scripts.py has the line")
 
+        def run_query_state() -> str:
+            page.wait_for_timeout(200)
+            return browser.control_states(page, ["btnRunQuery"])["btnRunQuery"]
+
+        def press_all_offices() -> None:
+            page.evaluate("() => { document.getElementById("
+                          "'btn-all-offices').click(); }")
+
         page.evaluate(
             "() => { officePickerCallback("
             "{codes: [%d], desc: 'x', descChn: ''}); }" % OFFICE_CODE)
-        page.wait_for_timeout(200)
-        after_pick = browser.control_states(page, ["btnRunQuery"])["btnRunQuery"]
+        after_pick = run_query_state()
 
-        page.evaluate("() => { document.getElementById("
-                      "'btn-all-offices').click(); }")
-        page.wait_for_timeout(200)
-        after_all = browser.control_states(page, ["btnRunQuery"])
+        # All Offices, no place.
+        press_all_offices()
+        alone = run_query_state()
 
-        # Read inside the block, and asserted before the raise below:
-        # after it, on this build, it would never run.
+        # A place, then All Offices again.  The picker popup is what
+        # calls handleAddressSelection; its target is set by the button
+        # that opened it, which is set here without opening a window.
+        page.evaluate(
+            "() => { officePickerCallback("
+            "{codes: [%d], desc: 'x', descChn: ''}); }" % OFFICE_CODE)
+        page.evaluate(
+            "addr => { _addrPickerTarget = 'office'; handleAddressSelection("
+            "{selectedAddresses: [{id: addr, name: 'x', nameChn: ''}]}); }",
+            place)
+        press_all_offices()
+        with_place = run_query_state()
+
         logged = f"{log.page_errors} {log.console_errors}"
         clean = log.clean
 
     assert clean, f"the Office page logged {logged}"
-
     assert after_pick == "enabled", (
         "Run Query is still disabled after an office was picked, so this "
         "test cannot tell what All Offices does to it -- see the Office "
         f"precondition above, which asks the same question: {after_pick}")
 
-    if after_all["btnRunQuery"] == "disabled":
-        raise KnownShippedDefect(
-            "pressing All Offices on the Office form disables Run Query.  "
-            "The button exists to ask for every office, the handler reads "
-            "an empty officeCodes as exactly that, and the same request "
-            f"sent over HTTP answers 200 -- but clearOffice() empties "
-            "_officeCodes and updateRunQueryState() greys Run Query "
-            "whenever it is empty, so no user can send it.  An unfiltered "
-            "office query is now unreachable from the page that offers "
-            "it, and the only feedback is a button that stops responding")
+    assert with_place == "enabled", (
+        f"with office address {place} chosen, pressing All Offices leaves "
+        f"Run Query {with_place} -- and the request it would send answers "
+        "rows.  A query the handler accepts is unreachable from the page")
 
-    assert after_all["btnRunQuery"] == "enabled", (
-        f"Run Query is {after_all['btnRunQuery']} after All Offices")
+    assert refused.status_code == 400, (
+        "with no office and no place the handler answered HTTP "
+        f"{refused.status_code}, not the 400 this build's rule gives: "
+        f"{refused.text[:200]}.  If an unfiltered query is allowed again, "
+        "All Offices alone should enable Run Query")
+    assert alone == "disabled", (
+        f"with no place chosen, All Offices leaves Run Query {alone}, and "
+        "the request it would send is refused with HTTP 400 -- the page "
+        "offers a query the server will not run")
 
 
 # One test per declared precondition, id'd by the page and the controls
@@ -743,12 +805,26 @@ def test_an_export_does_not_claim_more_files_than_it_delivered(
             attempted = browser.take_attempts(page, log)
             accepted = list(log.downloads)
 
+            # Two phrasings.  Up to 20260916_2 the page reported a count
+            # ("2 file(s) ready"); 20260925 bundles the files into one
+            # ZIP and names what it delivered instead ("Query results
+            # export: EntryResults.zip compressed to ZIP file").  A name
+            # is a stronger claim than a count, so it is checked
+            # against the names the browser saved as well.
+            named = None
             match = re.search(r"(\d+)\s*file\(s\)", claimed)
-            assert match, (
-                f"press {press}: the page said {claimed!r}, which does not "
-                "report a file count -- update this test if the message "
-                "changed")
-            said = int(match.group(1))
+            if match:
+                said = int(match.group(1))
+            else:
+                match = re.search(r"export:\s*(.+?)\s+compressed to ZIP",
+                                  claimed)
+                assert match, (
+                    f"press {press}: the page said {claimed!r}, which "
+                    "reports neither a file count nor the files it "
+                    "delivered -- update this test if the message changed")
+                named = [n.strip() for n in match.group(1).split(",")
+                         if n.strip()]
+                said = len(named)
 
             assert said == len(attempted), (
                 f"press {press}: the page claims {said} file(s) and "
@@ -759,6 +835,10 @@ def test_an_export_does_not_claim_more_files_than_it_delivered(
                 f"browser accepted {len(accepted)} ({accepted}).  On a "
                 "browser that declines automatic multiple downloads this "
                 "is what the user sees, and the message is a lie.")
+            if named is not None:
+                assert sorted(named) == sorted(accepted), (
+                    f"press {press}: the page says it delivered {named} and "
+                    f"the browser saved {accepted}")
 
             # Let the message expire before the next press, so the poll
             # above cannot read the previous one.

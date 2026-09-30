@@ -602,29 +602,20 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 #: fills in, not in a name a test author happened to think of.
 #: How many ``/api/`` routes the shipped Go registers.  The denominator
 #: of the survey below, pinned for the reason recorded in that test.
-# 116 since the 2026-09-15 build, which deleted
-# /api/networks/person-search and /api/networks/place-search --
-# the two endpoints this survey had found and reported as
-# reachable from no page at all, and the fix it asked for.
-EXPECTED_API_ROUTES = 116
+# 114 since 20260925, which deleted /api/entry-code-type-rel and
+# /api/status-code-type-rel -- the two endpoints this survey had found
+# reachable from no page after the 20260916_2 picker rework.  (116
+# before that, and 118 before the 2026-09-15 build removed the two
+# Networks autocomplete helpers the same way.)
+EXPECTED_API_ROUTES = 114
 
-# The 2026-09-15 build emptied this by deleting the two Networks
-# autocomplete helpers no picker called -- and the 2026-09-16_2 build
-# refilled it with two more, the same way and by accident.  Both
-# pickers were reworked in that build, and both stopped fetching the
-# code-to-type relation they had been loading; the endpoints, their
-# handlers and their SQL are all still there.
-#
-# This is why the survey is extracted rather than listed: nobody set
-# out to orphan these, and nobody would have gone looking.
-_ROUTED_AND_UNCALLED = {
-    "/api/entry-code-type-rel":
-        "the entry picker fetched it until its search was reworked in "
-        "the 2026-09-16_2 build; it now loads only /api/entry-types",
-    "/api/status-code-type-rel":
-        "the status picker fetched it until the same rework, and now "
-        "loads only /api/status-types",
-}
+# Empty, and empty is what a clean build looks like.  Twice now an
+# endpoint has been orphaned by a page rework nobody meant to orphan it
+# in -- two Networks helpers, then the two picker relations -- and both
+# times the fix was to delete it.  This is why the survey is extracted
+# rather than listed: nobody sets out to orphan an endpoint, and nobody
+# would go looking.
+_ROUTED_AND_UNCALLED: dict[str, str] = {}
 
 
 def _without_comments(page: str) -> str:
@@ -758,6 +749,28 @@ _RUN_QUERY_GATE = re.compile(
 #: all of them".
 _EMPTY_MEANS_ALL = re.compile(r"if len\((?:p|q|params)\.(\w+)\) > 0 \{")
 
+#: A handler that refuses the request outright when a list is empty --
+#: ``if len(p.OfficeCodes) == 0 && len(p.PeopleAddrIDs) == 0 {
+#: http.Error(w, "Select at least one office or a place.", 400)``.
+#: 20260925 put one in front of five of the six form queries -- every one
+#: but Places.  Four of the five are exempted by it below; the fifth,
+#: Associations, needs no exemption, because its handler no longer reads
+#: an empty code list as "all" at all (``AssocCodes`` has no ``if len(...)
+#: > 0`` filter), so it never enters the question.  Captures the first
+#: list the guard tests.
+#:
+#: Narrowed to the message the query guards give, "Select at least one
+#: ...", because the pattern runs over the whole backend file: the export
+#: handlers carry the same shape ("No data to export"), and one of those
+#: naming a query field would otherwise exempt a form whose query still
+#: accepts everything.  ``test_form_queries.py`` then sends the all-empty
+#: query to each guarded form and requires the 400 and this message --
+#: the same claim, checked against the running binary.
+_REFUSES_EMPTY = re.compile(
+    r"if\s+len\((?:p|q|params|req)\.(\w+)\)\s*==\s*0\b[^{\n]*\{\s*"
+    r'http\.Error\(\s*w\s*,\s*"Select at least one[^"]*"\s*,\s*'
+    r"http\.StatusBadRequest")
+
 #: A ``[]T`` field of a request struct, with its JSON name.
 _LIST_FIELD = re.compile(r"^\s*(\w+)\s+\[\]\w+\s+`json:\"(\w+)\"", re.MULTILINE)
 
@@ -779,14 +792,20 @@ _QUERY_STRUCTS = {
 #: joined through the request field the page sends it as, not merely
 #: found on both sides.  Pinned exactly: this is a defect report, and a
 #: build that fixes one of them, or breaks a fourth, must fail here.
-_CANNOT_ASK_FOR_EVERYTHING = {
-    "associations": "btnClearAssoc, labelled All, calls clearAssoc(), "
-                    "which empties assoc-ids-json and re-greys Run Query",
-    "office": "btn-all-offices, labelled All Offices, calls clearOffice(), "
-              "which empties _officeCodes and re-greys Run Query",
-    "status": "no All button at all; selectedStatusCodes starts empty and "
-              "Run Query is greyed until a status is picked",
-}
+#:
+#: Empty since 20260925, which settled all three the other way round:
+#: the handlers stopped accepting the request the pages could not send.
+#: Associations no longer reads an empty ``assocCodes`` as "all" at all;
+#: Office and Status refuse a request with no code and no place, as
+#: their pages do.
+_CANNOT_ASK_FOR_EVERYTHING: dict[str, str] = {}
+
+#: Forms whose handler answers HTTP 400 to a query with its primary
+#: list empty (and, where it has them, its address lists too).  Pinned
+#: exactly, because each is a form excluded from the question above: a
+#: build that dropped one of these guards would put that form back in
+#: scope, and must fail here to be read.
+_REFUSES_AN_UNFILTERED_QUERY = frozenset({"entry", "office", "status", "texts"})
 
 
 def _sends_as(page: str, variable: str) -> set[str]:
@@ -841,6 +860,13 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
     have understated it -- AGENTS.md § *A finding is not finished until
     a test would find it again*, point 4.
 
+    **20260925 answered it from the other side.**  Four handlers now
+    refuse the unfiltered request with HTTP 400, as their pages do, and
+    Associations no longer reads an empty code list as "all".  Those
+    forms are counted out rather than skipped silently -- the refusing
+    set is pinned -- because a handler that dropped its guard would be
+    back to accepting what its page may still be unable to send.
+
     Read from the shipped source on every side, and deliberately **not**
     driven: the request in question is a form query with no filter, and
     no form query in this build applies a ``LIMIT``.  One entry code
@@ -850,13 +876,14 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
     _query`` shows it.
     """
     unreachable: dict[str, tuple[str, str]] = {}
+    refusing: set[str] = set()
     checked = 0
     for form, (struct, directory) in sorted(_QUERY_STRUCTS.items()):
         source = go_text[f"{form}_form_backend.go"]
         body = gosource.struct_body(source, struct)
         assert body, f"{form}_form_backend.go no longer declares {struct}"
-        empty_means_all = set(_EMPTY_MEANS_ALL.findall(
-            gosource.strip_comments(source)))
+        code = gosource.strip_comments(source)
+        empty_means_all = set(_EMPTY_MEANS_ALL.findall(code))
         json_of = {go: js for go, js in _LIST_FIELD.findall(body)
                    if go in empty_means_all}
         assert json_of, (
@@ -864,6 +891,12 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
             "'all when empty', so this gate is judging a form it cannot "
             "have understood")
         checked += 1
+        if set(_REFUSES_EMPTY.findall(code)) & set(json_of):
+            # The handler answers 400 to the unfiltered request, so there
+            # is no capability for a page to hide; a Run Query gate that
+            # refuses the same request is the page agreeing with it.
+            refusing.add(form)
+            continue
 
         page = gosource.strip_comments(page_text[directory])
         gate = _RUN_QUERY_GATE.search(page)
@@ -876,6 +909,11 @@ def test_a_form_that_accepts_an_unfiltered_query_has_a_way_to_ask_for_one(
 
     assert checked == len(_QUERY_STRUCTS), (
         f"only {checked} of {len(_QUERY_STRUCTS)} forms were read")
+    assert refusing == _REFUSES_AN_UNFILTERED_QUERY, (
+        "the set of forms whose handler refuses an unfiltered query "
+        f"changed: found {sorted(refusing)}, recorded "
+        f"{sorted(_REFUSES_AN_UNFILTERED_QUERY)}.  A form that stopped "
+        "refusing is back in scope for the check below")
 
     assert set(unreachable) == set(_CANNOT_ASK_FOR_EVERYTHING), (
         "the set of forms whose page cannot ask for an unfiltered query "
