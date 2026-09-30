@@ -26,7 +26,9 @@ Database front end, shipped to historians as
 `cbdb-desktop_<YYYYMMDD>.zip`:
 
 ```
-Bin/cbdb.exe          a Go HTTP server (gorilla/mux), ~33 MB
+Bin/cbdb.exe          a Go HTTP server (gorilla/mux), ~31 MB -- at the
+                      tree root, with Bin/ empty, in the 7z builds;
+                      staging.AppLayout looks it up in either place
 Data/CBDB.db          1.2 GB SQLite, 661,124 people; 135 tables
                       (incl. five ZZZ_NAMES_FTS_* shadow tables)
                       and 19 views
@@ -41,9 +43,9 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1382 tests collected against
-`CBDB-Desktop_20260916_2.7z`, and the defect registry holds this round's
-findings.**  It was cleared on 2026-09-22, together with the previous
+**Current state: 1381 tests collected against
+`CBDB-Desktop_20260925.7z`, and the defect registry holds this round's
+findings.**  It was cleared on 2026-09-30, together with the previous
 round's reports and every run artefact, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
@@ -76,12 +78,18 @@ Of those tests, 420 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep) and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; on the 2026-09-16_2 build,
-**105 of 105** endpoints reachable from the user interface were
-actually requested, with nothing excused.  The denominator moves with
-the build -- 105 on 20260908, 106 on 20260910, 107 on 20260915_2 --
-so read the
-artefact rather than this paragraph for the current run.
+`artifacts/endpoint_coverage.json`; on the 20260925 build,
+**105 of 105** endpoints the shipped pages mention were actually
+requested, with nothing excused.  ("Mention", not "reach": an endpoint
+called only from a function nothing runs is counted too, because
+over-demanding is the safe error for a coverage gate; whether each is
+really reachable is judged separately, as a finding, by
+`test_page_contracts.py`.)  The denominator moves with the build -- 105
+on 20260908, 106 on 20260910, 107 on 20260915_2, 105 on 20260916_2 (the
+entry and status pickers stopped fetching their code-to-type relations),
+and still 105 on 20260925, whose deletion of those two uncalled routes
+could not move it -- so read the artefact rather than this paragraph for
+the current run.
 
 That number was not always earned.  It read 105 of 105 for a while
 because the denominator was built from what the suite happened to
@@ -94,9 +102,9 @@ travels from one form to another.  Read that file before adding to it:
 the endpoints are individually trivial and collectively are the
 feature, which is why driving them one at a time proves almost
 nothing.
-Enable-state coverage is the honest counterpart: 17 controls have a
-declared precondition across six `PRECONDITIONS` entries, and the other
-94 are pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
+Enable-state coverage is the honest counterpart: 19 controls have a
+declared precondition across seven `PRECONDITIONS` entries, and the
+other 91 are pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
 Beside it sits the coverage number that says what a dead page costs:
 `test_every_button_is_wired_to_a_function_that_exists` checks, for each
 of the 202 buttons wired with an inline `onclick`, that the function it
@@ -248,17 +256,17 @@ the inventory does not know about**:
 |---|---|---|
 | `routes.py` | `Code/*.go` route registrations | `test_routes.py` — every route driven or probed, counts pinned |
 | `exports.py` | the same, filtered to file-producing endpoints | `test_exports.py::test_every_export_route_is_driven` |
-| `controls.py` | `Templates/*/index.html` buttons and their JS call graphs | `test_zz_controls.py` — every UI-reachable endpoint was **actually requested** in this run |
+| `controls.py` | `Templates/*/index.html` buttons and their JS call graphs | `test_zz_controls.py` — every endpoint the shipped pages mention was **actually requested** in this run |
 | `discovery.py` | the shipped database's own row counts | `test_query_matrix.py::test_the_discovered_matrix_covers_every_form_and_dimension` |
 
-Five properties make these worth more than a checklist:
+Six properties make these worth more than a checklist:
 
 1. **They are extracted, not written.** A new export button, a new
    route, a new page appears in the inventory by itself and fails the
    gate until someone declares how to drive it. Nobody has to remember.
 2. **Coverage is measured, not claimed.** `CbdbApp.requested` records
    every `(method, path)` the run issues; `test_zz_controls.py` compares
-   that record against every endpoint the shipped pages can reach and
+   that record against every endpoint the shipped pages mention and
    writes the number to `artifacts/endpoint_coverage.json`. "We tested
    the exports" is not evidence. A count is.
 3. **An empty parametrization is a failure, not a pass.** pytest reports
@@ -314,6 +322,21 @@ Five properties make these worth more than a checklist:
    because no assertion *inside* a skipping test can catch this. If a
    test can decide not to run, something else has to check that
    decision.
+6. **An extractor is tested against an answer written down.** A page
+   that *mentions* an endpoint is not a page that can *reach* it: a
+   `fetch` inside a function nothing runs is a feature with no way in,
+   and a textual survey counts it as called.  Worse, until 20260925
+   `controls.py`'s brace matcher read an apostrophe in a comment and a
+   quote in a regex literal as strings, so function bodies ran on into
+   their neighbours and the call graph credited buttons with endpoints
+   they cannot reach -- a whole form's worth, with no symptom but
+   coverage that looked good.  It now skips both, and
+   `controls.reachable_endpoints` walks from what can actually run:
+   buttons, `on...=` handlers, load-time code, listeners registered by
+   name, `window.X` callbacks.  What keeps it honest is
+   `test_the_reachability_walk_tells_dead_code_from_live`, a page small
+   enough to know the answer for.  When an extractor's output looks too
+   good, feed it a fixture with the answer written down.
 
 ### Inputs come from the data
 
@@ -326,7 +349,7 @@ like one that passes.
 `(code, dynasty)`, `(code, half-century)` and `(code, address)`
 combinations are populated, caches the answer against the database's own
 SHA-256, and `test_query_matrix.py` generates one test per combination
-(386 of them on this build; `test_query_matrix.py` holds 418 in
+(386 of them on this build; `test_query_matrix.py` holds 420 in
 all, the rest being the switch sweep and its gates). A data refresh
 moves the inputs by itself.
 
@@ -462,10 +485,11 @@ Three traps, all paid for:
   application. `browser.open_page` rewrites it.
 * **A headless browser with `accept_downloads=True` is not the user's
   browser.** It saves every file, so Chrome's multiple-download
-  permission — the whole blocking half of the multi-file download
-  finding — never engages.
+  permission — the whole blocking half of an earlier round's multi-file
+  download finding — never engages.
   Anything that turns on a browser *permission* has to be checked
-  another way; for that one, by reading the page's delivery code.
+  another way; for that one, by reading the page's delivery code and
+  counting the entries each reply carries (since 20260925, one ZIP).
 * **Skip, do not fail, when Chromium is absent.** Playwright downloads
   its own browser and a fresh checkout has none. `browser.available()`
   returns the reason and the tests skip with it; a suite that goes red
@@ -479,9 +503,9 @@ as much as to one from you:
 > Do not just take my word for it; reproduce it. And not only the one
 > problem — find all of them.
 
-Two of this round's defects were filed from a mechanism read out of the
-source plus the maintainer's observation, and reproducing them changed
-what they say:
+Two defects in an earlier round were filed from a mechanism read out of
+the source plus the maintainer's observation, and reproducing them
+changed what they say:
 
 * **The multi-file download finding.** Driving the real page in
   headless Chromium showed the page attempting two downloads per
@@ -598,9 +622,16 @@ cross-form interference were split into one copy per form: `ZZ_SOCIAL_NETWORK` �
 **What it did not fix.** Nothing in a request identifies the tab or the
 session it came from, so two browser tabs still share one result — the
 developers' own open finding, driven here by `test_sessions.py` and
-tolerated in the waiver table. `main.go` also takes no single-instance lock and
-uses port 0, so `cbdb.exe` can be launched twice against the same
-database; the in-process mutexes protect nothing across processes.
+tolerated in the waiver table. A second *process* is a different matter
+since 20260925: `main.go` takes an OS lock on `<db>.lock`
+(`instance_lock.go`) and a second copy against the same database
+refuses, sending the user to the running one through `<db>.url`.  The
+lock is per database file, so the suite's per-session copies are
+unaffected -- but **never start a second `CbdbApp` on `app_db` expecting
+it to serve**.  Only `test_sessions.py::test_a_second_instance_on_the_
+same_database_is_refused` does, to watch it refuse;
+`test_two_servers_can_run_side_by_side` used to as well, and passed or
+failed by module order until it was moved onto the session server.
 
 **Still true, and still worth not re-learning:**
 
@@ -642,8 +673,11 @@ unaffected (its own DLLs load from the loader's search path, not PATH).
 ### 6. The port is only knowable from stderr
 
 `-port 0` lets the OS choose. The app prints
-`CBDB server started: http://localhost:<port>` through Go's `log`, i.e.
-to **stderr**. The driver must keep draining that pipe for the whole run
+`CBDB server started: http://127.0.0.1:<port>` through Go's `log`, i.e.
+to **stderr** (`localhost` up to 20260916_2 -- the driver accepts either
+loopback spelling, addresses the server by the one it announced, and
+`test_app_driver.py` pins which; the first run on 20260925 errored 1153
+tests on that one word). The driver must keep draining that pipe for the whole run
 or a full buffer stalls the server mid-suite. `CbdbApp` reads it on a
 thread and hands the thread its own process handle — reading
 `self.process` raced with `stop()` clearing it and lost the app's dying
@@ -725,8 +759,8 @@ covers its kind, is how this decays.
 .\run_tests.ps1              # everything: stage, test, both reports
 .\run_tests.ps1 -Restage     # discard the cached tree first
 .\run_tests.ps1 -Fast        # skip everything needing the running app
-python -m pytest tests -q                 # ~68 s
-python -m pytest tests -q -m "not slow"   # ~28 s
+python -m pytest tests -q                 # ~8 min on 20260925
+python -m pytest tests -q -m "not slow"   # the same, less the rebuilds
 ```
 
 `-m "not slow"` deselects 10 tests: the nine index-address ones (each
@@ -745,7 +779,7 @@ after extraction is restaged, not served.
 
 **Not listed here, deliberately.**  The registry
 (`tests/cbdb_desktop/defects.py`) is emptied before each round -- most
-recently on 2026-09-11, for a stateless assessment of this
+recently on 2026-09-30, for a stateless assessment of this
 distribution -- and now holds that assessment's findings.  Read it there, or read the generated reports;
 copying the list into this file is what would turn one round's findings
 into an expectation the next round starts from.
@@ -840,10 +874,15 @@ named test, and re-deriving it costs an hour.
   already have the table. Pinned in `test_scratch_tables.py`, worth
   mentioning to the developers, not worth a P-band in a report of
   things users can see.
-- A form query with an **empty** code list returns the whole table
-  (264,775 entry rows). No filter, no LIMIT, and the page never sends
-  it. Do not construct "export nothing" that way — use a code no table
-  contains (`test_exports.py::_NO_SUCH_CODE`).
+- A form query with **nothing selected** is refused with HTTP 400 by
+  five of the six forms since 20260925 (`test_form_queries.py::
+  test_a_query_with_nothing_selected_is_refused`); on Places it still
+  returns the whole table with no LIMIT, as every form did before
+  (264,775 rows on Entry, 20260916_2). So "All Offices" now means every
+  office *within a place*,
+  on page and server alike, and is not a defect. Do not construct
+  "export nothing" that way — use a code no table contains
+  (`test_exports.py::_NO_SUCH_CODE`).
 - The export envelopes are inconsistent — `{status, files}` on seven
   forms, `{files}` on two, a bare `{name, url}` for every SNA export,
   and a raw file stream for six of the GIS exports. Nobody chose that,
@@ -867,6 +906,15 @@ named test, and re-deriving it costs an hour.
   see it" may be said. The old ruling's last sentence had the answer in
   it — "a form that changed which one it answers with would break its
   own page" — and nobody had asked whether a form already had.
+- Every page still clicks one download per entry of a reply's `files`
+  list. Since 20260925 every multi-file export answers with **one**
+  entry, a ZIP (`zipToDataURL`), so each loop runs once and the
+  multi-download problem is gone from the server side. `exports.py`
+  pins each bundle's name (`ExportSpec.bundle`) and every reader opens
+  it (`delivered_files`, `unzip_bundle`); a ZIP stamps members with the
+  time they were written, so compare members, never bundles.
+  `test_no_page_asks_the_browser_for_more_than_one_download` presses
+  every multi-file export itself to establish the one entry.
 
 ---
 
@@ -1049,7 +1097,7 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 #    - A test that raised KnownShippedDefect last round and passes now
 #               → a defect was fixed.  Confirm, then retire its registry
 #               entry.  (XPASS means a waiver outlived what it waived.)
-#    - FAILED on a pinned count (142 routes, 1386 QBE columns, 37,118
+#    - FAILED on a pinned count (140 routes, 1390 QBE columns, 37,118
 #               addresses, the form-template set) → the build changed
 #               shape.  Decide whether that is intended, then update the
 #               pin in the same commit as the reason.

@@ -115,7 +115,7 @@ test the thing that fails when a whole dimension goes quiet.
 
 `CbdbApp.requested` records every `(method, path)` the run issues.
 `test_zz_controls.py` compares that record against every endpoint the
-pages can reach, and writes the numbers to
+pages mention, and writes the numbers to
 `artifacts/endpoint_coverage.json`. "The exports are covered" is a
 claim. A count is evidence.
 
