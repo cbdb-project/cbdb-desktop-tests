@@ -53,6 +53,9 @@ EXPECTED_GO_SOURCES = {
     "browser_form_backend.go", "cbdb_navigation_backend.go",
     "cbdb_shared_utils.go", "entry_form_backend.go",
     "groupdata_form_backend.go", "indexaddr_form_backend.go",
+    # 20260925: the single-instance lock main.go takes on the database.
+    # Driven by test_sessions.py's second-instance test.
+    "instance_lock.go",
     "kinship_form_backend.go", "main.go", "networks_form_backend.go",
     "networks_form_query.go", "office_form_backend.go",
     "places_form_backend.go", "qbe_criteria.go", "qbe_gridstate.go",

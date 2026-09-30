@@ -51,14 +51,15 @@ an input is not an oracle -- nothing here predicts what a query returns.
 """
 from __future__ import annotations
 
-import base64
 import csv
 import io
+import re
 from collections import Counter
 
 import pytest
 
 from cbdb_desktop.app import CbdbApp
+from cbdb_desktop.exports import delivered_files
 from cbdb_desktop.forms import FORMS, FORMS_BY_NAME, FormSpec
 
 pytestmark = pytest.mark.app
@@ -132,8 +133,8 @@ def cheap_codes(app: CbdbApp, sqlite_conn):
     return pick
 
 
-def _csv_rows(data_url: str) -> list[list[str]]:
-    """Decode one exported file: a base64 data URL of tab-separated text.
+def _csv_rows(raw: bytes) -> list[list[str]]:
+    """Decode one exported file of tab-separated text.
 
     Decoded as ``utf-8-sig``, so a leading byte-order mark is consumed
     rather than read as data.  The 2026-09-08 build writes one to every
@@ -144,9 +145,7 @@ def _csv_rows(data_url: str) -> list[list[str]]:
     consumes the mark; so must this.  ``utf-8-sig`` decodes a file
     *without* a mark unchanged, so this stays correct either way.
     """
-    assert data_url.startswith("data:"), data_url[:60]
-    blob = data_url.split("base64,", 1)[1]
-    text = base64.b64decode(blob).decode("utf-8-sig")
+    text = raw.decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(text), delimiter="\t"))
     # A trailing newline yields one empty row; anything else blank is
     # kept, so an unexpectedly empty exported line is visible.
@@ -167,14 +166,18 @@ def _query(app: CbdbApp, form: FormSpec, codes: list[int]):
     return payload
 
 
-def _export(app: CbdbApp, form: FormSpec, payload) -> list[dict]:
+def _export(app: CbdbApp, form: FormSpec, payload) -> list[tuple[str, bytes]]:
     response = app.post(form.export_path, json=form.export_body(payload))
     assert response.status_code == 200, \
         f"{form.name}: export {response.status_code} {response.text[:300]}"
     exported = response.json()
     assert exported["status"] == "ok", exported
-    assert [f["name"] for f in exported["files"]] == list(form.export_files)
-    return exported["files"]
+    # From 20260925 the files arrive packed in one ZIP; which endpoint
+    # bundles, and under what name, is pinned in test_exports.py.  What
+    # this file compares is the files a user unpacks.
+    files = delivered_files(form.name, exported["files"])
+    assert [name for name, _ in files] == list(form.export_files)
+    return files
 
 
 def _column(header: list[str], *names: str) -> int:
@@ -267,6 +270,77 @@ def test_a_query_returns_only_what_was_asked_for(app: CbdbApp, form: FormSpec,
         f"{form.name}: asked for {codes}, got rows for {unexpected}"
 
 
+#: A handler's refusal of a query with nothing selected, and the message
+#: it gives -- ``if len(p.EntryCodes) == 0 && len(p.AddrIDs) == 0 {
+#: http.Error(w, "Select at least one entry or a place.", 400)``.
+_REFUSES_NOTHING_SELECTED = re.compile(
+    r'if\s+len\((?:p|q|params|req)\.\w+\)\s*==\s*0\b[^{\n]*\{\s*'
+    r'http\.Error\(\s*w\s*,\s*"(Select at least one[^"]*)"\s*,\s*'
+    r'http\.StatusBadRequest')
+
+
+#: The forms whose query handler refuses a request with nothing
+#: selected, as of 20260925 -- every one but Places.  Declared, not
+#: discovered, because the declaration is what makes the test below
+#: safe: it decides which forms are sent a request that, on a handler
+#: without the guard, is an unfiltered query of the whole table.  A
+#: form listed here whose source has lost its guard fails rather than
+#: skips; a form that gains one is read before it is added.
+_REFUSES_NOTHING_SELECTED_FORMS = frozenset(
+    {"associations", "entry", "office", "status", "texts"})
+
+
+def test_a_query_with_nothing_selected_is_refused(app: CbdbApp, form: FormSpec,
+                                                  layout):
+    """With no code and no place, a form that refuses must refuse.
+
+    20260925 put this guard in front of every form query but Places, so
+    an empty selection no longer means "the whole table" -- 264,775 entry
+    rows, with no LIMIT, on the build before.  ``test_page_contracts``
+    reads the guards out of the source and uses them to decide which
+    forms' pages it holds to an unfiltered query; this is the second
+    check, in a second place, that the running binary does what that
+    source says.
+
+    Two layers keep this from ever sending an unbounded query.  The
+    forms driven are the declared set above, and each must still show
+    its guard in the source before anything is sent -- a guard gone is
+    a failure here, not a request.  And the request is streamed with a
+    short timeout: an answer that is not the 400 is closed unread,
+    because an unguarded handler's answer is the whole table.
+    """
+    if form.name not in _REFUSES_NOTHING_SELECTED_FORMS:
+        pytest.skip(f"{form.name}: not declared as refusing an empty "
+                    "selection, so this request would be an unfiltered "
+                    "query of the whole table")
+
+    source = (layout.code_dir / f"{form.name}_form_backend.go").read_text(
+        encoding="utf-8", errors="replace")
+    messages = _REFUSES_NOTHING_SELECTED.findall(source)
+    assert messages, (
+        f"{form.name} is declared as refusing a query with nothing "
+        "selected, and its source no longer has a 'Select at least "
+        "one ...' guard -- so the request this test would send is an "
+        "unfiltered query of the whole table, and it was not sent")
+
+    body = form.body([])
+    body[form.addr_field] = []
+    response = app.post(form.query_path, json=body, stream=True, timeout=60)
+    try:
+        if response.status_code != 400:
+            pytest.fail(
+                f"{form.name}: a query with no code and no place answered "
+                f"HTTP {response.status_code}, and its source refuses it "
+                f"with {messages[0]!r}.  The body was not read: an "
+                "unguarded answer is the whole table")
+        text = response.text.strip()
+    finally:
+        response.close()
+    assert text in messages, (
+        f"{form.name}: refused with {text!r}, not the message its source "
+        f"gives ({messages}) -- the page shows this text to the user")
+
+
 def test_two_filters_together_return_exactly_the_two_apart(
         app: CbdbApp, form: FormSpec, cheap_codes):
     """Additivity: querying A+B gives the rows of A plus the rows of B.
@@ -323,7 +397,7 @@ def test_the_export_renders_the_result_it_was_given(app: CbdbApp, form: FormSpec
     rows = form.rows(payload)
     files = _export(app, form, payload)
 
-    exported = _csv_rows(files[0]["url"])
+    exported = _csv_rows(files[0][1])
     assert exported, f"{form.name}: the exported file is empty"
     header, body = exported[0], exported[1:]
     assert len(header) > 1, f"{form.name}: exported header is {header}"
@@ -352,7 +426,7 @@ def test_the_second_exported_file_lists_the_people_once_each(
     rows = form.rows(payload)
     files = _export(app, form, payload)
 
-    exported = _csv_rows(files[1]["url"])
+    exported = _csv_rows(files[1][1])
     header, body = exported[0], exported[1:]
     column = _column(header, "c_person_id", "c_personid", "personid")
 
@@ -467,14 +541,14 @@ def test_another_form_does_not_empty_the_associations_export(
     rows = associations.rows(payload)
     assert rows, "no associations to lose"
 
-    before = _csv_rows(_export(app, associations, payload)[0]["url"])
+    before = _csv_rows(_export(app, associations, payload)[0][1])
     assert len(before) - 1 == len(rows), "the export did not match the query"
 
     # A perfectly ordinary thing for a user to do next.
     other = app.post(path, json=body)
     assert other.status_code == 200, other.text[:200]
 
-    after = _csv_rows(_export(app, associations, payload)[0]["url"])
+    after = _csv_rows(_export(app, associations, payload)[0][1])
     assert len(after) - 1 == len(rows), (
         f"a {_form} query changed the Associations export: "
         f"{len(before) - 1} rows before, {len(after) - 1} after")

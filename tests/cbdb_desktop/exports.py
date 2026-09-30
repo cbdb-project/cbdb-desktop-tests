@@ -45,6 +45,11 @@ rather than once per module.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import io
+import posixpath
+import zipfile
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -95,6 +100,100 @@ TABLE = "table"
 KML = "kml"
 
 
+# ---------------------------------------------------------------------------
+# bundles
+# ---------------------------------------------------------------------------
+# From 20260925 every export that produces more than one file packs them
+# into one ZIP (``zipToDataURL`` in cbdb_shared_utils.go), so the browser
+# is asked for one download rather than several.  The envelope did not
+# change: it still carries a ``files`` list, now of one entry, whose URL
+# is ``data:application/zip;base64,...``.  So the *files* a user works
+# with are the archive's members, and everything that judges a file has
+# to open the archive first.  ``ExportSpec.bundle`` pins the archive's
+# name; ``ExportSpec.files`` goes on naming the files, which are now its
+# members, in archive order.
+
+#: The media type a bundle's data URL declares.
+ZIP_MEDIA_TYPE = "application/zip"
+
+
+def data_url_bytes(label: str, url: str) -> tuple[str, bytes]:
+    """``(media type, bytes)`` of a base64 ``data:`` URL.
+
+    Asserts rather than guesses: a URL that is not base64 would decode
+    to garbage that could agree or disagree with anything.
+    """
+    assert isinstance(url, str), f"{label}: url is {type(url).__name__}"
+    assert url.startswith("data:"), f"{label}: not a data URL: {url[:60]!r}"
+    head, sep, blob = url.partition(",")
+    assert sep and head.endswith(";base64"), (
+        f"{label}: data URL is not base64: {url[:60]!r}")
+    try:
+        raw = base64.b64decode(blob, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise AssertionError(
+            f"{label}: file payload is not valid base64: {exc}") from exc
+    return head[len("data:"):-len(";base64")].split(";")[0].strip(), raw
+
+
+def unzip_bundle(label: str, raw: bytes) -> list[tuple[str, bytes]]:
+    """``[(member name, bytes)]`` of one bundle, in archive order.
+
+    Judged as a file a user will open, not merely decompressed: every
+    member's CRC must check, and no member may be a directory, carry a
+    path, or repeat a name -- an extractor would put a path somewhere
+    the user did not choose, and a repeated name silently loses one of
+    the two files.
+    """
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile as exc:
+        raise AssertionError(
+            f"{label}: declared {ZIP_MEDIA_TYPE} and is not a readable "
+            f"ZIP archive: {exc}") from exc
+    with archive:
+        broken = archive.testzip()
+        assert broken is None, (
+            f"{label}: member {broken!r} fails its CRC -- the archive is "
+            "corrupt and an extractor will refuse it or produce garbage")
+        names = [info.filename for info in archive.infolist()]
+        assert names, f"{label}: the archive is empty"
+        odd = [n for n in names
+               if n.endswith("/") or posixpath.basename(n) != n or "\\" in n]
+        assert not odd, (
+            f"{label}: members {odd} are directories or carry a path; "
+            "every file should extract beside the others")
+        assert len(set(names)) == len(names), (
+            f"{label}: repeated member names {names}; an extractor keeps "
+            "one of each and the other file is lost")
+        return [(name, archive.read(name)) for name in names]
+
+
+def delivered_files(label: str, entries: list[dict]) -> list[tuple[str, bytes]]:
+    """``[(file name, bytes)]`` a JSON envelope's file list delivers.
+
+    A bundle is opened and its members returned in its place; any other
+    entry is returned as itself.  For readers whose subject is the
+    *files* -- their rows, their people -- rather than the envelope.
+    ``test_exports.py`` asserts which endpoints bundle and under what
+    name; this function deliberately does not care.
+    """
+    out: list[tuple[str, bytes]] = []
+    for entry in entries:
+        name = entry.get("name") or entry.get("Name")
+        url = entry.get("url") or entry.get("URL")
+        assert name and url, f"{label}: an entry lacks a name or url: {sorted(entry)}"
+        media, raw = data_url_bytes(f"{label}/{name}", url)
+        if media == ZIP_MEDIA_TYPE:
+            assert str(name).lower().endswith(".zip"), (
+                f"{label}: {name!r} is declared {ZIP_MEDIA_TYPE} and not "
+                "named .zip -- a user's system will not know to open it")
+            out.extend(unzip_bundle(f"{label}/{name}", raw))
+        else:
+            out.append((name, raw))
+    return out
+
+
 @dataclass(frozen=True)
 class ExportSpec:
     """One export endpoint, and how to ask it for a file."""
@@ -117,6 +216,10 @@ class ExportSpec:
     #: multi-file envelope; the single file's name for SINGLE_FILE;
     #: empty for RAW, which names its file in a header instead.
     files: tuple[str, ...] = ()
+    #: The name of the one ZIP the files arrive in, for a multi-file
+    #: envelope that bundles them (every one, from 20260925); ``files``
+    #: then names its members.  Empty when the files arrive unbundled.
+    bundle: str = ""
     #: True when the files are an import set for another program to read
     #: rather than something a person opens.  The Neo4j exports are the
     #: only ones: they are staged for ``LOAD CSV``, which reads a
@@ -220,6 +323,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="entry", path="/api/entry/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_nothing,
+        bundle="EntryResults.zip",
         reads_scratch=True,
         files=("EntryData_UTF8.tsv", "EntryPeopleData_UTF8.tsv"),
         notes="dumps ZZ_SCRATCH_ENTRY; ignores the request body",
@@ -238,6 +342,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="entry", path="/api/entry/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="EntryNeo4j_UTF8.zip",
         files=_NEO4J_PEOPLE_PLACES + ("PeopleEntry_UTF8.csv",
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "EntryCodes_UTF8.csv"),
@@ -258,6 +363,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="office", path="/api/office/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="OfficeResults.zip",
         files=("OfficePostings.tsv", "OfficePostingsPeople.tsv"),
     ),
     ExportSpec(
@@ -279,6 +385,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="office", path="/api/office/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="OfficeNeo4j_UTF8.zip",
         files=("People_UTF8.csv", "PeopleOffice_UTF8.csv", "Places_UTF8.csv",
                "PeoplePlaces_UTF8.csv", "PeoplePlacesCodes_UTF8.csv",
                "OfficeCode_UTF8.csv"),
@@ -289,6 +396,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="status", path="/api/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_status_and_people(),
+        bundle="StatusResults.zip",
         files=("StatusRecords.tsv", "StatusRecordsPeople.tsv"),
     ),
     ExportSpec(
@@ -305,6 +413,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="status", path="/api/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_status_and_people(),
+        bundle="StatusNeo4j_UTF8.zip",
         files=_NEO4J_PEOPLE_PLACES + ("PeopleStatus_UTF8.csv",
                                       "PeoplePlacesCodes_UTF8.csv",
                                       "StatusCode_UTF8.csv"),
@@ -315,6 +424,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="texts", path="/api/texts/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="TextsResults.zip",
         files=("TextSourceRecords.tsv", "TextSourceRecordsPeople.tsv"),
     ),
     ExportSpec(
@@ -330,6 +440,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="texts", path="/api/texts/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_data(encoding="unicode"),
+        bundle="TextsNeo4j_UTF8.zip",
         files=("People_UTF8.csv", "PeopleText_UTF8.csv", "Places_UTF8.csv",
                "PeoplePlaces_UTF8.csv", "PeoplePlacesCodes_UTF8.csv",
                "TextCode_UTF8.csv"),
@@ -340,6 +451,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="places", path="/api/places/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="PlacesResults.zip",
         files=("PlacePeopleRecords.tsv", "PlacePeopleRecordsPeople.tsv"),
     ),
     ExportSpec(
@@ -355,6 +467,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="places", path="/api/places/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_data(encoding="unicode"),
+        bundle="PlacesNeo4j_UTF8.zip",
         files=("People_UTF8.csv", "PeopleIndexAddr_UTF8.csv",
                "Places_UTF8.csv", "PeoplePlaceRelations_UTF8.csv",
                "PeoplePlaceRelationCodes_UTF8.csv",
@@ -381,6 +494,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="associations", path="/api/associations/export-query",
         family="results", envelope=STATUS_FILES, content=TABLE,
+        bundle="AssociationsResults.zip",
         body=_nothing, reads_scratch=True,
         files=("Associations_UTF8.tsv", "AssociationsPeople_UTF8.tsv"),
         notes="re-reads ZZ_SN_ASSOC / ZZ_SP_ASSOC (per-form since "
@@ -401,6 +515,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="associations", path="/api/associations/export-neo4j",
         family="neo4j", envelope=STATUS_FILES, content=TABLE,
+        bundle="AssociationsNeo4j_UTF8.zip",
         body=_data("records", encoding="unicode"),
         files=("People_UTF8.csv", "PeopleAssociations_UTF8.csv",
                "Places_UTF8.csv", "PeoplePlaces_UTF8.csv",
@@ -418,6 +533,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="kinship", path="/api/kinship/export-results", family="results",
         envelope=FILES, content=TABLE, body=_nothing, reads_scratch=True,
+        bundle="KinshipResults.zip",
         files=("KinshipNetwork.tsv", "EgoRelativeKinship.tsv",
                "KinshipPeople.tsv"),
         notes="reads ZZ_SCRATCH_KINNET and friends under kinshipMu",
@@ -435,6 +551,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="kinship", path="/api/kinship/export-neo4j", family="neo4j",
         envelope=FILES, content=TABLE, body=_whole_payload(),
+        bundle="KinshipNeo4j_UTF8.zip",
         files=("People_UTF8.csv", "PeopleKinship_UTF8.csv",
                "Places_UTF8.csv", "PeoplePlaces_UTF8.csv",
                "KinshipCodes_UTF8.csv"),
@@ -463,6 +580,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="networks", path="/api/networks/export-results", family="results",
         envelope=STATUS_FILES, content=TABLE, body=_nothing,
+        bundle="NetworksResults.zip",
         reads_scratch=True,
         files=("Networks_UTF8.tsv", "NetworkPeople_UTF8.tsv"),
     ),
@@ -479,6 +597,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="networks", path="/api/networks/export-neo4j", family="neo4j",
         envelope=FILES, content=TABLE, body=_nothing, reads_scratch=True,
+        bundle="NetworksNeo4j_UTF8.zip",
         files=_NEO4J_PEOPLE_PLACES + ("PeopleAssociations_UTF8.csv",
                                       "AssociationCodes_UTF8.csv",
                                       "KinshipCodes_UTF8.csv"),
@@ -511,6 +630,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-results",
         family="results", envelope=STATUS_FILES, content=TABLE,
+        bundle="AssocPairsResults.zip",
         body=_nothing, reads_scratch=True,
         files=("AssocPairsNetwork.tsv", "AssocPairsPeople.tsv"),
     ),
@@ -531,6 +651,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="assocpairs", path="/api/assocpairs/export-neo4j",
         family="neo4j", envelope=STATUS_FILES, content=TABLE,
+        bundle="AssocPairsNeo4j_UTF8.zip",
         body=_whole_payload(),
         files=_NEO4J_PEOPLE_PLACES + ("AssociationRecords_UTF8.csv",),
         machine_import=True,
@@ -559,6 +680,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="groupdata", path="/api/groupdata/export-results",
         family="results", envelope=STATUS_FILES, content=TABLE,
+        bundle="GroupDataResults.zip",
         body=lambda payload: dict(
             {"personIds": payload["_personIds"]},
             queryStatus=True, queryOffice=True, queryEntry=True,
@@ -572,6 +694,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="groupdata", path="/api/groupdata/export-gis", family="gis",
         envelope=STATUS_FILES, content=TABLE,
+        bundle="GroupDataGIS_TSV.zip",
         body=_group_records(format="tab", exportStatus=True,
                             exportOffice=True, exportOfficePeople=True,
                             exportEntry=True, exportText=True,
@@ -585,6 +708,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="groupdata", path="/api/groupdata/export-gis", family="kml",
         envelope=STATUS_FILES, content=KML,
+        bundle="GroupDataGIS_KML.zip",
         body=_group_records(format="kml", exportStatus=True,
                             exportOffice=True, exportOfficePeople=True,
                             exportEntry=True, exportText=True,
@@ -597,6 +721,7 @@ EXPORTS: tuple[ExportSpec, ...] = (
     ExportSpec(
         form="groupdata", path="/api/groupdata/export-neo4j", family="neo4j",
         envelope=STATUS_FILES, content=TABLE, body=_group_records(),
+        bundle="GroupDataNeo4j_UTF8.zip",
         files=_NEO4J_PEOPLE_PLACES + (
             "PeoplePlacesCodes_UTF8.csv", "PeopleStatus_UTF8.csv",
             "PeopleOffice_UTF8.csv", "PeopleEntry_UTF8.csv",

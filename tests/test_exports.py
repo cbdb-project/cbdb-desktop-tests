@@ -70,8 +70,11 @@ from cbdb_desktop.exports import (
     SINGLE_FILE,
     STATUS_FILES,
     TABLE,
+    ZIP_MEDIA_TYPE,
     ExportSpec,
     FormatRule,
+    data_url_bytes,
+    unzip_bundle,
 )
 from cbdb_desktop.forms import (FORMS_BY_NAME, STORE_RESET,
                                 WORKING_LIST_RESETS)
@@ -152,35 +155,6 @@ UTF8_BOM = b"\xef\xbb\xbf"
 _SPREADSHEET_SUFFIXES = (".tsv", ".csv", ".tab", ".txt")
 
 
-def _raw_data_url(label: str, url: str) -> bytes:
-    """The bytes a data URL carries, with nothing decoded yet.
-
-    Separate from :func:`_decode_data_url` because the *bytes* are the
-    subject of one test on their own: whether a file whose name promises
-    UTF-8 begins with the mark that makes a spreadsheet believe it.
-    """
-    assert isinstance(url, str), f"{label}: url is {type(url).__name__}"
-    assert url.startswith("data:"), f"{label}: not a data URL: {url[:60]!r}"
-    assert "base64," in url, f"{label}: data URL is not base64: {url[:60]!r}"
-    blob = url.split("base64,", 1)[1]
-    try:
-        return base64.b64decode(blob, validate=True)
-    except Exception as exc:                      # noqa: BLE001 - reported
-        raise AssertionError(
-            f"{label}: file payload is not valid base64: {exc}") from exc
-
-
-def _decode_data_url(label: str, url: str) -> str:
-    raw = _raw_data_url(label, url)
-    try:
-        return raw.removeprefix(UTF8_BOM).decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise AssertionError(
-            f"{label}: file payload is not UTF-8 ({exc}) -- these exports "
-            "are named _UTF8 and a historian opening this gets mojibake"
-        ) from exc
-
-
 def _unwrap(spec: ExportSpec, response) -> list[tuple[str, str]]:
     """``[(file name, text)]`` from whichever envelope this form uses.
 
@@ -213,24 +187,63 @@ def _unwrap(spec: ExportSpec, response) -> list[tuple[str, str]]:
         assert payload.get("status") == "ok", f"{label}: {payload}"
         assert isinstance(payload.get("files"), list), \
             f"{label}: keys are {sorted(payload)}"
-        entries = payload["files"]
     elif spec.envelope == FILES:
         assert isinstance(payload.get("files"), list), \
             f"{label}: keys are {sorted(payload)}"
-        entries = payload["files"]
     else:
         assert spec.envelope == SINGLE_FILE, spec.envelope
         assert set(payload) >= {"name", "url"}, \
             f"{label}: keys are {sorted(payload)}"
-        entries = [payload]
 
     out = []
+    for name, raw in _envelope_files(spec, payload):
+        try:
+            text = raw.removeprefix(UTF8_BOM).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise AssertionError(
+                f"{label}/{name}: file payload is not UTF-8 ({exc}) -- these "
+                "exports are named _UTF8 and a historian opening this gets "
+                "mojibake") from exc
+        out.append((name, text))
+    return out
+
+
+def _envelope_files(spec: ExportSpec, payload) -> list[tuple[str, bytes]]:
+    """``[(file name, bytes)]`` of a JSON envelope, bundles opened.
+
+    The bundle is asserted, not sniffed.  An endpoint with ``bundle``
+    set must answer with exactly that one ZIP, and one without must not
+    answer with a ZIP at all -- either change is a change to what lands
+    in the user's downloads folder, and is read before it is followed.
+    An envelope with no files (the handler's "nothing to pack") comes
+    back empty, so the callers' own checks decide what that means.
+    """
+    label = spec.key
+    entries = [payload] if spec.envelope == SINGLE_FILE else payload["files"]
     for entry in entries:
         assert set(entry) >= {"name", "url"}, f"{label}: {sorted(entry)}"
         assert str(entry["name"]).strip(), f"{label}: a file has no name"
-        out.append((entry["name"],
-                    _decode_data_url(f"{label}/{entry['name']}", entry["url"])))
-    return out
+    decoded = [(entry["name"], *data_url_bytes(f"{label}/{entry['name']}",
+                                               entry["url"]))
+               for entry in entries]
+
+    if not spec.bundle:
+        zipped = [name for name, media, _ in decoded if media == ZIP_MEDIA_TYPE]
+        assert not zipped, (
+            f"{label}: answered with the ZIP {zipped}, and the inventory "
+            "records this endpoint as unbundled.  Set ExportSpec.bundle "
+            "if that is intended")
+        return [(name, raw) for name, _, raw in decoded]
+
+    if not decoded:
+        return []
+    assert [name for name, _, _ in decoded] == [spec.bundle], (
+        f"{label}: expected the one bundle {spec.bundle!r}, got "
+        f"{[name for name, _, _ in decoded]}")
+    (name, media, raw), = decoded
+    assert media == ZIP_MEDIA_TYPE, (
+        f"{label}/{name}: declared {media!r}, not {ZIP_MEDIA_TYPE!r}")
+    return unzip_bundle(f"{label}/{name}", raw)
 
 
 def _rows(text: str) -> list[list[str]]:
@@ -899,6 +912,20 @@ def test_an_export_is_repeatable(app: CbdbApp, spec: ExportSpec, subject):
     first = _export(app, spec, payload)
     second = _export(app, spec, payload)
 
+    if spec.bundle:
+        # A ZIP stamps each member with the time it was written, so two
+        # bundles of identical files differ byte for byte whenever the
+        # two presses straddle a two-second tick of the archive's clock.
+        # The files are what the user works with; they are what must
+        # repeat.
+        before, after = _raw_files(spec, first), _raw_files(spec, second)
+        assert before, (
+            f"{spec.key}: the export delivered no file after a real query, "
+            "so two presses agreeing proves nothing")
+        assert before == after, (
+            f"{spec.key}: two identical exports produced different files: "
+            f"{[n for (n, a), (_, b) in zip(before, after) if a != b] or 'the file lists differ'}")
+        return
     assert first.text == second.text, \
         f"{spec.key}: two identical exports produced different files"
 
@@ -1039,11 +1066,9 @@ def _raw_files(spec: ExportSpec, response) -> list[tuple[str, bytes]]:
         return [(name.group(1) if name else "<unnamed>", response.content)]
 
     payload = response.json()
-    entries = ([payload] if spec.envelope == SINGLE_FILE
-               else payload.get("files") or [])
-    return [(entry["name"], _raw_data_url(f"{spec.key}/{entry['name']}",
-                                          entry["url"]))
-            for entry in entries]
+    if spec.envelope != SINGLE_FILE and not payload.get("files"):
+        return []
+    return _envelope_files(spec, payload)
 
 
 # Every table-shaped export, judged on its encoding.  An endpoint that
@@ -1346,9 +1371,14 @@ _DOWNLOAD_PER_FILE = re.compile(
 #: guard on the pattern above: every way a page can walk a file list has
 #: to be *recognised* by it, so a fourth spelling is a failure here
 #: rather than a silent omission from the finding.
+#:
+#: One walk is not a download and is excluded by name: 20260925's pages
+#: build their status message with ``files.map(f => f.name).join(...)``,
+#: which reads each file's name and saves nothing.
 _ITERATES_A_FILE_LIST = re.compile(
     r"""for\s*\([^)]*\bfiles\b"""
-    r"""|\bfiles(?:\s*\|\|\s*\[\])?\s*\)?\s*\.\s*(?:forEach|map)\s*\(""",
+    r"""|\bfiles(?:\s*\|\|\s*\[\])?\s*\)?\s*\.\s*(?:forEach|map)\s*\("""
+    r"""(?!\s*\(?\s*\w+\s*\)?\s*=>\s*\w+\.name\s*\))""",
     re.IGNORECASE)
 
 #: And the message such a handler then prints, which reports the number
@@ -1361,11 +1391,28 @@ _REPORTS_A_FILE_COUNT = re.compile(
     r"""[^;\n]*?(?:file\(s\)|files?\s+(?:downloaded|ready|saved))""",
     re.IGNORECASE)
 
+#: A whole line that is a JavaScript comment.  20260925 left each old
+#: status message behind as ``// setStatus('... ' + j.files.length +
+#: ' file(s) ...')`` beside its replacement, and a comment is not code
+#: a user runs.  Whole lines only: ``//`` inside a line is as likely to
+#: be a URL in a string as a comment.
+_JS_COMMENT_LINE = re.compile(r"^[ \t]*//.*$", re.MULTILINE)
 
-def test_no_page_asks_the_browser_for_more_than_one_download(layout):
+
+#: Pages whose export message reports the server's file count, and how
+#: many such messages each has.  Pinned exactly, and harmless as it
+#: stands: on 20260925 these are Association Pairs' single-file GIS and
+#: SNA exports ("1 file(s) offered for download"), which is true.  A
+#: count only misleads when the browser can have refused some files, so
+#: a change here -- a page going back to counting a multi-file answer --
+#: is read rather than followed.
+_FILE_COUNT_MESSAGES = {"association_pairs": 2}
+
+
+def test_no_page_asks_the_browser_for_more_than_one_download(
+        app: CbdbApp, layout, subject):
     """A multi-file export cannot be delivered as several downloads.
 
-    Read out of the shipped templates rather than driven in a browser.
     Every browser permits one automatic download per user gesture and
     blocks the rest; a handler that clicks a synthetic ``<a download>``
     once per file therefore saves the first and loses the others, and
@@ -1373,27 +1420,37 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
     the same page too -- which is why pressing Export a second time
     saves nothing.
 
-    Checked in the source rather than in a browser for two reasons.  The
-    suite has no browser, and more importantly the *server* side of this
-    is faultless: ``test_an_export_is_repeatable`` shows the endpoint
-    returning both files, identically, every time.  Nothing reachable
-    over HTTP can see this defect, which is exactly why it survived
-    every previous round of testing while a user hit it on the second
-    click.
+    It takes two halves to happen, and they live in two places, so both
+    are measured here.  The page has to walk the response's file list
+    clicking once per entry -- read out of the shipped templates -- and
+    the endpoint has to answer with more than one entry -- measured by
+    pressing every export that produces more than one file, after a real
+    query, and counting the entries it answers with.  20260925 answered
+    the second half: every such export now packs its files into a single
+    ZIP, so a page's per-file loop runs once.  The page code did not
+    change and is still counted, because a build that went back to
+    separate files would re-open the defect with no edit to any page.
 
-    Reported as a map of page to occurrence count -- not pinned as one.
-    This docstring used to say "pinned", and the test has never asserted
-    a map: it raises whenever any page does this at all, which is the
-    right shape for a finding but not what the word promised.  What is
-    pinned is the classification: every loop over a file list has to be
-    one the pattern above recognises, so a page fixed shows up as a
-    smaller map and a spelling nobody has seen fails outright.
+    The answer is measured here rather than read from the inventory's
+    ``bundle`` pins, which would make the verdict a statement about
+    ``exports.py``: an edit there, or a waiver that skipped the test
+    holding each endpoint to its pin, would otherwise change what this
+    test says about the build.
+
+    A browser *permission* is the one thing automation cannot see
+    (a headless browser with ``accept_downloads`` saves everything), so
+    nothing here drives one.
+
+    What is pinned is the classification: every loop over a file list
+    has to be one the pattern above recognises, so a spelling nobody has
+    seen fails outright instead of shrinking a count.
     """
     per_file: dict[str, int] = {}
     claims: dict[str, int] = {}
     walks: dict[str, int] = {}
     for page, path in sorted(layout.form_templates().items()):
-        html = path.read_text(encoding="utf-8", errors="replace")
+        html = _JS_COMMENT_LINE.sub(
+            "", path.read_text(encoding="utf-8", errors="replace"))
         found = len(_DOWNLOAD_PER_FILE.findall(html))
         if found:
             per_file[page] = found
@@ -1406,25 +1463,48 @@ def test_no_page_asks_the_browser_for_more_than_one_download(layout):
 
     # The guard.  Every loop over a file list must be one the pattern
     # above recognises, or this finding silently under-reports -- which
-    # is how office, status and texts stayed out of it.
+    # is how office, status and texts once stayed out of it.
     assert walks == per_file, (
         "a page walks a response's file list in a spelling "
         "_DOWNLOAD_PER_FILE does not recognise, so the count below would "
         f"be too low.  Loops found: {walks}; classified: {per_file}.  Add "
         "the spelling to _DOWNLOAD_PER_FILE in the same commit")
 
-    if not per_file:
-        assert not claims, (
-            "no page downloads per file any more, but these still report a "
-            f"server-side file count as though they had: {claims}")
-        return
+    # The server half, pressed.  Only exports that produce more than one
+    # file can answer with more than one entry; the groupdata KML set
+    # names none (see its spec) and is included by its bundle pin.
+    multi = [spec for spec in EXPORTS
+             if spec.envelope in (STATUS_FILES, FILES)
+             and (len(spec.files) > 1 or spec.bundle)]
+    assert multi, "the inventory declares no multi-file export to press"
+    answered: dict[str, int] = {}
+    for spec in multi:
+        payload = _export(app, spec, subject(spec.form)).json()
+        answered[spec.key] = len(payload.get("files") or [])
+    silent = sorted(key for key, count in answered.items() if count == 0)
+    assert not silent, (
+        f"these exports answered with no file at all after a real query, "
+        f"so whether they would bundle cannot be judged: {silent}")
+    several = {key: count for key, count in answered.items() if count > 1}
 
-    raise KnownShippedDefect(
-        f"{sum(per_file.values())} export handlers across {len(per_file)} "
-        f"pages ask the browser to save one file per element of a list, "
-        f"from a single click: {per_file}.  "
-        f"{sum(claims.values())} of them then report the count the server "
-        f"returned as though every file had been saved: {claims}.")
+    if per_file and several:
+        raise KnownShippedDefect(
+            f"{sum(per_file.values())} export handlers across "
+            f"{len(per_file)} pages ask the browser to save one file per "
+            f"element of a list, from a single click: {per_file}; and "
+            f"{len(several)} endpoints answer with more than one file "
+            f"rather than one bundle: {several}.  "
+            f"{sum(claims.values())} handlers then report the count the "
+            f"server returned as though every file had been saved: "
+            f"{claims}.")
+    assert not several, (
+        f"these endpoints answer with several files and no bundle, and no "
+        f"page loops over them yet: {several}")
+    assert claims == _FILE_COUNT_MESSAGES, (
+        f"the pages reporting a server-side file count changed: found "
+        f"{claims}, recorded {_FILE_COUNT_MESSAGES}.  Read which export "
+        "each belongs to: a count is true of a single-file answer and "
+        "misleading on a multi-file one")
 
 
 #: The writers this round found emitting an unclosed XML declaration,
