@@ -1509,8 +1509,9 @@ def test_export_profile_loads_the_kinship_tab_it_lists(layout: AppLayout):
     assert re.search(r"/api/browser/person/\$\{[^}]+\}/kinship", fetches), (
         f"{loader} no longer fetches /api/browser/person/<id>/kinship.  "
         "If it reads from somewhere that does not clear the Kinship "
-        "form's tables, Export Profile is no longer a way into "
-        f"CBDB-D-028.  Its body is:\n{fetches[:600]}")
+        "form's tables, Export Profile no longer clears the Kinship "
+        "form as a side effect of exporting a profile.  Its body "
+        f"is:\n{fetches[:600]}")
 
 
 def test_every_link_the_navigation_offers_resolves(app: CbdbApp, layout: AppLayout):

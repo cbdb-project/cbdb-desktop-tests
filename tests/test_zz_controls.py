@@ -73,7 +73,8 @@ EXPECTED_BUTTONS = {
     # test_cross_form_channel.py), and Export Profile, which writes the
     # person's whole record to an HTML file from the same endpoints --
     # and, by loading every tab it has not cached, reaches the kinship
-    # handler for a user who never opened that tab (CBDB-D-028).  Both
+    # handler -- which clears the Kinship form -- for a user who never
+    # opened that tab.  Both
     # are wired.
     #
     # Read and moved deliberately, which is what this pin is for.

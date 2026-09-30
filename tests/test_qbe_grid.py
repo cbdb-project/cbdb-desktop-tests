@@ -1130,7 +1130,7 @@ def test_the_grid_vocabulary_the_build_declares_is_one_it_accepts(
         The SQL the grid printed comes back too, because "accepted"
         is too weak a question to ask here.  The criteria parser
         treats anything it does not recognise as a bare value and
-        answers 200 for it -- that is CBDB-D-023 -- so a probe that
+        answers 200 for it -- a finding of its own -- so a probe that
         only checked the status would pass on a build that had
         stopped understanding the token entirely.  What the grid put
         in its SQL is what says the token was understood.
