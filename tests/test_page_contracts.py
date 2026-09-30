@@ -41,7 +41,7 @@ import re
 
 import pytest
 
-from cbdb_desktop import gosource
+from cbdb_desktop import controls, gosource
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
@@ -735,6 +735,127 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
             + ".  Each entry above says which page stopped calling it "
               "and when.  The work behind them runs and answers; only "
               "the way in is gone, so nothing a user does reaches it")
+
+
+#: The signature this build ships, per page: endpoints a page's script
+#: calls only from functions nothing on it runs.  Recognised exactly, so
+#: that any *other* dead endpoint still fails as a plain assertion
+#: rather than wearing this finding's name.
+#:
+#: The survey above is textual -- it asks whether any page *mentions* a
+#: route -- and so it counts a ``fetch`` inside a dead function as a
+#: call.  That is how these three passed it on 20260925: the Places page
+#: still defines exportPajek, exportGephi and exportUCINet, each with its
+#: fetch, and has no button, listener or load-time call that invokes any
+#: of them.  A second, earlier miss had the same root: until 20260925,
+#: controls._brace_body read an apostrophe in a comment, and a quote in
+#: a regex literal, as the start of a string, so function bodies ran on
+#: into the functions after them and every Places button appeared to
+#: reach these three.
+_CALLED_ONLY_FROM_DEAD_CODE: dict[str, frozenset[str]] = {
+    "places": frozenset({"/api/places/export-gephi",
+                         "/api/places/export-pajek",
+                         "/api/places/export-ucinet"}),
+}
+
+#: A page small enough to know the answer for, holding one of each shape
+#: the walk must tell apart.  Live: a button's handler, an ``onchange``
+#: attribute, load-time code inside an IIFE, a listener registered by
+#: name, and a ``window.X`` callback.  Dead: a function nothing calls --
+#: placed after the two things that once made the brace matcher run a
+#: body on into the next function, an apostrophe in a comment and a
+#: quote inside a regex literal.
+_WALKER_FIXTURE = r"""
+<button id="b1" onclick="pressed()">Go</button>
+<input type="file" onchange="picked(event)">
+<script>
+function esc(s) { return String(s).replace(/"/g, '&quot;'); }
+function pressed() {
+  // the backend's own check -- an apostrophe in a comment
+  fetch('/api/live/button');
+  esc('x');
+}
+function picked(e) { fetch('/api/live/onchange'); }
+function listened() { fetch('/api/live/listener'); }
+function calledBack(r) { fetch('/api/live/callback'); }
+async function neverCalled() { fetch('/api/dead/one'); }
+(async function init() { await fetch('/api/live/load'); })();
+document.getElementById('b1').addEventListener('click', listened);
+window.calledBack = calledBack;
+</script>
+"""
+
+
+def test_the_reachability_walk_tells_dead_code_from_live():
+    """``controls.reachable_endpoints`` against a page whose answer is known.
+
+    The test below relies on the walk and cannot check it: on a build
+    with no dead endpoint it passes whether the walk is right or has
+    started inventing edges -- which is exactly what the old brace
+    matcher did, crediting every Places button with three exports nothing
+    calls.  So the walk is held to a fixture instead, one entry point of
+    each kind and one dead function behind both of the traps.
+    """
+    mentioned = controls.endpoints_in_page(_WALKER_FIXTURE)
+    reached = controls.reachable_endpoints("fixture", _WALKER_FIXTURE)
+    live = {"/api/live/button", "/api/live/onchange", "/api/live/listener",
+            "/api/live/callback", "/api/live/load"}
+    assert mentioned == live | {"/api/dead/one"}, sorted(mentioned)
+    assert live <= reached, (
+        f"the walk missed live entry points: {sorted(live - reached)}")
+    assert "/api/dead/one" not in reached, (
+        "the walk credits a function nothing calls -- the brace matcher is "
+        "running a body on past its end again")
+
+
+def test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does(
+        layout: AppLayout):
+    """A ``fetch`` in a function nothing calls is a feature with no way in.
+
+    Walked from everything that can run on the page -- buttons, every
+    inline ``on...=`` handler, load-time code, listeners registered by
+    name, and the ``window.X`` callbacks a popup calls back into --
+    through the page's own call graph (``controls.reachable_endpoints``).
+    An endpoint the page mentions and that walk never arrives at is
+    implemented on both sides and offered by nothing.
+
+    The walk can err in both directions (its docstring says how), which
+    is why the one signature this build ships is recognised exactly and
+    anything else fails plainly; the walk itself is held to a known
+    answer by ``test_the_reachability_walk_tells_dead_code_from_live``.
+    On a build where every page's endpoints are reachable this passes.
+    """
+    found: dict[str, frozenset[str]] = {}
+    mentioned_total = 0
+    for page, path in sorted(controls.pages(layout).items()):
+        html = path.read_text(encoding="utf-8", errors="replace")
+        mentioned = controls.endpoints_in_page(html)
+        mentioned_total += len(mentioned)
+        dead = frozenset(mentioned - controls.reachable_endpoints(page, html))
+        if dead:
+            found[page] = dead
+    assert mentioned_total > 0, "no page mentions any endpoint"
+
+    if found and found == _CALLED_ONLY_FROM_DEAD_CODE:
+        raise KnownShippedDefect(
+            f"{sum(len(v) for v in found.values())} endpoint(s) are called "
+            "by a page only from functions nothing on it runs: "
+            + "; ".join(f"{page}: {sorted(dead)}"
+                        for page, dead in sorted(found.items()))
+            + ".  The Places page defines exportPajek, exportGephi and "
+              "exportUCINet, each posting the query result to its "
+              "endpoint, and has no button, listener or load-time call "
+              "that invokes any of them -- so the Pajek, Gephi/GUESS and "
+              "UCINet exports, and the ASCII option wired into each, are "
+              "implemented and offered by no control")
+
+    assert not found, (
+        "these endpoints are called by a page only from code nothing on it "
+        f"runs: { {p: sorted(v) for p, v in found.items()} }.  "
+        f"(The shape recorded for this build was "
+        f"{ {p: sorted(v) for p, v in _CALLED_ONLY_FROM_DEAD_CODE.items()} }; "
+        "a difference is a new finding, or a partial fix, and wants "
+        "reading.)")
 
 
 #: A page's Run Query button greyed out whenever some list is empty,

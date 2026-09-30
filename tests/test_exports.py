@@ -43,7 +43,6 @@ another's result.
 """
 from __future__ import annotations
 
-import base64
 import codecs
 import csv
 import io
@@ -74,6 +73,7 @@ from cbdb_desktop.exports import (
     ExportSpec,
     FormatRule,
     data_url_bytes,
+    delivered_files,
     unzip_bundle,
 )
 from cbdb_desktop.forms import (FORMS_BY_NAME, STORE_RESET,
@@ -2263,119 +2263,143 @@ def test_every_alias_resolves_into_the_numeric_inventory():
 # the encoding a caller asks for, against the bytes it gets
 # ---------------------------------------------------------------------------
 
-#: The one exporter that names its output after the encoding it was
-#: asked for.  ``places_form_backend.go`` reads ``encoding`` on all four
-#: of its export bodies, and this is the handler where the choice reaches
-#: the *filename*: ``"network_" + encStr + ".net"``, so a file called
-#: ``network_ascii.net`` is the application's own statement about what is
-#: inside it.  Driving it is what settles the lead recorded beside
-#: ``FORMAT_RULES``, which a suffix rule could not: ``.net`` requires the
-#: mark, and both files have the suffix.
-_ASCII_PAJEK = "/api/places/export-pajek"
+#: Every Places export the page sends its "Export as ASCII (pinyin)
+#: instead of Unicode" choice to -- ``encoding: getExportEncoding()`` in
+#: five call sites, the GIS one serving both its tab and KML formats;
+#: Export Query Results sends none.  ``(key, path, extra body fields,
+#: envelope)``.  Keyed like ``EXPORTS`` so a waiver can name one.
+#:
+#: Three of them (Pajek, Gephi, UCINet) are reached by no control on
+#: this build -- see
+#: ``test_page_contracts.py::test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does``
+#: -- and are judged here all the same: the page sends them the choice,
+#: so the day a button is wired to one, what it does with it is already
+#: known.
+_ASCII_CAPABLE = (
+    ("places:gis", "/api/places/export-gis", {"format": "tab"}, RAW),
+    ("places:kml", "/api/places/export-gis", {"format": "kml"}, RAW),
+    ("places:neo4j", "/api/places/export-neo4j", {}, STATUS_FILES),
+    ("places:pajek", "/api/places/export-pajek", {}, SINGLE_FILE),
+    ("places:gephi", "/api/places/export-gephi", {}, SINGLE_FILE),
+    ("places:ucinet", "/api/places/export-ucinet", {}, SINGLE_FILE),
+)
 
 
 def _place_record(person_id: int, assoc_id: int, name_chn: str,
                   name_py: str) -> dict:
-    """One ``PlaceRecord``, filled where the Pajek writer reads it.
+    """One ``PlaceRecord`` in which every Chinese field has a pinyin twin.
 
-    The writer takes its vertices from ``personId`` and ``assocId`` --
-    not ``addrId``, which an earlier version of this helper supplied
-    instead, producing a file with vertices and **no edges** and so never
-    reaching the edge-label branch at all.  Both are given here, and both
-    label pairs with them: ``nameChn``/``name`` for a vertex and
-    ``relChn``/``relDesc`` for an edge, because the encoding under test
-    chooses between exactly those pairs.
+    That is what makes the test below a statement about the writer and
+    not about the data: every text a writer could put in the file exists
+    in both forms, and the pinyin one is pure ASCII, so an ASCII file
+    with a byte above 0x7F in it chose the Chinese field.  Vertices come
+    from ``personId`` and ``assocId`` and edges from the pair, so the
+    network writers reach both their vertex and their edge labels;
+    coordinates are set so the GIS and KML writers emit the row.
     """
     return {
         "personId": person_id, "name": name_py, "nameChn": name_chn,
+        "indexYear": 1050, "sex": "M", "dy": 15,
+        "dynasty": "Song", "dynastyChn": "宋",
         "assocId": assoc_id, "assocName": name_py + " (assoc)",
-        "assocNameChn": name_chn + "\u4e59",
-        "addrId": 100513, "addrName": "Fuzhou", "addrChn": name_chn,
-        "sex": "M", "relType": "", "relCode": 1,
-        "relDesc": "friend of", "relChn": "\u53cb\u4eba",
+        "assocNameChn": name_chn + "乙",
+        "addrId": 100513, "addrName": "Fuzhou", "addrChn": "福州",
+        "xCoord": 119.3, "yCoord": 26.08, "xyCount": 1,
+        "relType": "", "relCode": 1,
+        "relDesc": "friend of", "relChn": "友人",
+        "firstYear": 1040, "lastYear": 1060, "source": 0,
+        "indexAddrId": 100513, "indexAddrType": 1,
     }
 
 
-def test_an_export_named_ascii_contains_ascii(app: CbdbApp):
-    """``network_ascii.net`` is written with a UTF-8 byte order mark.
+def _ascii_capable_files(app: CbdbApp, path: str, body: dict,
+                         envelope: str) -> list[tuple[str, bytes]]:
+    """``[(name, bytes)]`` one of these exports delivers, bundles opened."""
+    response = app.post(path, json=body)
+    assert response.status_code == 200, (
+        f"{path} refused encoding={body.get('encoding')}: "
+        f"HTTP {response.status_code} {response.text[:200]}")
+    if envelope == RAW:
+        disposition = response.headers.get("Content-Disposition", "")
+        name = re.search(r'filename="?([^";]+)', disposition)
+        return [(name.group(1) if name else "<unnamed>", response.content)]
+    payload = response.json()
+    entries = [payload] if envelope == SINGLE_FILE else payload["files"]
+    return delivered_files(path, entries)
 
-    ``handleExportPajek`` reads ``encoding`` into a single flag:
 
-        ascii := strings.ToLower(req.Encoding) == "ascii"
-        encStr := "UTF8"; if ascii { encStr = "ascii" }
+@pytest.mark.parametrize(
+    "key,path,extra,envelope",
+    [pytest.param(*row, id=row[0]) for row in _ASCII_CAPABLE])
+def test_an_export_asked_for_ascii_contains_only_ascii(
+        app: CbdbApp, key: str, path: str, extra: dict, envelope: str):
+    """Ticking *Export as ASCII (pinyin)* must give a file with no Chinese in it.
 
-    and that flag does real work.  It names the file, and it also picks
-    every label in the body -- ``label := nameChn; if ascii || label ==
-    "" { label = namePY }`` for a vertex, and the same shape for an
-    edge's ``relChn``/``relDesc``.  So the writer honours the request
-    where the content is concerned.  What it does not honour is the very
-    first thing it writes: the last line before the reply is
+    The same two records are posted with ``encoding=unicode`` and with
+    ``encoding=ascii``, and the ascii files are read past any leading
+    byte-order mark.  Whether a mark belongs at the front is the
+    file *format's* question, answered by ``FORMAT_RULES`` and judged by
+    ``test_a_files_byte_order_mark_is_what_its_format_needs`` -- Pajek's
+    ``.net`` requires one, and three bytes a UTF-8 reader consumes do not
+    make an ASCII body un-ASCII.  What the user asked for is that the
+    labels be pinyin, and that is what is judged: any byte above 0x7F
+    past the mark is Chinese the writer chose to keep.
 
-        base64...(append(append([]byte{}, utf8BOM...), sb.String()...))
-
-    unconditionally.  So the file the application calls ``ascii`` opens
-    with ``EF BB BF``, which is not ASCII, and Pajek reading it as ASCII
-    gets three junk characters in front of ``*Vertices``.
-
-    This is the lead recorded next to ``FORMAT_RULES`` and left open
-    there for a good reason: that table is keyed on the *suffix*, and
-    both files are ``.net``, so a suffix rule calls the mark correct in
-    both.  The name the handler chose is the extra fact that makes them
-    different, and it takes driving the endpoint to see it -- which is
-    what this does.  ``unicode`` is driven alongside as the control, so
-    a build that stops emitting the mark entirely fails here rather than
-    passing for the wrong reason.
-
-    What this does **not** claim is that an ascii body is guaranteed to
-    be ASCII for every input: the labels it falls back to are pinyin out
-    of the shipped data.  The measurement below reports what those bytes
-    were on this input, and says so, rather than asserting a property of
-    the writer it has not established.
+    Two controls keep it honest.  The unicode files must contain
+    non-ASCII bytes -- otherwise the input never reached the file and an
+    ASCII result proves nothing -- and when the ascii files do too, the
+    message says whether they are identical to the unicode ones (the
+    choice ignored outright) or merely not clean (honoured in part).
     """
-    # Two records, each carrying a Chinese label and a pinyin one, and
-    # each naming a second person so the file has edges: that way both
-    # label branches the encoding flag chooses between are exercised, and
-    # the measurement below is about the writer rather than about a gap
-    # in the input.
     body = {"data": [_place_record(SUBJECT, SUBJECT + 1,
-                                   "\u738b\u5b89\u77f3", "Wang Anshi"),
+                                   "王安石", "Wang Anshi"),
                      _place_record(SUBJECT + 2, SUBJECT + 3,
-                                   "\u53f8\u9a6c\u5149", "Sima Guang")]}
+                                   "司马光", "Sima Guang")]}
+    unicode_files = _ascii_capable_files(
+        app, path, dict(body, encoding="unicode", **extra), envelope)
+    ascii_files = _ascii_capable_files(
+        app, path, dict(body, encoding="ascii", **extra), envelope)
 
-    got = {}
-    for encoding in ("unicode", "ascii"):
-        response = app.post(_ASCII_PAJEK, json=dict(body, encoding=encoding))
-        assert response.status_code == 200, (
-            f"places Pajek export refused encoding={encoding}: "
-            f"HTTP {response.status_code} {response.text[:200]}")
-        payload = response.json()
-        _, _, data = payload["url"].partition("base64,")
-        got[encoding] = (payload["name"], base64.b64decode(data))
+    def non_ascii(raw: bytes) -> int:
+        return sum(1 for b in raw.removeprefix(codecs.BOM_UTF8) if b > 0x7F)
 
-    unicode_name, unicode_bytes = got["unicode"]
-    ascii_name, ascii_bytes = got["ascii"]
+    if not any(non_ascii(raw) for _, raw in unicode_files):
+        # UCINet on 20260925: its .vna carries ids and pinyin whatever
+        # the encoding, so the choice has nothing to change.  A skip,
+        # not a pass -- an ASCII result here would prove nothing.
+        pytest.skip(
+            f"{key}: the unicode export holds no non-ASCII byte either, so "
+            "the records' Chinese never reaches this file and there is "
+            f"no choice to judge: {[name for name, _ in unicode_files]}")
 
-    assert ascii_name != unicode_name, (
-        f"encoding no longer changes the file name ({ascii_name!r} both "
-        "times); if the handler has stopped distinguishing them, this test "
-        "is judging something that no longer exists")
-    assert unicode_bytes.startswith(codecs.BOM_UTF8), (
-        f"{unicode_name} has lost the mark Pajek's UTF-8 reader expects; "
-        "that is a separate defect from the one below and this test is not "
-        "the place it gets reported")
+    dirty = {name: non_ascii(raw) for name, raw in ascii_files
+             if non_ascii(raw)}
+    described = ", ".join(f"{name} with {count} byte(s) above 0x7F"
+                          for name, count in sorted(dirty.items()))
+    same = ([raw for _, raw in ascii_files]
+            == [raw for _, raw in unicode_files])
 
-    if ascii_bytes.startswith(codecs.BOM_UTF8):
-        past_mark = ascii_bytes[len(codecs.BOM_UTF8):]
-        outside = sorted({b for b in past_mark if b > 0x7F})
-        in_unicode = sorted({b for b in unicode_bytes[len(codecs.BOM_UTF8):]
-                             if b > 0x7F})
+    # The two signatures this build ships, recognised exactly; anything
+    # else about an ascii export fails plainly below.
+    #
+    # Save to GIS and Save to KML: the ascii file IS the unicode file.
+    if dirty and same and key in ("places:gis", "places:kml"):
         raise KnownShippedDefect(
-            f"{ascii_name} opens with a UTF-8 byte order mark, and so "
-            f"does {unicode_name}, built from the same records.  The "
-            "encoding flag is honoured in the body and ignored in the "
-            f"mark: past the mark this file holds {len(outside)} byte "
-            f"value(s) above 0x7F against {len(in_unicode)} in the unicode "
-            "one, so the labels did switch to pinyin -- but "
-            "handleExportPajek prepends utf8BOM unconditionally, so the "
-            "three bytes a reader parsing this file as ASCII meets first, "
-            "before *Vertices, are UTF-8")
+            f"{key}: asked for ASCII, {path} delivered {described} -- "
+            "byte-for-byte the unicode export, so the encoding choice is "
+            "ignored outright (handleExportGIS decodes Encoding and never "
+            "reads it)")
+    # Gephi: the edges switch to pinyin and the node labels do not, so
+    # every non-ASCII byte is in the nodedef section.
+    if dirty and not same and key == "places:gephi":
+        (_name, raw), = ascii_files
+        nodes, _, edges = raw.partition(b"edgedef>")
+        if non_ascii(edges) == 0 and non_ascii(nodes) == sum(dirty.values()):
+            raise KnownShippedDefect(
+                f"{key}: asked for ASCII, {path} delivered {described}, "
+                "all of them in the node section: the edge labels switched "
+                "to pinyin and the node labels stayed NameChn")
+
+    assert not dirty, (
+        f"{key}: asked for ASCII, {path} delivered {described}"
+        + (" -- byte-for-byte the unicode export" if same else ""))

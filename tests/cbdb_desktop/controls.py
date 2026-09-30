@@ -156,8 +156,66 @@ class PageScript:
         return {path for path in out if path.startswith("/api/")}
 
 
+#: Characters after which a ``/`` begins a regular-expression literal
+#: rather than a division: an operator or an opening bracket, where a
+#: value is expected and cannot have ended.
+_REGEX_CAN_FOLLOW = frozenset("(,=:[!&|?{};+-*%<>~^")
+
+
+def _starts_regex(text: str, index: int) -> bool:
+    """Whether the ``/`` at ``index`` opens a regex literal.
+
+    The standard heuristic, from the previous significant character, and
+    enough for these pages: ``.replace(/"/g, ...)`` in the Places page's
+    ``esc`` is what needed it -- its ``"`` was read as a string opening,
+    and the body of ``esc`` ran on to swallow three export functions.
+    """
+    before = index - 1
+    while before >= 0 and text[before] in " \t\r\n":
+        before -= 1
+    if before < 0:
+        return True
+    if text[before] in _REGEX_CAN_FOLLOW:
+        return True
+    return text[max(0, before - 5):before + 1].endswith("return")
+
+
+def _skip_regex(text: str, index: int) -> int:
+    """The index just past the regex literal opening at ``index``."""
+    position = index + 1
+    in_class = False
+    while position < len(text) and text[position] != "\n":
+        char = text[position]
+        if char == "\\":
+            position += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            position += 1
+            while position < len(text) and text[position].isalpha():
+                position += 1
+            return position
+        position += 1
+    # Not closed on its line, so it was not a regex after all: step over
+    # the one character and let the caller carry on.
+    return index + 1
+
+
 def _brace_body(text: str, open_index: int) -> str:
-    """The ``{...}`` block starting at or after ``open_index``."""
+    """The ``{...}`` block starting at or after ``open_index``.
+
+    Comments are skipped as well as strings, and that is not tidiness.
+    Until 20260925 this skipped only strings, so a comment containing an
+    apostrophe -- ``// backend's encoding=='ascii' branch`` on the Places
+    page -- opened a "string" that closed at the next quote anywhere
+    below, the brace count went wrong, and the function's body ran on
+    into the functions after it.  Every Places button then appeared to
+    reach three exports no control calls, and the coverage built on
+    this said so with confidence.
+    """
     start = text.find("{", open_index)
     if start < 0:
         return ""
@@ -165,6 +223,17 @@ def _brace_body(text: str, open_index: int) -> str:
     index = start
     while index < len(text):
         char = text[index]
+        if text.startswith("//", index):
+            newline = text.find("\n", index)
+            index = len(text) if newline < 0 else newline
+            continue
+        if text.startswith("/*", index):
+            close = text.find("*/", index + 2)
+            index = len(text) if close < 0 else close + 2
+            continue
+        if char == "/" and _starts_regex(text, index):
+            index = _skip_regex(text, index)
+            continue
         if char in "\"'`":
             quote = char
             index += 1
@@ -308,3 +377,78 @@ def endpoints_in_page(html: str) -> set[str]:
     found = ({m.group("path") for m in _FETCH.finditer(html)}
              | {m.group("path") for m in _TEMPLATE_FETCH.finditer(html)})
     return {normalise(path) for path in found if path.startswith("/api/")}
+
+
+_SCRIPT = re.compile(r"<script\b[^>]*>(.*?)</script>", re.IGNORECASE | re.DOTALL)
+_ON_ATTRIBUTE = re.compile(r"""\son[a-z]+\s*=\s*(["'])(.*?)\1""", re.DOTALL)
+_LISTENER_BY_NAME = re.compile(
+    r"""addEventListener\(\s*['"]\w+['"]\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]""")
+_EXPOSED = re.compile(r"window\.([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)")
+
+
+def _top_level(js: str) -> str:
+    """The script with every named function's body cut out.
+
+    What is left is what runs when the page loads: statements, calls,
+    listener registrations, and anonymous or immediately-invoked
+    functions -- ``(async function init() {...})()`` is kept, because it
+    runs, while ``async function exportPajek() {...}`` is removed,
+    because it only runs if something calls it.
+    """
+    spans = []
+    for pattern, back in ((_FUNCTION, 0), (_ARROW_FUNCTION, 1)):
+        for match in pattern.finditer(js):
+            if back == 0 and js[:match.start()].rstrip().endswith("("):
+                continue
+            open_at = js.find("{", match.end() - back)
+            body = _brace_body(js, match.end() - back)
+            if open_at >= 0 and body:
+                spans.append((match.start(), open_at + len(body)))
+    kept, last = [], 0
+    for start, end in sorted(spans):
+        if start < last:
+            continue
+        kept.append(js[last:start])
+        last = end
+    kept.append(js[last:])
+    return "".join(kept)
+
+
+def reachable_endpoints(page: str, html: str) -> set[str]:
+    """Every API endpoint something a user does on this page can reach.
+
+    ``endpoints_in_page`` answers "which endpoints does the page
+    mention", which includes a ``fetch`` inside a function nothing ever
+    calls.  This answers the question a user would ask: starting from
+    everything that can run -- every button's handler, every inline
+    ``on...=`` attribute on any element, the code that runs at load, any
+    function registered as a listener by name, and every function the
+    page exposes as ``window.X`` for a popup to call back -- which
+    endpoints does the call graph reach?
+
+    It can err both ways, and says so.  It over-credits where it has to
+    guess: any name that looks like a call is followed, including names
+    in comments and strings.  It under-credits a handler attached in a
+    shape it does not read -- a listener registered by name *inside* a
+    named function, ``el.onclick = fn``, or a named function expression
+    passed to ``addEventListener``.  On 20260925 the only instances of
+    the second kind (``updateSelectButton`` in two pickers, ``onMove``
+    and ``onUp`` in the Query Builder) fetch nothing.  Whatever uses
+    this should pin its answer exactly, so that an error in either
+    direction shows up as a changed pin rather than silently.
+    """
+    buttons, script = parse_page(page, html)
+    reached: set[str] = set()
+    for button in buttons:
+        if button.handler:
+            reached |= script.endpoints(button.handler)
+    for match in _ON_ATTRIBUTE.finditer(html):
+        reached |= script.endpoints(match.group(2))
+    top = _top_level("\n".join(_SCRIPT.findall(html)))
+    reached |= script.endpoints(top)
+    for match in _LISTENER_BY_NAME.finditer(top):
+        reached |= script.endpoints(match.group(1))
+    for match in _EXPOSED.finditer(top):
+        if match.group(2) in script.functions:
+            reached |= script.endpoints(match.group(2))
+    return reached

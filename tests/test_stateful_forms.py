@@ -38,6 +38,7 @@ effectively unbounded.
 from __future__ import annotations
 
 import re
+import sqlite3
 from collections import Counter
 
 import pytest
@@ -500,12 +501,95 @@ def test_looking_a_person_up_does_not_discard_a_kinship_result(
             f"exporting somebody else's traversal.  The five other "
             f"Kinship exports build their rows from the records the "
             f"page posts to them and read no scratch table, so they "
-            f"are unaffected; this is Export Query Results alone.")
+            f"are unaffected; of the exports this is Export Query "
+            f"Results alone.  (Store Person IDs reads ZZ_SCRATCH_KIN "
+            f"too -- see test_looking_a_person_up_does_not_change_what_"
+            f"kinship_stores.)")
 
     assert after == before, (
         "unreachable: the KnownShippedDefect above covers every "
         "difference, and this is here so that a build which stops "
         "discarding the result passes rather than merely not raising")
+
+
+def _stored_people(app: CbdbApp) -> set[int]:
+    """Who is in ``ZZ_STORE_PERSON_ID`` now, read from the session's copy.
+
+    Read directly, read-only, because no endpoint lists the store whole:
+    the recall endpoints copy it into a form's working list and answer
+    with a count, and Association Pairs' recall stops at two people.
+    Observing a table the application wrote is not predicting what it
+    should hold; the comparison below is the application against itself.
+    """
+    conn = sqlite3.connect(app.db_path.resolve().as_uri() + "?mode=ro",
+                           uri=True)
+    try:
+        return {row[0] for row in conn.execute(
+            "SELECT c_personid FROM ZZ_STORE_PERSON_ID")}
+    finally:
+        conn.close()
+
+
+def test_looking_a_person_up_does_not_change_what_kinship_stores(
+        app: CbdbApp, egos, clean_lists):
+    """Store Person IDs after a Browser lookup must store the same people.
+
+    The Kinship form's store (``doStorePersonIDsConfirmed``) reads two
+    tables: ``ZZ_SP_KINSHIP`` for the kin, and ``ZZ_SCRATCH_KIN`` for the
+    ego.  The Browser's kinship lookup rewrites the second and not the
+    first -- the same sharing that replaces the form's exported result --
+    so the list a user hands to every other form through the store gains
+    the person the Browser looked at, and says nothing.
+
+    Stored twice from one Kinship result, with a Browser lookup between:
+    the application compared with itself, no prediction of who the kin
+    are.  ``/confirmed`` is what the page calls once the user agrees to
+    overwrite, so it is what is pressed here.
+    """
+    app.post("/api/kinship/set-person", json={"personId": egos[0]})
+    result = app.json("POST", "/api/kinship/query", json=_KINSHIP_QUERY)
+    assert result.get("kinRecords"), (
+        f"person {egos[0]} has no kin at this depth, so there is nothing "
+        "to store and this test would compare two empty lists")
+
+    store = "/api/kinship/store-person-ids/confirmed"
+    first = app.post(store, json={})
+    assert first.status_code == 200, first.text[:200]
+    before = _stored_people(app)
+    assert before, "the Kinship store stored nobody from a result with kin"
+
+    others = [p for p in egos[1:] if p not in before]
+    assert others, (
+        f"every candidate ego is already in person {egos[0]}'s stored "
+        "list, so a Browser lookup of any of them could not add anyone")
+    other = others[0]
+    looked = app.get(f"/api/browser/person/{other}/kinship")
+    assert looked.status_code == 200, (
+        f"the Browser could not show person {other}'s kinship (HTTP "
+        f"{looked.status_code}), so this test cannot say what such a "
+        "lookup does to the Kinship form's store")
+
+    second = app.post(store, json={})
+    assert second.status_code == 200, second.text[:200]
+    after = _stored_people(app)
+
+    # The signature, exactly: the Browser's person gained and nobody
+    # lost.  Any other difference is not this finding and fails plainly.
+    if after - before == {other} and not before - after:
+        raise KnownShippedDefect(
+            f"Store Person IDs on the Kinship form stored {len(before)} "
+            f"people for person {egos[0]}'s result, and {len(after)} for "
+            f"the same result after GET /api/browser/person/{other}/"
+            f"kinship: gained {sorted(after - before)}, lost "
+            f"{sorted(before - after)}.  doStorePersonIDsConfirmed adds "
+            "the ego from ZZ_SCRATCH_KIN, which the Browser's kinship "
+            "lookup rewrites; the kin come from ZZ_SP_KINSHIP, which it "
+            "does not.  The stored list is how a result travels to every "
+            "other form, so they all receive the Browser's person too")
+    assert after == before, (
+        f"Store Person IDs stored a different list for the same Kinship "
+        f"result after a Browser lookup of person {other}: gained "
+        f"{sorted(after - before)}, lost {sorted(before - after)}")
 
 
 def test_group_data_asks_only_for_the_sections_that_were_requested(
