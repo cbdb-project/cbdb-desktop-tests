@@ -63,10 +63,11 @@ documented inline (work directory, timeouts, browser suppression, or
 the tests with a JSON report, and regenerates the issues report. Useful
 flags: `-Restage`, `-Fast` (skip everything needing the running app),
 `-Filter <k>` (pass `-k` to pytest), `-DryRun`. Or drive pytest directly
-with `python -m pytest tests -q` (~68 s; `-m "not slow"` runs in ~28 s,
-leaving out the index-address rebuilds and the master's `quick_check`).
-The full `run_tests.ps1` takes ~87 s — the extra is report generation,
-most of it Word starting twice to write the PDFs.
+with `python -m pytest tests -q` (about 8 minutes on the 20260925 build,
+a third of it the browser tests; `-m "not slow"` leaves out the
+index-address rebuilds and the master's `quick_check`). The full
+`run_tests.ps1` adds report generation, most of it Word starting twice to
+write the PDFs.
 
 ---
 
@@ -76,7 +77,7 @@ most of it Word starting twice to write the PDFs.
 |---|---|
 | `test_staging.py` | that the tree under test really is the shipped archive |
 | `test_app_driver.py` | that the binary starts, serves, and lets go cleanly |
-| `test_routes.py` | all 141 registered routes, pages, navigation, pickers, static |
+| `test_routes.py` | all 140 registered routes, pages, navigation, pickers, static |
 | `test_lookups.py` | the code and address lists the forms offer before a query |
 | `test_qbe.py` | the Query Builder: whitelist, generated SQL, and its guards |
 | `test_form_queries.py` | the six forms that keep no working list: queries and exports |
@@ -87,7 +88,7 @@ most of it Word starting twice to write the PDFs.
 | `test_scratch_tables.py` | who owns each `ZZ_*` table, and whether the code's declarations match the database |
 | `test_sessions.py` | what happens when the application is used from two tabs, or launched twice |
 | `test_ui_pages.py` | the pages in a real Chromium: do they load without throwing, and does each control un-grey when its precondition is met |
-| `test_zz_controls.py` | every button in every template, and whether this run actually requested what each can reach |
+| `test_zz_controls.py` | every button in every template, and whether this run actually requested every endpoint the pages mention |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
 | `test_reports.py` | that the report is reproducible from one run, invents no issue, drops none, and prints every waiver |
 | `test_waivers.py` | that every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |

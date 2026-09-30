@@ -116,7 +116,9 @@ Get-CimInstance Win32_Process -Filter "Name='cbdb.exe'" |
   only logs a failure, so the app is launched with `PATH=""` and
   `rundll32` cannot be resolved. Its own DLLs are unaffected.
 - **Port discovery.** `-port 0`, and the port is read from
-  `CBDB server started: http://localhost:<port>` on **stderr**. The
+  `CBDB server started: http://127.0.0.1:<port>` on **stderr**
+  (`localhost` up to 20260916_2; match either spelling, as
+  `app._PORT_RE` does, and address the host that was announced). The
   output is drained continuously on a thread — Go logs every request, and
   a full pipe buffer stalls the server mid-run.
 - **Failure messages that quote the app.** Every `AppError` carries the

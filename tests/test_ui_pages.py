@@ -14,7 +14,7 @@ Three checks, in order of how much they buy:
    Cheap, and it covers all thirteen pages.
 
 2. **Every control that ships disabled is enabled by its precondition.**
-   109 controls across the build ship ``disabled``; ``PRECONDITIONS``
+   110 controls across the build ship ``disabled`` (20260925); ``PRECONDITIONS``
    says, per page, what a user does and which controls that must
    un-grey.  It is a table rather than a script so that it reads as a
    claim about the application, and
@@ -23,8 +23,9 @@ Three checks, in order of how much they buy:
    for sits in ``UNDECLARED``, which is pinned and may only shrink.
 
 3. **What a page tells the user matches what it did.**  The export
-   handlers report the server's file count as though every file had been
-   saved; here that is compared against the downloads the browser
+   handlers report what the server returned -- a file count up to
+   20260916_2, the bundle's name since 20260925 -- as though the browser
+   had saved it; here that is compared against the downloads the browser
    accepted.
 
 **Skipped, not failed, without Chromium.**  Playwright downloads its own
@@ -33,11 +34,11 @@ browser and a fresh checkout will not have it (see
 quietly green.
 
 **And this is not the user's browser.**  Downloads are auto-accepted
-here, so Chrome's multiple-download permission -- which is what those
-handlers are really up against -- never engages and both files arrive.
-The half of that defect a browser can confirm is the misreported count;
-the half it cannot is checked by reading the page's own delivery code,
-in ``test_exports.py``.
+here, so Chrome's multiple-download permission -- which is what a
+per-file download loop is really up against -- never engages and every
+file arrives.  What a browser can confirm is what the page reports;
+what it cannot is checked by reading the page's own delivery code and
+counting the entries each reply carries, in ``test_exports.py``.
 """
 from __future__ import annotations
 
@@ -192,10 +193,9 @@ PRECONDITIONS: tuple[Precondition, ...] = (
         }""" % OFFICE_CODE,
         settle_ms=200,
         must_enable=("btnRunQuery",),
-        notes="new in this build, and the half of the change that "
-              "works -- see "
-              "test_all_offices_leaves_the_office_form_able_to_query "
-              "for the half that does not",
+        notes="new in the 2026-09-15_2 build; what All Offices does to "
+              "it -- every office within a place, since 20260925 -- is "
+              "test_all_offices_leaves_the_office_form_able_to_query",
     ),
     # The Browser page, new in the 20260910 build: looking a person up
     # is what un-greys the two buttons that act on them.
@@ -511,7 +511,7 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
 def test_every_disabled_control_has_a_declared_precondition(layout):
     """The coverage gate for this file: count what is not covered.
 
-    109 controls ship disabled.  This file declares a precondition for
+    110 controls ship disabled.  This file declares a precondition for
     some of them; the rest are listed in ``UNDECLARED``, pinned, and
     that list may only shrink.  Without this the file would look like
     full coverage of enable state while checking four pages' worth.
