@@ -308,7 +308,7 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "That the shipped binary starts, serves, and releases its database"),
     ("test_routes.py",
      "Every registered route",
-     "All 142 routes read out of the shipped Go source, driven for real"),
+     "Every route read out of the shipped Go source, driven for real"),
     ("test_cross_form_channel.py",
      "Passing a result from one form to another",
      "The stored-person list: what one form stores, another recalls"),
@@ -336,7 +336,7 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_networks_filters.py",
      "The Networks form's filters",
      "Its kin and non-kin switches, the sex filter, and each of the "
-     "twenty-seven association categories that select anything, "
+     "association categories that select anything, "
      "driven on its own"),
     ("test_qbe_grid.py",
      "The Query Builder's grid, cell by cell",
@@ -360,7 +360,7 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "every switch turned both ways"),
     ("test_exports.py",
      "Every export button",
-     "All 45 file-producing endpoints pressed, and the files they return "
+     "Every file-producing endpoint pressed, and the files they return "
      "read back"),
     ("test_ui_pages.py",
      "The pages in a real browser",
@@ -394,7 +394,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
     "test_app_driver.py": ("應用程式行程",
                            "釋出的執行檔能啟動、能服務、並能釋放資料庫"),
     "test_routes.py": ("所有已註冊的路由",
-                       "從釋出的 Go 原始碼讀出的全部 142 條路由，逐一實測"),
+                       "從釋出的 Go 原始碼讀出的每一條路由，逐一實測"),
     "test_cross_form_channel.py": ("在表單之間傳遞查詢結果",
                                   "已儲存人物清單：一個表單存入的，"
                                   "另一個表單取回的"),
@@ -416,7 +416,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                         "代碼，以及所指的每個上層類型是否真的存在"),
     "test_networks_filters.py": ("網絡表單的各項篩選",
                                  "親屬與非親屬開關、性別篩選，"
-                                 "以及二十七個「確實有選取作用」的關聯"
+                                 "以及每一個「確實有選取作用」的關聯"
                                  "類別，逐一單獨驅動"),
     "test_qbe_grid.py": ("查詢建構器的格線，逐格檢查",
                          "十一種運算子、四種彙總函數、排序列、連接方式，"
@@ -434,7 +434,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                              "依釋出資料庫中實際有資料的組合各跑一次查詢，"
                              "並將每個開關的兩種狀態都測過"),
     "test_exports.py": ("所有匯出按鈕",
-                        "45 個會產生檔案的端點全部按過，並回讀所得檔案"),
+                        "每個會產生檔案的端點都按過，並回讀所得檔案"),
     "test_ui_pages.py": ("在真實瀏覽器中的頁面",
                          "每個頁面載入時不拋錯；等待使用者操作的控制項"
                          "在條件滿足後確實解除停用"),

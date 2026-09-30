@@ -337,6 +337,13 @@ def test_every_endpoint_the_ui_can_reach_is_exercised_by_this_run(
             "not execute and the request record is legitimately short.  "
             "Coverage is certified by an unfiltered run: .\\run_tests.ps1")
 
+    # Every endpoint a page *mentions*, not only those its controls reach
+    # (controls.reachable_endpoints).  Deliberately the wider set: for a
+    # coverage gate the error that matters is under-demanding, and the
+    # difference -- on 20260925, the three Places network exports that
+    # only dead functions call -- is judged as a finding in
+    # test_page_contracts.py, not here.  So "reachable_from_the_ui" in
+    # the artefact counts those three, and that is the reason why.
     reachable: dict[str, set[str]] = {}
     for page, path in controls.pages(layout).items():
         html = path.read_text(encoding="utf-8", errors="replace")
