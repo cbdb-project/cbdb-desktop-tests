@@ -49,3 +49,42 @@ reason    = "The same agreement, one step earlier: two tabs of one form share a 
 reason_zh = "同一項協商，發生在更早的一步：同一個表單的兩個分頁共用一份工作清單，因此第二次匯入會取代第一次，接下來的查詢對象也就換成了另一批人。基於同樣的理由暫時維持現狀。"
 agreed_by = "maintainer"
 agreed_on = 2026-09-09
+
+
+# --- The Person Browser writes the Kinship form's scratch tables ----------
+#
+# A separate agreement from the one above, though the circumstance is the
+# same.  The Browser's kinship lookup (GET /api/browser/person/{id}/kinship,
+# also reached by Export Profile) clears and refills ZZ_KIN_LIST,
+# ZZ_KIN_LIST_TMP, ZZ_SCRATCH_KIN and ZZ_SCRATCH_KINNET -- the tables the
+# Kinship form's query left its answer in.  The Kinship form's Export
+# Query Results and Store Person IDs then read the Browser's person
+# instead.  It is cross-*form* sharing, not cross-tab: the 2026-09-07
+# per-form split left the Browser out.  But it can only be reached with
+# the Browser and the Kinship form open in two tabs at once, which is the
+# circumstance the agreement above already accepts.  In one tab, returning
+# to Kinship reloads it with no result and its export and store buttons
+# grey -- as long as the page's Cache-Control: no-store keeps it out of
+# the browser's back/forward cache.  A browser that restored the live
+# page on Back would make this reachable in one tab, and nothing in the
+# suite checks that; if one does, this agreement needs revisiting.
+#
+# Agreed to leave for now, for that reason.  The fix is local (give the
+# Browser its own kinship scratch tables) and is still reported, with the
+# finding, so the developers can take it whenever they choose.  The two
+# entries are one agreement over its two measurements: the export, and
+# the stored list.
+
+[test_looking_a_person_up_does_not_discard_a_kinship_result]
+raises    = "KnownShippedDefect"
+reason    = "Agreed to leave for now: looking a person up in the Browser's Kinship tab replaces the Kinship form's result, so its Export Query Results exports the Browser person's network.  It takes the Browser and the Kinship form open in two tabs at once, the circumstance the one-window agreement already accepts (in one tab, returning to Kinship reloads it with nothing to export, as long as no-store keeps it out of the back/forward cache).  The fix -- the Browser's own kinship scratch tables -- is local and remains in the report for the developers."
+reason_zh = "已協商暫時維持現狀：在人物瀏覽的「親屬關係」分頁查看某人，會取代親屬表單的查詢結果，使「匯出查詢結果」匯出的是人物瀏覽中那個人的網絡。這必須同時在兩個分頁開著人物瀏覽與親屬表單才會發生，與「一次只用一個視窗」那項協商所接受的情境相同（在同一個分頁中回到親屬表單時，頁面會重新載入、沒有可匯出的結果——前提是 no-store 讓它不進入瀏覽器的上一頁／下一頁快取）。修法（讓人物瀏覽擁有自己的親屬暫存表）是局部的，仍保留在報告中供開發者參考。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-30
+
+[test_looking_a_person_up_does_not_change_what_kinship_stores]
+raises    = "KnownShippedDefect"
+reason    = "The same agreement, its second measurement: after the same Browser lookup, the Kinship form's Store Person IDs adds the Browser's person to the stored list.  Left alone for the same reason."
+reason_zh = "同一項協商的第二項測量：同樣在人物瀏覽查看之後，親屬表單的「儲存人物ID」會把人物瀏覽中的那個人加進儲存清單。基於同樣的理由暫時維持現狀。"
+agreed_by = "maintainer"
+agreed_on = 2026-09-30
