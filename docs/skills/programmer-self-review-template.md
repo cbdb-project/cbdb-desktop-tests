@@ -74,7 +74,9 @@ agreement, not that two renderings match" is the right level of honesty.
 - [ ] Anything agreed to leave alone is in the `CBDB_WAIVERS` table,
       keyed by the test function name (plus parametrisation ids), dated,
       bilingual, and narrowed with `raises` where it can be.
-- [ ] Reports regenerated and read, including the waived section.
+- [ ] Reports regenerated and read.  (Waived issues and the waiver table
+      are left out by default; read them with `--include-waived` when a
+      waiver changed.)
 
 ## F. Documentation
 

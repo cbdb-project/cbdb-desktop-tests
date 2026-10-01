@@ -5,6 +5,9 @@
 #   .\run_tests.ps1 -Fast        skip everything that needs the running app
 #   .\run_tests.ps1 -Filter x    pass -k x to pytest
 #   .\run_tests.ps1 -DryRun      print the commands, run nothing
+#   .\run_tests.ps1 -IncludeWaived
+#                                also print waived issues and the waiver
+#                                table in the report (left out by default)
 #
 # Every step is automated: there is no manual gate, and the script fails
 # loudly rather than leaving reports/ half-written.  A test failure does
@@ -16,6 +19,7 @@ param(
     [switch]$Restage,
     [switch]$Fast,
     [switch]$DryRun,
+    [switch]$IncludeWaived,
     [string]$Filter = ""
 )
 
@@ -120,7 +124,10 @@ Step "Writing the issue reports"
 if ($Fast) {
     Write-Host "  skipped: -Fast leaves out the app tests, so the report would say nothing about the build" -ForegroundColor Yellow
 } else {
-    $code = Run "python `"$ROOT\reports\generate_report.py`""
+    # Waived issues, and the waiver table, stay out of the report unless
+    # asked for (-IncludeWaived): the maintainer's ruling of 2026-10-01.
+    $reportArgs = if ($IncludeWaived) { " --include-waived" } else { "" }
+    $code = Run "python `"$ROOT\reports\generate_report.py`"$reportArgs"
     # A missing Word installation costs the .pdf, not the run: the
     # generator still writes .md and .docx and says what it could not do.
     if ($code -ne 0) {

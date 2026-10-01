@@ -33,9 +33,10 @@ a real browser for the layer HTTP cannot reach.
 
 Findings are reported in English and Traditional Chinese, as Markdown,
 Word and PDF, regenerated from every run into `reports/` — with the
-run's own numbers, a coverage table derived from the run itself, and
-every waived outcome printed with the reason and the date it was
-agreed.
+run's own numbers and a coverage table derived from the run itself.
+Waived outcomes, and the issues they cover, are left out unless asked
+for with `-IncludeWaived`, which prints each with the reason and the
+date it was agreed.
 
 ---
 
@@ -90,7 +91,7 @@ write the PDFs.
 | `test_ui_pages.py` | the pages in a real Chromium: do they load without throwing, and does each control un-grey when its precondition is met |
 | `test_zz_controls.py` | every button in every template, and whether this run actually requested every endpoint the pages mention |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
-| `test_reports.py` | that the report is reproducible from one run, invents no issue, drops none, and prints every waiver |
+| `test_reports.py` | that the report is reproducible from one run, invents no issue, drops none unwaived, and prints waivers only on request |
 | `test_waivers.py` | that every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 
 The route list is not maintained by hand: `cbdb_desktop/routes.py` reads
@@ -117,7 +118,7 @@ languages, each entry citing where it lives in the build and which tests
 demonstrate it. `reports/generate_report.py` renders it plus that run's
 JSON; the next round starts empty. `test_reports.py` checks the report
 is byte-identical when rendered twice from one run, names no issue the
-registry does not hold, drops none of them, and hides no waiver.
+registry does not hold, drops none it was not told to leave out, and prints waived issues and the waiver table only with `--include-waived`.
 
 **Tolerated.** Something discussed and agreed to leave for now goes in
 the table `CBDB_WAIVERS` points at — `waivers.toml` in this repo, which
@@ -139,7 +140,7 @@ The default mode keeps running the test and tolerates its failure, so
 the day the problem disappears the run says so; a waiver that matches no
 collected test fails the run rather than silently covering nothing; and
 every applied waiver is recorded in `artifacts/waivers_applied.json` and
-printed in both reports. See `tests/cbdb_desktop/waivers.py`.
+left out of the reports unless `-IncludeWaived` (`--include-waived`) asks for it. See `tests/cbdb_desktop/waivers.py`.
 
 ```powershell
 python reports\generate_report.py                # .md + .docx + .pdf, both languages

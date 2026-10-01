@@ -17,14 +17,18 @@ Four properties, each with its own failure it exists to prevent:
 * **Nothing invented.**  Every issue in the report is an entry in the
   registry, and every status shown is derived from that run's outcomes.
   A report cannot name a defect the tests never demonstrated.
-* **Nothing dropped.**  Every registry entry reaches the report, in both
-  languages, and the coverage table accounts for *every* test file the
-  run collected.  The hand-written table it replaced described 277 of
-  823 tests and looked complete, which is the more dangerous of the two
-  ways to be wrong.
-* **Nothing tolerated invisibly.**  If the run recorded waived outcomes
-  (``cbdb_desktop/waivers.py``), the report prints them, with the reason
-  and the date, in the language the reader is reading.
+* **Nothing dropped.**  Every registry entry the run did not waive
+  reaches the report, in both languages, and the coverage table accounts
+  for *every* test file the run collected.  The hand-written table it
+  replaced described 277 of 823 tests and looked complete, which is the
+  more dangerous of the two ways to be wrong.
+* **Nothing waived unless asked for.**  The maintainer's ruling of
+  2026-10-01: an outcome agreed to be left alone stays out of the report
+  -- the issue it demonstrates and the waiver table both -- unless the
+  report is generated with ``--include-waived``, which prints both, with
+  the reason and the date, in the language the reader is reading.  Left
+  out is not hidden: the run's own output and
+  ``artifacts/waivers_applied.json`` still record every waiver applied.
 
 None of this needs the application, or a real run: the runs below are
 built here, so the tests judge the renderer rather than whatever happens
@@ -115,6 +119,20 @@ def one_defect(monkeypatch) -> Defect:
     return _SAMPLE
 
 
+#: The sample defect's test, and a run in which it demonstrates the
+#: defect the way the suite spells that since 2026-09-08: an ordinary
+#: failure carrying the KnownShippedDefect its test raised.  (``xfailed``
+#: used to mean the same; with xfail markers banned it now means only
+#: "waived", which the report treats differently.)
+_SAMPLE_NODE = "tests/test_qbe.py::test_the_sample_finding"
+
+
+def _demonstrated() -> dict:
+    return _run({_SAMPLE_NODE: "failed"},
+                crash={_SAMPLE_NODE: "cbdb_desktop.defects.KnownShippedDefect:"
+                                     " the sample finding, with its numbers"})
+
+
 # ---------------------------------------------------------------------------
 # reproducible
 # ---------------------------------------------------------------------------
@@ -128,7 +146,7 @@ def test_the_same_run_renders_the_same_bytes_twice(lang, one_defect):
     document would make two renderings of one measurement differ, and
     then nobody can tell whether a changed report means a changed build.
     """
-    run = _run({"tests/test_qbe.py::test_the_sample_finding": "xfailed"})
+    run = _demonstrated()
     first = gr.render_markdown(run, lang, "CBDB-Desktop_20260907.7z")
     second = gr.render_markdown(run, lang, "CBDB-Desktop_20260907.7z")
     assert first == second
@@ -181,7 +199,7 @@ def test_the_report_names_no_issue_the_registry_does_not_hold(lang,
 @pytest.mark.parametrize("lang", LANGS)
 def test_every_registry_entry_reaches_the_report(lang, one_defect):
     """And reaches it in the language the reader is reading."""
-    run = _run({"tests/test_qbe.py::test_the_sample_finding": "xfailed"})
+    run = _demonstrated()
     text = gr.render_markdown(run, lang, "b.7z")
 
     assert one_defect.key in text
@@ -246,9 +264,155 @@ def test_a_fixed_defect_is_reported_as_fixed_rather_than_confirmed(one_defect):
     assert gr.STATUS_TEXT["en"]["APPARENTLY FIXED"] in text
 
 
+@pytest.mark.parametrize("lang", LANGS)
+def test_a_waived_issue_is_left_out_unless_asked_for(lang, one_defect,
+                                                    monkeypatch):
+    """An issue whose every demonstration was waived is not in the report.
+
+    The maintainer's ruling of 2026-10-01: what was agreed to be left
+    alone does not go to the developers unless he asks for it.  Each half
+    is asserted, because either alone passes on a renderer that ignores
+    the rule -- one that always prints, or one that never does.
+    """
+    # The sample alone, so "no issues" is what the default must say.
+    monkeypatch.setattr(gr, "DEFECTS", {one_defect.key: one_defect})
+    waived = _run({_SAMPLE_NODE: "xfailed"})
+    assert gr.is_waived(waived, one_defect)
+
+    default = gr.render_markdown(waived, lang, "b.7z")
+    assert one_defect.key not in default, (
+        "a waived issue reached the default report")
+    assert one_defect.text("title", lang) not in default
+    assert gr.STRINGS["no_issues"][lang] in default, (
+        "with its only issue waived, the report should say it has none")
+
+    asked = gr.render_markdown(waived, lang, "b.7z", include_waived=True)
+    assert one_defect.key in asked, (
+        "--include-waived did not bring the waived issue back")
+    assert one_defect.text("summary", lang) in asked
+
+
+def test_an_issue_is_waived_only_if_every_demonstration_was(one_defect,
+                                                           monkeypatch):
+    """Partly waived is not waived; fixed is not waived.
+
+    An issue still demonstrated by one unwaived test is a live finding
+    and stays in the report however many of its other tests are waived.
+    One whose tests now pass is a fix, and the report has to say so.
+    """
+    import dataclasses
+    second = "tests/test_qbe.py::test_the_sample_finding_again"
+    two = dataclasses.replace(_SAMPLE, tests=(
+        "test_the_sample_finding", "test_the_sample_finding_again"))
+    monkeypatch.setitem(gr.DEFECTS, two.key, two)
+
+    partly = _run({_SAMPLE_NODE: "xfailed", second: "failed"},
+                  crash={second: "cbdb_desktop.defects.KnownShippedDefect: "
+                                 "still here, unwaived"})
+    assert not gr.is_waived(partly, two)
+    assert two.key in gr.render_markdown(partly, "en", "b.7z")
+
+    fixed = _run({_SAMPLE_NODE: "passed", second: "passed"})
+    assert not gr.is_waived(fixed, two)
+    assert two.key in gr.render_markdown(fixed, "en", "b.7z")
+
+    assert gr.is_waived(_run({_SAMPLE_NODE: "xfailed", second: "xfailed"}), two)
+
+    # A waived demonstration beside a test that broke on something else,
+    # errored, or passed.  Only the last is waived: a test that passes
+    # demonstrates nothing, so the one waived failure is the whole
+    # finding.  Anything still failing keeps the issue in the report.
+    broke = _run({_SAMPLE_NODE: "xfailed", second: "failed"},
+                 crash={second: "AssertionError: something unrelated"})
+    errored = _run({_SAMPLE_NODE: "xfailed", second: "error"},
+                   crash={second: "RuntimeError: a fixture fell over"},
+                   phase="setup")
+    passed = _run({_SAMPLE_NODE: "xfailed", second: "passed"})
+    assert not gr.is_waived(broke, two)
+    assert not gr.is_waived(errored, two)
+    assert gr.is_waived(passed, two)
+    assert two.key in gr.render_markdown(broke, "en", "b.7z")
+    assert two.key not in gr.render_markdown(passed, "en", "b.7z")
+
+
+def _skipped(node: str, reason: str) -> dict:
+    """A run in which ``node`` was skipped at setup, with ``reason``."""
+    run = _run({node: "skipped"})
+    run["tests"][0]["setup"] = {
+        "outcome": "skipped",
+        "longrepr": f"('{node}', 1, 'Skipped: {reason}')"}
+    return run
+
+
+def test_a_skip_mode_waiver_counts_and_an_ordinary_skip_does_not(one_defect):
+    """``mode = "skip"`` is a waiver too; a skip for want of data is not.
+
+    The two look the same in a run's outcome counts -- both ``skipped`` --
+    and only the reason conftest writes tells them apart.  An ordinary
+    skip is a lead, so its issue stays in the report as NOT EXERCISED.
+    """
+    by_waiver = _skipped(_SAMPLE_NODE, "WAIVED [test_the_sample_finding] "
+                                       "agreed (agreed 2026-10-01 by maintainer)")
+    for_want_of_data = _skipped(_SAMPLE_NODE, "no discovered combination "
+                                              "has rows")
+    assert gr.is_waived(by_waiver, one_defect)
+    assert not gr.is_waived(for_want_of_data, one_defect)
+    assert one_defect.key not in gr.render_markdown(by_waiver, "en", "b.7z")
+    assert one_defect.key in gr.render_markdown(for_want_of_data, "en", "b.7z")
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_word_report_follows_the_same_rule(lang, one_defect, tmp_path):
+    """The .docx goes to the same reader, so it must leave out the same.
+
+    Rendered both ways and read back from the document's own XML, which
+    is what Word shows; the PDF is printed from this file by Word itself.
+    """
+    pytest.importorskip("docx")
+    import zipfile
+
+    waived = _run({_SAMPLE_NODE: "xfailed"})
+
+    def text_of(include: bool) -> str:
+        path = tmp_path / f"{lang}-{include}.docx"
+        gr.render_docx(waived, lang, "b.7z", path, _WAIVED,
+                       include_waived=include)
+        xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+        return re.sub(r"<[^>]+>", "", xml)
+
+    default, asked = text_of(False), text_of(True)
+    entry = _WAIVED["entries"][0]
+    reason = entry["reason_zh" if lang == "zh" else "reason"]
+    assert one_defect.key not in default
+    assert reason not in default
+    assert one_defect.key in asked
+    assert reason in asked
+
+
 # ---------------------------------------------------------------------------
 # the coverage table, derived from the run
 # ---------------------------------------------------------------------------
+
+def _fully_waived_keys() -> set[str]:
+    """Registry keys whose every test the committed waiver table covers.
+
+    The committed ``waivers.toml``, read directly -- not whatever
+    ``CBDB_WAIVERS`` points at on this machine -- because the committed
+    report was generated against it and this check promises to need
+    nothing but tracked files.  Deliberately generous: any waiver naming
+    a test's function counts, whatever its params or module.  That can
+    only make this check *exempt* an entry it might have held, never
+    demand one the generator left out.
+    """
+    from cbdb_desktop import waivers
+
+    path = REPO_ROOT / "waivers.toml"
+    if not path.is_file():
+        return set()
+    covered = {waiver.function for waiver in waivers.load(path).waivers}
+    return {key for key, defect in DEFECTS.items()
+            if defect.tests and set(defect.tests) <= covered}
+
 
 @pytest.mark.parametrize("lang", LANGS)
 def test_the_committed_report_still_says_what_the_registry_says(lang):
@@ -312,8 +476,17 @@ def test_the_committed_report_still_says_what_the_registry_says(lang):
         "python reports\\generate_report.py")
 
     text = committed.read_text(encoding="utf-8")
+    # Entries every one of whose tests the committed waiver table covers
+    # are left out of the default report (the 2026-10-01 ruling), and may
+    # be present in one generated with --include-waived, so either is
+    # right and they are not checked.  Read from the committed table, not
+    # from a run, for the reason above: this check needs only tracked
+    # files.
+    waived = _fully_waived_keys()
     missing: list[str] = []
     for key, defect in sorted(DEFECTS.items()):
+        if key in waived:
+            continue
         if key not in text:
             missing.append(f"{key}: the whole entry")
             continue
@@ -418,16 +591,32 @@ _WAIVED = {
 
 
 @pytest.mark.parametrize("lang", LANGS)
-def test_a_waived_outcome_is_printed_with_its_reason_and_its_date(lang):
-    """Nothing may be tolerated without the reader being told.
+def test_the_waiver_table_is_left_out_unless_asked_for(lang):
+    """By default the report carries no waived outcome at all.
 
-    The waiver table lives outside the suite and can be edited by
-    anyone; the one thing that keeps it honest towards the *maintainer*
-    is that every entry appears in the report he reads, in his language,
-    with who agreed to it and when.
+    The 2026-10-01 ruling covers the table as well as the issues: the
+    default report goes to the developers, and what was agreed to be
+    left alone is not theirs to read about unless the maintainer asks.
     """
     run = _run({"tests/test_exports.py::test_x": "xfailed"})
     text = gr.render_markdown(run, lang, "b.7z", _WAIVED)
+    entry = _WAIVED["entries"][0]
+    assert gr.STRINGS["waived"][lang] not in text
+    assert entry["reason_zh" if lang == "zh" else "reason"] not in text
+    assert gr.STRINGS["waived_none"][lang] not in text
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_a_waived_outcome_is_printed_with_its_reason_and_its_date(lang):
+    """Asked for, every waiver is printed in full.
+
+    The waiver table lives outside the suite and can be edited by
+    anyone; what keeps it honest towards the maintainer, when he asks
+    for it, is that every entry appears in his language, with who agreed
+    to it and when.
+    """
+    run = _run({"tests/test_exports.py::test_x": "xfailed"})
+    text = gr.render_markdown(run, lang, "b.7z", _WAIVED, include_waived=True)
     entry = _WAIVED["entries"][0]
 
     assert gr.STRINGS["waived"][lang] in text
@@ -442,7 +631,8 @@ def test_a_waived_outcome_is_printed_with_its_reason_and_its_date(lang):
 @pytest.mark.parametrize("lang", LANGS)
 def test_a_run_that_waived_nothing_says_so(lang):
     run = _run({"tests/test_qbe.py::test_x": "passed"})
-    text = gr.render_markdown(run, lang, "b.7z", {"waivers": 0, "entries": []})
+    text = gr.render_markdown(run, lang, "b.7z", {"waivers": 0, "entries": []},
+                              include_waived=True)
     assert gr.STRINGS["waived_none"][lang] in text
 
 
@@ -456,7 +646,7 @@ def test_no_waiver_record_omits_the_section_rather_than_claiming_zero(lang):
     was waived.
     """
     run = _run({"tests/test_qbe.py::test_x": "passed"})
-    text = gr.render_markdown(run, lang, "b.7z", None)
+    text = gr.render_markdown(run, lang, "b.7z", None, include_waived=True)
     assert gr.STRINGS["waived"][lang] not in text
     assert gr.STRINGS["waived_none"][lang] not in text
 

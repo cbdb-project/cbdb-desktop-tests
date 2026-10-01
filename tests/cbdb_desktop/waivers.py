@@ -241,7 +241,7 @@ def parse(text: str, *, path: Path | None = None) -> tuple[Waiver, ...]:
             raise WaiverError(
                 f"{at} is missing {missing}.  A waiver has to say what was "
                 "agreed, in both languages, and who agreed to it -- the "
-                "report prints all of it.")
+                "run records all of it, and --include-waived prints it.")
 
         mode = body.get("mode", "tolerate")
         if mode not in _MODES:

@@ -43,7 +43,7 @@ The reports are rewritten from the registry plus one real run, so a
 hand-edit is lost on the next run and, worse, is invisible until then.
 `test_reports.py` is the mechanical half of this: rendered twice from
 one run the report is byte-identical, it names no issue the registry
-does not hold, it drops none, and it prints every waiver.
+does not hold, it drops none of the unwaived ones, and it prints waivers only when asked to.
 
 ## Before you file: verify
 
@@ -283,12 +283,22 @@ Rules worth knowing before writing one:
 - **Narrow it.** `raises = "KnownShippedDefect"` tolerates only the
   recognised signature, so an unrelated crash of the same test still
   fails.
-- **It will be printed.** Every waiver appears in both reports with its
-  reason, who agreed and when. If you would not want the CBDB team to
-  read it, do not write it.
+- **It stays out of the report unless asked for.** The maintainer's
+  ruling of 2026-10-01: the default report goes to the developers, and
+  what was agreed to be left alone is not in it -- neither the waiver
+  table nor any filed issue every one of whose tests was waived.
+  `generate_report.py --include-waived` (or `run_tests.ps1
+  -IncludeWaived`) prints both, with the reason, who agreed and when.
+  Left out is not hidden: the run's output and
+  `artifacts/waivers_applied.json` record every waiver applied. Still
+  write each reason as though the CBDB team will read it -- with the
+  flag, they will.
 - **File it as well, when it is a real finding.** A waiver says "not
-  now"; a report entry says "here is what is wrong". A round that waives
-  something worth knowing about should still describe it.
+  now"; a registry entry says "here is what is wrong". Keep the entry:
+  it is what `--include-waived` prints, and the day the waiver is
+  retired it goes back into the default report by itself. An issue
+  only *partly* waived -- one of its tests still failing unwaived -- is
+  a live finding and stays in the default report.
 
 ## When the numbers change
 

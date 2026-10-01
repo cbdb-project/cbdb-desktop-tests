@@ -20,7 +20,7 @@ We have not tried to set your priorities: the bands describe what we measured, n
 | --- | --- |
 | passed | 1190 |
 | failed | 4 |
-| xfailed (a waived outcome, still present) | 4 |
+| xfailed (agreed to leave for now) | 4 |
 | skipped | 183 |
 
 Every one of the 4 failures is a test that demonstrates an issue below.
@@ -52,91 +52,26 @@ Every one of the 4 failures is a test that demonstrates an issue below.
 | This run's own coverage | 5 | That every endpoint the shipped pages can reach was actually requested by this run |
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 10 | That every issue below still cites real code, in both languages |
-| This report itself | 27 | That it is reproducible from the run above, invents no issue, drops none, and hides nothing that was waived |
+| This report itself | 27 | That it is reproducible from the run above, invents no issue, and drops none that was not agreed to be left alone |
 | every test in this run | 1381 |  |
 
 ### What this round did not reach
 
 The table above counts what was checked; it is not a list of what the application does.  A feature can appear in it because one narrow thing about it is checked -- that a button un-greys when it should, say -- while what the button produces is never read.  Where that is true of something this build added, the issue below says so in its own words.  Read a row as *this much was checked*, and an absent row as nothing at all.
 
-## Agreed to leave for now
-
-These outcomes are known and were agreed to be left as they are for the time being.  They are listed so that nothing is tolerated invisibly: each one names the check that reports it, so it can be picked up again at any time.
-
-| Check | Applies to | Effect | Agreed | Until | Why |
-| --- | --- | --- | --- | --- | --- |
-| test_a_second_query_replaces_what_the_first_would_export | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | Agreed to leave as it is: the scratch tables are one set per database, so a query in a second tab replaces what the first tab would export.  Namespacing them per session is a redesign of every form's working state, and this build's users work in one window at a time. |
-| test_a_second_working_list_replaces_the_first | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | The same agreement, one step earlier: two tabs of one form share a single working list, so the second import replaces the first and the query that follows is about the wrong people.  Left alone for the same reason. |
-| test_looking_a_person_up_does_not_discard_a_kinship_result | all cases | still checked, failure tolerated | 2026-09-30 (maintainer) | no end date | Agreed to leave for now: looking a person up in the Browser's Kinship tab replaces the Kinship form's result, so its Export Query Results exports the Browser person's network.  It takes the Browser and the Kinship form open in two tabs at once, the circumstance the one-window agreement already accepts (in one tab, returning to Kinship reloads it with nothing to export, as long as no-store keeps it out of the back/forward cache).  The fix -- the Browser's own kinship scratch tables -- is local and remains in the report for the developers. |
-| test_looking_a_person_up_does_not_change_what_kinship_stores | all cases | still checked, failure tolerated | 2026-09-30 (maintainer) | no end date | The same agreement, its second measurement: after the same Browser lookup, the Kinship form's Store Person IDs adds the Browser's person to the stored list.  Left alone for the same reason. |
-
 ## Summary
 
 | ID | Priority | Status in this run | Issue |
 | --- | --- | --- | --- |
-| CBDB-D-001 | P0 | CONFIRMED | Opening someone's Kinship tab in the Browser replaces the Kinship form's result: its Export Query Results then exports the other person's network, and its Store Person IDs adds the other person to the stored list |
 | CBDB-D-002 | P0 | CONFIRMED | The Places form's "Export as ASCII (pinyin)" checkbox is ignored by Save to GIS and Save to KML |
 | CBDB-D-003 | P5 | CONFIRMED | The Places form's Pajek, Gephi/GUESS and UCINet exports are implemented and no control on its page calls them |
 
 ## Table of contents
 
-- [CBDB-D-001 — Opening someone's Kinship tab in the Browser replaces the Kinship form's result: its Export Query Results then exports the other person's network, and its Store Person IDs adds the other person to the stored list](#cbdb-d-001--opening-someones-kinship-tab-in-the-browser-replaces-the-kinship-forms-result-its-export-query-results-then-exports-the-other-persons-network-and-its-store-person-ids-adds-the-other-person-to-the-stored-list)
 - [CBDB-D-002 — The Places form's "Export as ASCII (pinyin)" checkbox is ignored by Save to GIS and Save to KML](#cbdb-d-002--the-places-forms-export-as-ascii-pinyin-checkbox-is-ignored-by-save-to-gis-and-save-to-kml)
 - [CBDB-D-003 — The Places form's Pajek, Gephi/GUESS and UCINet exports are implemented and no control on its page calls them](#cbdb-d-003--the-places-forms-pajek-gephiguess-and-ucinet-exports-are-implemented-and-no-control-on-its-page-calls-them)
 - [Severity legend](#severity-legend)
 - [Reproducing this report](#reproducing-this-report)
-
-## CBDB-D-001 — Opening someone's Kinship tab in the Browser replaces the Kinship form's result: its Export Query Results then exports the other person's network, and its Store Person IDs adds the other person to the stored list
-
-**Affected area:** Person Browser (/CBDB_Browser) and Kinship form (/LookAtKinship)
-
-**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
-
-**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-The Browser's Kinship tab calls `GET /api/browser/person/{id}/kinship`, and `handleGetKinship` begins by deleting `ZZ_KIN_LIST`, `ZZ_KIN_LIST_TMP`, `ZZ_SCRATCH_KIN` and `ZZ_SCRATCH_KINNET` before filling them with its own traversal.  Those are the tables the Kinship form's query left its answer in, and two of the Kinship form's buttons read them back rather than what the page is showing:
-
-- **Export Query Results** (`handleExportResults`) reads `ZZ_SCRATCH_KINNET` and `ZZ_SCRATCH_KIN`, so it exports the Browser person's network.  Only half of it changes: its third file, `KinshipPeople.tsv`, is read from `ZZ_SP_KINSHIP`, which the Browser does not touch, so the bundle describes two different people at once.
-- **Store Person IDs** (`doStorePersonIDsConfirmed`) stores the kin from `ZZ_SP_KINSHIP` and the ego from `ZZ_SCRATCH_KIN`, so the stored list -- the channel by which a result travels to every other form -- gains the Browser's person.
-
-Reached two ways from the Browser page: pressing its Kinship tab, and Export Profile, which loads every tab it has not cached -- Kinship included -- for a user who never opened it.  The Kinship page keeps showing its own result throughout, and nothing on either page says anything has changed.  The page's own comment on Export Query Results says the export "always reflects exactly what the last query wrote to those tables"; the Browser is a second writer that comment does not allow for.
-
-#### Evidence
-
-Both halves driven through the running binary.  `test_looking_a_person_up_does_not_discard_a_kinship_result`: a Kinship query for person 1, then `GET /api/browser/person/10/kinship`, then Export Query Results -- HTTP 200, a `KinshipResults.zip` whose `EgoRelativeKinship.tsv` went from 920 to 9,795 characters and whose `KinshipNetwork.tsv` went from 1,067 to 295, while `KinshipPeople.tsv` came back identical.  Re-running the query for person 1 returns its 6 kinRecords again, so the result was replaced, not damaged.  `test_looking_a_person_up_does_not_change_what_kinship_stores`: from the same result, Store Person IDs stored 6 people before the lookup and 7 after -- person 10 added, nobody removed.
-
-Read from the source: the four `DELETE`s at the top of `handleGetKinship`; the two tables `doStorePersonIDsConfirmed` reads; `loadTabKinship` on the Browser page, which `EXPORT_TABS` lists as Export Profile's Kinship loader (`test_export_profile_loads_the_kinship_tab_it_lists`).  The Kinship query's own clear step is commented "add ZZ_SP_KINSHIP vs browser" -- the Kinship query clears the tables the Browser also uses, plus the one it does not, so the sharing of the other four was known.  The five other Kinship exports build their rows from the records the page posts and are unaffected.
-
-#### Impact
-
-A historian who looks somebody up in the Browser between running a Kinship query and acting on it gets, without any error or sign on either page, either an export about a different person's kin stitched to the first person's people list, or a stored list that carries one extra person into whatever form it is recalled into next.  It takes the Browser and the Kinship form open in two tabs at once -- a natural way to check a relative, and the circumstance the one-window agreement accepts, under which this is currently waived -- and both results look plausible, so they are likely to be used.  Medium rather than high because it takes that particular sequence, and the grid on screen stays correct.
-
-#### Steps to reproduce
-
-1. Open Kinship, choose a person, and press Run Query.  Note the result.
-2. In another tab, open the Person Browser, look up a different person, and press the Kinship tab (or Export Profile).
-3. Return to the Kinship tab -- it still shows the first person's result -- and press Export Query Results.  Unzip KinshipResults.zip: KinshipNetwork.tsv and EgoRelativeKinship.tsv describe the second person; KinshipPeople.tsv still describes the first.
-4. Press Store Person IDs, then Recall on any other form: the second person is among the people recalled.
-
-#### Suggested fix
-
-Give the Browser its own kinship scratch tables, as each form already has its own, or have `handleGetKinship` compute its traversal without writing to the Kinship form's.  That cures both buttons.  Changing Export Query Results to export the records its page holds, as the other five exports do, would cure the export and leave Store Person IDs as it is.
-
-#### Where it lives in the build
-
-- `Code/browser_form_backend.go:handleGetKinship (the four DELETEs at its top)`
-- `Code/kinship_form_backend.go:handleExportResults (reads ZZ_SCRATCH_KINNET and ZZ_SCRATCH_KIN back, and ZZ_SP_KINSHIP)`
-- `Code/kinship_form_backend.go:doStorePersonIDsConfirmed (kin from ZZ_SP_KINSHIP, ego from ZZ_SCRATCH_KIN)`
-- `Templates/browser/index.html:1724 (loadTabKinship)`
-- `Templates/browser/index.html:182 (EXPORT_TABS, which Export Profile walks)`
-
-#### Demonstrated by
-
-- 2 × xfailed (a waived outcome, still present): `test_looking_a_person_up_does_not_discard_a_kinship_result`, `test_looking_a_person_up_does_not_change_what_kinship_stores`
 
 ## CBDB-D-002 — The Places form's "Export as ASCII (pinyin)" checkbox is ignored by Save to GIS and Save to KML
 
