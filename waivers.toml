@@ -8,8 +8,11 @@
 # tests/cbdb_desktop/waivers.py, and AGENTS.md § "How a defect is
 # recorded, and how one is tolerated".
 #
-# Everything here is printed in both issue reports, with its reason, who
-# agreed and when.  Nothing is tolerated invisibly.
+# Nothing here is in the issue reports by default -- neither the table nor
+# any filed issue every one of whose tests it covers (the maintainer's
+# ruling of 2026-10-01).  run_tests.ps1 -IncludeWaived prints both, with
+# the reason, who agreed and when.  Every applied waiver is still recorded
+# in artifacts/waivers_applied.json, so nothing is tolerated unrecorded.
 #
 # mode defaults to "tolerate": the test still runs and its failure is
 # tolerated, so the day the problem disappears the run reports an
@@ -70,15 +73,16 @@ agreed_on = 2026-09-09
 # suite checks that; if one does, this agreement needs revisiting.
 #
 # Agreed to leave for now, for that reason.  The fix is local (give the
-# Browser its own kinship scratch tables) and is still reported, with the
-# finding, so the developers can take it whenever they choose.  The two
+# Browser its own kinship scratch tables).  The finding stays filed and
+# is printed, with that fix, when the report is generated with
+# -IncludeWaived; the default report leaves it out.  The two
 # entries are one agreement over its two measurements: the export, and
 # the stored list.
 
 [test_looking_a_person_up_does_not_discard_a_kinship_result]
 raises    = "KnownShippedDefect"
-reason    = "Agreed to leave for now: looking a person up in the Browser's Kinship tab replaces the Kinship form's result, so its Export Query Results exports the Browser person's network.  It takes the Browser and the Kinship form open in two tabs at once, the circumstance the one-window agreement already accepts (in one tab, returning to Kinship reloads it with nothing to export, as long as no-store keeps it out of the back/forward cache).  The fix -- the Browser's own kinship scratch tables -- is local and remains in the report for the developers."
-reason_zh = "已協商暫時維持現狀：在人物瀏覽的「親屬關係」分頁查看某人，會取代親屬表單的查詢結果，使「匯出查詢結果」匯出的是人物瀏覽中那個人的網絡。這必須同時在兩個分頁開著人物瀏覽與親屬表單才會發生，與「一次只用一個視窗」那項協商所接受的情境相同（在同一個分頁中回到親屬表單時，頁面會重新載入、沒有可匯出的結果——前提是 no-store 讓它不進入瀏覽器的上一頁／下一頁快取）。修法（讓人物瀏覽擁有自己的親屬暫存表）是局部的，仍保留在報告中供開發者參考。"
+reason    = "Agreed to leave for now: looking a person up in the Browser's Kinship tab replaces the Kinship form's result, so its Export Query Results exports the Browser person's network.  It takes the Browser and the Kinship form open in two tabs at once, the circumstance the one-window agreement already accepts (in one tab, returning to Kinship reloads it with nothing to export, as long as no-store keeps it out of the back/forward cache).  The fix -- the Browser's own kinship scratch tables -- is local; the finding stays filed and is printed when the report is generated with -IncludeWaived."
+reason_zh = "已協商暫時維持現狀：在人物瀏覽的「親屬關係」分頁查看某人，會取代親屬表單的查詢結果，使「匯出查詢結果」匯出的是人物瀏覽中那個人的網絡。這必須同時在兩個分頁開著人物瀏覽與親屬表單才會發生，與「一次只用一個視窗」那項協商所接受的情境相同（在同一個分頁中回到親屬表單時，頁面會重新載入、沒有可匯出的結果——前提是 no-store 讓它不進入瀏覽器的上一頁／下一頁快取）。修法（讓人物瀏覽擁有自己的親屬暫存表）是局部的；此問題仍然立案，以 -IncludeWaived 產生報告時會列出。"
 agreed_by = "maintainer"
 agreed_on = 2026-09-30
 

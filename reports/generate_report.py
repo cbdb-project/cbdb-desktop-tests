@@ -169,12 +169,12 @@ STRINGS: dict[str, dict] = {
                           "zh": ("對應檢查", "回報的內容")},
     "outcomes": {
         "en": {"passed": "passed", "failed": "failed", "error": "error",
-               "xfailed": "xfailed (a waived outcome, still present)",
-               "xpassed": "xpassed (a waived outcome has gone away)",
+               "xfailed": "xfailed (agreed to leave for now)",
+               "xpassed": "xpassed (an outcome agreed to leave has gone away)",
                "skipped": "skipped"},
         "zh": {"passed": "通過", "failed": "失敗", "error": "錯誤",
-               "xfailed": "預期失敗（已豁免的結果，仍然存在）",
-               "xpassed": "非預期通過（已豁免的結果已不再出現）",
+               "xfailed": "預期失敗（已協商暫時擱置）",
+               "xpassed": "非預期通過（協商擱置的結果已不再出現）",
                "skipped": "略過"},
     },
     "coverage": {"en": "What the suite covers", "zh": "測試套件的涵蓋範圍"},
@@ -385,8 +385,8 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "That every issue below still cites real code, in both languages"),
     ("test_reports.py",
      "This report itself",
-     "That it is reproducible from the run above, invents no issue, drops "
-     "none, and hides nothing that was waived"),
+     "That it is reproducible from the run above, invents no issue, and "
+     "drops none that was not agreed to be left alone"),
 )
 
 COVERAGE_ZH: dict[str, tuple[str, str]] = {
@@ -454,7 +454,7 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                 "且中英文皆已填寫"),
     "test_reports.py": ("本報告本身",
                         "本報告可由上述執行結果完整重現，不會憑空產生問題、"
-                        "不會遺漏問題，也不會隱藏任何擱置項目"),
+                        "也不會遺漏任何未經協商擱置的問題"),
 }
 
 STATUS_TEXT = {
@@ -723,10 +723,73 @@ def tests_per_file(run: dict) -> dict[str, int]:
     return counts
 
 
-def ranked(run: dict) -> list[Defect]:
+def is_waived(run: dict, defect: Defect) -> bool:
+    """True when every test still demonstrating ``defect`` is waived.
+
+    That is: at least one of its tests failed and was tolerated by the
+    waiver table (pytest records that as ``xfailed`` -- the suite bans
+    ``xfail`` markers, so nothing else produces one), and none failed
+    outside it.  A defect with any unwaived demonstration is not waived,
+    and neither is one whose tests now pass: that is a fix, and the
+    report has to say so.
+
+    Both waiver modes count: ``tolerate`` leaves its test ``xfailed``,
+    and ``skip`` leaves it ``skipped`` with conftest's waiver reason,
+    which is how the two are told apart from an ordinary skip.  Decided
+    from the run, so a filtered run (``-Filter``) that ran only the
+    waived test of an issue with several leaves the issue out, as it
+    would any issue its run could not see.
+    """
+    tests = [test for test in run["tests"]
+             if any(test["nodeid"].split("[", 1)[0].endswith(name)
+                    for name in defect.tests)]
+    waived = [test for test in tests
+              if test["outcome"] == "xfailed" or _skipped_by_waiver(test)]
+    live = [test for test in tests if test["outcome"] in ("failed", "error")]
+    return bool(waived) and not live and not signature_failures(run, defect)
+
+
+#: How conftest words the reason it attaches to a waived test -- an
+#: ``xfail`` for ``mode = "tolerate"``, a ``skip`` for ``mode = "skip"``.
+_WAIVER_REASON = "WAIVED ["
+
+
+def _skipped_by_waiver(test: dict) -> bool:
+    """A test the waiver table skipped (``mode = "skip"``).
+
+    pytest-json-report records a marker skip's reason in the phase that
+    skipped it -- ``setup`` for a marker, ``call`` for ``pytest.skip`` --
+    so every phase is read.  An ordinary skip, for want of data or of
+    Chromium, carries no waiver reason and is not counted: it is a lead,
+    not an agreement.
+    """
+    if test.get("outcome") != "skipped":
+        return False
+    return any(f"Skipped: {_WAIVER_REASON}" in str((test.get(phase) or {})
+                                                     .get("longrepr", ""))
+               for phase in _PHASES)
+
+
+def waived_issues(run: dict) -> list[Defect]:
+    """The filed issues this run tolerated in full, in key order."""
+    return sorted((d for d in DEFECTS.values() if is_waived(run, d)),
+                  key=lambda d: d.key)
+
+
+def ranked(run: dict, *, include_waived: bool = False) -> list[Defect]:
+    """The issues the report shows, worst first.
+
+    Waived issues are left out unless asked for -- the maintainer's
+    ruling of 2026-10-01: an outcome agreed to be left alone does not
+    belong in the report sent to the developers, unless he asks for it
+    (``--include-waived``).  They are still filed, still tested, and
+    still listed in ``artifacts/waivers_applied.json``.
+    """
     order = list(PRIORITIES)
+    shown = [d for d in DEFECTS.values()
+             if include_waived or not is_waived(run, d)]
     return sorted(
-        DEFECTS.values(),
+        shown,
         key=lambda d: (_STATUS_ORDER[status_of(run, d)],
                        order.index(d.priority) if d.priority in order else 9,
                        d.key))
@@ -826,7 +889,8 @@ def waived_rows(waivers: dict, lang: str) -> list[tuple[str, ...]]:
 # ---------------------------------------------------------------------------
 
 def render_markdown(run: dict, lang: str, build: str,
-                    waivers: dict | None = None) -> str:
+                    waivers: dict | None = None, *,
+                    include_waived: bool = False) -> str:
     def S(key):
         return STRINGS[key][lang]
 
@@ -907,7 +971,7 @@ def render_markdown(run: dict, lang: str, build: str,
     out.append(S("coverage_gaps"))
     out.append("")
 
-    if waivers is not None:
+    if include_waived and waivers is not None:
         out.append(f"## {S('waived')}")
         out.append("")
         rows = waived_rows(waivers, lang)
@@ -924,7 +988,7 @@ def render_markdown(run: dict, lang: str, build: str,
                 out.append("| " + " | ".join(row) + " |")
             out.append("")
 
-    issues = ranked(run)
+    issues = ranked(run, include_waived=include_waived)
     if not issues:
         out.append(S("no_issues"))
         return "\n".join(out) + "\n"
@@ -1089,7 +1153,8 @@ def _rich_runs(paragraph, text: str, lang: str) -> None:
 
 
 def render_docx(run: dict, lang: str, build: str, out_path: Path,
-                waivers: dict | None = None) -> Path:
+                waivers: dict | None = None, *,
+                include_waived: bool = False) -> Path:
     """Write the Word version, from the same content as the Markdown."""
     import docx
     from docx.shared import Pt
@@ -1166,7 +1231,7 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
     document.add_heading(S("coverage_gaps_head"), level=2)
     _rich_runs(document.add_paragraph(), S("coverage_gaps"), lang)
 
-    if waivers is not None:
+    if include_waived and waivers is not None:
         document.add_heading(S("waived"), level=1)
         rows = waived_rows(waivers, lang)
         if not rows:
@@ -1175,7 +1240,7 @@ def render_docx(run: dict, lang: str, build: str, out_path: Path,
             _rich_runs(document.add_paragraph(), S("waived_intro"), lang)
             table_of(S("waived_head"), rows)
 
-    issues = ranked(run)
+    issues = ranked(run, include_waived=include_waived)
     if not issues:
         document.add_paragraph(S("no_issues"))
         document.save(str(out_path))
@@ -1327,6 +1392,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="the run's waiver record, written by pytest "
                              "(default: %(default)s).  Absent means the "
                              "section is omitted rather than claimed empty.")
+    parser.add_argument("--include-waived", action="store_true",
+                        help="also print the issues this run waived in full, "
+                             "and the table of waived outcomes.  Off by "
+                             "default: what was agreed to be left alone "
+                             "stays out of the report unless asked for.")
     parser.add_argument("--lang", default="en,zh",
                         help="languages to write (default: %(default)s)")
     parser.add_argument("--format", default="md,docx,pdf",
@@ -1354,15 +1424,18 @@ def main(argv: list[str] | None = None) -> int:
             # Write beside the target and rename: a crash halfway through
             # must not leave a truncated report where the good one was.
             scratch = stem.with_suffix(".md.new")
-            scratch.write_text(render_markdown(run, lang, build, waivers),
-                               encoding="utf-8")
+            scratch.write_text(
+                render_markdown(run, lang, build, waivers,
+                                include_waived=args.include_waived),
+                encoding="utf-8")
             os.replace(scratch, stem.with_suffix(".md"))
             written.append(stem.with_suffix(".md"))
 
         if "docx" in formats or "pdf" in formats:
             try:
                 docx_path = render_docx(run, lang, build,
-                                        stem.with_suffix(".docx"), waivers)
+                                        stem.with_suffix(".docx"), waivers,
+                                        include_waived=args.include_waived)
                 written.append(docx_path)
             except Exception as exc:
                 problems.append(f"{STEM[lang]}.docx: {exc}")
@@ -1384,7 +1457,12 @@ def main(argv: list[str] | None = None) -> int:
     # failure (PowerShell does) would otherwise report a successful run
     # as an error.
     print(f"{confirmed} of {len(DEFECTS)} recorded issues confirmed by this run")
-    if waivers:
+    omitted = [] if args.include_waived else waived_issues(run)
+    if omitted:
+        print(f"{len(omitted)} waived issue(s) left out of the report "
+              f"({', '.join(d.key for d in omitted)}); pass --include-waived "
+              "to print them")
+    if waivers and args.include_waived:
         print(f"{len(waivers.get('entries', ()))} waived outcome(s) listed "
               f"from {args.waivers.name}")
     missing = undescribed_files(run)

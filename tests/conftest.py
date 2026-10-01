@@ -336,8 +336,10 @@ def artifacts_dir() -> Path:
 #
 # Applied here rather than in the test files on purpose.  A marker in a
 # test file is policy written by whoever was closest to the code; this
-# table is negotiated, dated, bilingual, printed in the report, and
-# absent unless someone configures it.  See cbdb_desktop/waivers.py.
+# table is negotiated, dated, bilingual, recorded in
+# artifacts/waivers_applied.json (and printed in the report when the
+# maintainer asks for it with --include-waived), and absent unless
+# someone configures it.  See cbdb_desktop/waivers.py.
 
 
 def pytest_collection_modifyitems(session, config, items):

@@ -734,7 +734,7 @@ tests/test_*.py         the tests themselves
   test_waivers.py         the waiver table, and the ban on any other
                           way to tolerate a failure
   test_reports.py         the report: reproducible, invents nothing,
-                          drops nothing, hides no waiver
+                          drops nothing unwaived, prints waivers only on request
   test_zz_controls.py     ...runs LAST: judges the whole run's coverage
 reports/generate_report.py   registry + one run → both reports, 3 formats
 run_tests.ps1           stage → test → report, one command
@@ -1038,7 +1038,7 @@ honest -- the sources it cites resolve in the staged build, both
 languages are filled in, the tests it names exist -- and
 `test_reports.py` keeps the report honest about the registry: rendered
 twice it is byte-identical, it names no issue the registry does not
-hold, it drops none, and it hides nothing that was waived.
+hold, it drops none that was not waived, and it leaves waived issues and the waiver table out unless `--include-waived` asks for them.
 
 See `docs/skills/issue-report-maintainer.md` before adding or changing
 an entry.
@@ -1082,7 +1082,7 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 | unset `CBDB_WAIVERS` | no waivers at all. Comment the line out of `.env` to see what a build really does, with nothing tolerated |
 | set but missing or malformed | the run stops. A table that silently fails to load would quietly re-expose everything in it, with the run looking normal |
 | a waiver matching nothing | `test_waivers.py` fails, naming the collected ids it could not match. A mistyped waiver un-waives what it meant to cover, and the failure then reads as a fresh regression |
-| every applied waiver | recorded in `artifacts/waivers_applied.json` and printed in **both** reports with its reason, who agreed and when. Nothing is tolerated invisibly |
+| every applied waiver | recorded in `artifacts/waivers_applied.json`, and **left out of both reports** by default -- the waiver table, and any filed issue every one of whose tests was waived (the maintainer's ruling of 2026-10-01). `run_tests.ps1 -IncludeWaived` / `generate_report.py --include-waived` prints both, with the reason, who agreed and when. Nothing is tolerated unrecorded |
 
 ## Standard workflow after a new distribution zip
 
