@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20260925.7z_
 
-_Generated 2026-09-30 11:02 UTC from a run of 1381 tests (507s)._
+_Generated 2026-10-01 03:48 UTC from a run of 1381 tests (436s)._
 
 Dear maintainer,
 
@@ -19,11 +19,11 @@ We have not tried to set your priorities: the bands describe what we measured, n
 | outcome | count |
 | --- | --- |
 | passed | 1190 |
-| failed | 6 |
-| xfailed (a waived outcome, still present) | 2 |
+| failed | 4 |
+| xfailed (a waived outcome, still present) | 4 |
 | skipped | 183 |
 
-Every one of the 6 failures is a test that demonstrates an issue below.
+Every one of the 4 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
@@ -67,6 +67,8 @@ These outcomes are known and were agreed to be left as they are for the time bei
 | --- | --- | --- | --- | --- | --- |
 | test_a_second_query_replaces_what_the_first_would_export | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | Agreed to leave as it is: the scratch tables are one set per database, so a query in a second tab replaces what the first tab would export.  Namespacing them per session is a redesign of every form's working state, and this build's users work in one window at a time. |
 | test_a_second_working_list_replaces_the_first | all cases | still checked, failure tolerated | 2026-09-09 (maintainer) | no end date | The same agreement, one step earlier: two tabs of one form share a single working list, so the second import replaces the first and the query that follows is about the wrong people.  Left alone for the same reason. |
+| test_looking_a_person_up_does_not_discard_a_kinship_result | all cases | still checked, failure tolerated | 2026-09-30 (maintainer) | no end date | Agreed to leave for now: looking a person up in the Browser's Kinship tab replaces the Kinship form's result, so its Export Query Results exports the Browser person's network.  It takes the Browser and the Kinship form open in two tabs at once, the circumstance the one-window agreement already accepts (in one tab, returning to Kinship reloads it with nothing to export, as long as no-store keeps it out of the back/forward cache).  The fix -- the Browser's own kinship scratch tables -- is local and remains in the report for the developers. |
+| test_looking_a_person_up_does_not_change_what_kinship_stores | all cases | still checked, failure tolerated | 2026-09-30 (maintainer) | no end date | The same agreement, its second measurement: after the same Browser lookup, the Kinship form's Store Person IDs adds the Browser's person to the stored list.  Left alone for the same reason. |
 
 ## Summary
 
@@ -111,7 +113,7 @@ Read from the source: the four `DELETE`s at the top of `handleGetKinship`; the t
 
 #### Impact
 
-A historian who looks somebody up in the Browser between running a Kinship query and acting on it gets, without any error or sign on either page, either an export about a different person's kin stitched to the first person's people list, or a stored list that carries one extra person into whatever form it is recalled into next.  Nothing about the sequence is unusual -- checking a relative in the Browser is what the Browser is for -- and both results look plausible, so they are likely to be used.  Medium rather than high because it takes that particular sequence, and the grid on screen stays correct.
+A historian who looks somebody up in the Browser between running a Kinship query and acting on it gets, without any error or sign on either page, either an export about a different person's kin stitched to the first person's people list, or a stored list that carries one extra person into whatever form it is recalled into next.  It takes the Browser and the Kinship form open in two tabs at once -- a natural way to check a relative, and the circumstance the one-window agreement accepts, under which this is currently waived -- and both results look plausible, so they are likely to be used.  Medium rather than high because it takes that particular sequence, and the grid on screen stays correct.
 
 #### Steps to reproduce
 
@@ -134,7 +136,7 @@ Give the Browser its own kinship scratch tables, as each form already has its ow
 
 #### Demonstrated by
 
-- 2 × failed: `test_looking_a_person_up_does_not_discard_a_kinship_result`, `test_looking_a_person_up_does_not_change_what_kinship_stores`
+- 2 × xfailed (a waived outcome, still present): `test_looking_a_person_up_does_not_discard_a_kinship_result`, `test_looking_a_person_up_does_not_change_what_kinship_stores`
 
 ## CBDB-D-002 — The Places form's "Export as ASCII (pinyin)" checkbox is ignored by Save to GIS and Save to KML
 
