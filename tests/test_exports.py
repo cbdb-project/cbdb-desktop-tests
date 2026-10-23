@@ -43,7 +43,6 @@ another's result.
 """
 from __future__ import annotations
 
-import codecs
 import csv
 import io
 import json
@@ -53,6 +52,7 @@ from collections import Counter
 
 import pytest
 
+from cbdb_desktop import controls
 from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.exports import (
@@ -73,13 +73,11 @@ from cbdb_desktop.exports import (
     ExportSpec,
     FormatRule,
     data_url_bytes,
-    delivered_files,
     unzip_bundle,
 )
 from cbdb_desktop.forms import (FORMS_BY_NAME, STORE_RESET,
                                 WORKING_LIST_RESETS)
 from cbdb_desktop.routes import all_routes
-from cbdb_desktop.subjects import SUBJECT
 
 pytestmark = pytest.mark.app
 
@@ -854,10 +852,43 @@ def test_an_export_produces_a_well_formed_file(app: CbdbApp, spec: ExportSpec,
                     "rejects the whole file")
             _check_kml(label, text)
         else:
+            blanked = _blanked_vna_nodes(text) if name.endswith(".vna") else []
+            if blanked:
+                raise KnownShippedDefect(
+                    f"{label}: {len(blanked)} rows under '*node data' are "
+                    "written as '<id> 0  0.0 0.0' -- index year 0, an empty "
+                    "unquoted sex field, coordinates 0.0 0.0 -- so each has "
+                    "one field fewer than the header declares and every "
+                    "later column shifts left (a whitespace-delimited VNA "
+                    "cannot hold an empty value).  The people are in the "
+                    f"result with real attributes; first rows: {blanked[:3]}")
             # A file in a multi-file set may legitimately be header-only:
             # the Neo4j exports emit one file per node and edge type, and
             # a small result has no rows of some kinds.
             _check_file(label, name, text, allow_empty_body=len(files) > 1)
+
+
+#: A node row whose attributes were lost: id, index year 0, an empty sex
+#: (two spaces), coordinates 0.0 0.0.  Recognised exactly, and only when
+#: *every* short node row has this shape, so any other malformation of a
+#: VNA file still fails as an ordinary assertion in ``_check_vna``.
+_BLANKED_NODE = re.compile(r"^\S+ 0  0\.0 0\.0$")
+
+
+def _blanked_vna_nodes(text: str) -> list[str]:
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines or not lines[0].lower().startswith("*node data"):
+        return []
+    width = len(_vna_fields(lines[1])) if len(lines) > 1 else 0
+    short = []
+    for line in lines[2:]:
+        if line.lstrip().startswith("*"):
+            break
+        if len(_vna_fields(line)) < width:
+            short.append(line)
+    if short and all(_BLANKED_NODE.match(line) for line in short):
+        return short
+    return []
 
 
 @pytest.mark.parametrize("spec", _params("people"))
@@ -2260,146 +2291,47 @@ def test_every_alias_resolves_into_the_numeric_inventory():
 
 
 # ---------------------------------------------------------------------------
-# the encoding a caller asks for, against the bytes it gets
+# the encoding a caller can ask for
 # ---------------------------------------------------------------------------
 
-#: Every Places export the page sends its "Export as ASCII (pinyin)
-#: instead of Unicode" choice to -- ``encoding: getExportEncoding()`` in
-#: five call sites, the GIS one serving both its tab and KML formats;
-#: Export Query Results sends none.  ``(key, path, extra body fields,
-#: envelope)``.  Keyed like ``EXPORTS`` so a waiver can name one.
-#:
-#: Three of them (Pajek, Gephi, UCINet) are reached by no control on
-#: this build -- see
-#: ``test_page_contracts.py::test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does``
-#: -- and are judged here all the same: the page sends them the choice,
-#: so the day a button is wired to one, what it does with it is already
-#: known.
-_ASCII_CAPABLE = (
-    ("places:gis", "/api/places/export-gis", {"format": "tab"}, RAW),
-    ("places:kml", "/api/places/export-gis", {"format": "kml"}, RAW),
-    ("places:neo4j", "/api/places/export-neo4j", {}, STATUS_FILES),
-    ("places:pajek", "/api/places/export-pajek", {}, SINGLE_FILE),
-    ("places:gephi", "/api/places/export-gephi", {}, SINGLE_FILE),
-    ("places:ucinet", "/api/places/export-ucinet", {}, SINGLE_FILE),
-)
+#: An encoding choice in a page: a control whose id or label names ASCII
+#: or pinyin output, or the helper that used to read one.
+_ENCODING_CONTROL = re.compile(
+    r"""id\s*=\s*["'][^"']*ascii[^"']*["']|getExportEncoding|"""
+    r"""Export\s+as\s+ASCII""", re.IGNORECASE)
+
+#: ``encoding: <value>`` / ``encoding = <value>`` in a page's script.
+_ENCODING_VALUE = re.compile(r"""\bencoding\s*[:=]\s*(?P<value>[^,;\n})]+)""")
 
 
-def _place_record(person_id: int, assoc_id: int, name_chn: str,
-                  name_py: str) -> dict:
-    """One ``PlaceRecord`` in which every Chinese field has a pinyin twin.
+def test_no_page_offers_an_encoding_choice(layout):
+    """No page may ask the user for an export encoding.
 
-    That is what makes the test below a statement about the writer and
-    not about the data: every text a writer could put in the file exists
-    in both forms, and the pinyin one is pure ASCII, so an ASCII file
-    with a byte above 0x7F in it chose the Chinese field.  Vertices come
-    from ``personId`` and ``assocId`` and edges from the pair, so the
-    network writers reach both their vertex and their edge labels;
-    coordinates are set so the GIS and KML writers emit the row.
+    Until 20260925 the Places form offered *Export as ASCII (pinyin)
+    instead of Unicode*, and two of the six exports it fed ignored it --
+    this file drove all six with ``encoding=ascii`` and judged the bytes.
+    The 20261021 build removed the option on purpose (the developers'
+    PLC-6 note: the steering committee no longer wants it), from the page
+    and from the request, so there is no longer a choice to judge.
+
+    This is what replaces that test, so the removal is pinned rather than
+    quietly uncovered: every page's script may only ever send the
+    constant ``'unicode'``, and no page may carry an ASCII/pinyin control
+    or the helper that read one.  A build that brings the choice back
+    fails here -- and the person who reads the failure should restore an
+    ASCII test that judges the bytes, because a choice the user can make
+    is a choice the backend can ignore.
     """
-    return {
-        "personId": person_id, "name": name_py, "nameChn": name_chn,
-        "indexYear": 1050, "sex": "M", "dy": 15,
-        "dynasty": "Song", "dynastyChn": "宋",
-        "assocId": assoc_id, "assocName": name_py + " (assoc)",
-        "assocNameChn": name_chn + "乙",
-        "addrId": 100513, "addrName": "Fuzhou", "addrChn": "福州",
-        "xCoord": 119.3, "yCoord": 26.08, "xyCount": 1,
-        "relType": "", "relCode": 1,
-        "relDesc": "friend of", "relChn": "友人",
-        "firstYear": 1040, "lastYear": 1060, "source": 0,
-        "indexAddrId": 100513, "indexAddrType": 1,
-    }
-
-
-def _ascii_capable_files(app: CbdbApp, path: str, body: dict,
-                         envelope: str) -> list[tuple[str, bytes]]:
-    """``[(name, bytes)]`` one of these exports delivers, bundles opened."""
-    response = app.post(path, json=body)
-    assert response.status_code == 200, (
-        f"{path} refused encoding={body.get('encoding')}: "
-        f"HTTP {response.status_code} {response.text[:200]}")
-    if envelope == RAW:
-        disposition = response.headers.get("Content-Disposition", "")
-        name = re.search(r'filename="?([^";]+)', disposition)
-        return [(name.group(1) if name else "<unnamed>", response.content)]
-    payload = response.json()
-    entries = [payload] if envelope == SINGLE_FILE else payload["files"]
-    return delivered_files(path, entries)
-
-
-@pytest.mark.parametrize(
-    "key,path,extra,envelope",
-    [pytest.param(*row, id=row[0]) for row in _ASCII_CAPABLE])
-def test_an_export_asked_for_ascii_contains_only_ascii(
-        app: CbdbApp, key: str, path: str, extra: dict, envelope: str):
-    """Ticking *Export as ASCII (pinyin)* must give a file with no Chinese in it.
-
-    The same two records are posted with ``encoding=unicode`` and with
-    ``encoding=ascii``, and the ascii files are read past any leading
-    byte-order mark.  Whether a mark belongs at the front is the
-    file *format's* question, answered by ``FORMAT_RULES`` and judged by
-    ``test_a_files_byte_order_mark_is_what_its_format_needs`` -- Pajek's
-    ``.net`` requires one, and three bytes a UTF-8 reader consumes do not
-    make an ASCII body un-ASCII.  What the user asked for is that the
-    labels be pinyin, and that is what is judged: any byte above 0x7F
-    past the mark is Chinese the writer chose to keep.
-
-    Two controls keep it honest.  The unicode files must contain
-    non-ASCII bytes -- otherwise the input never reached the file and an
-    ASCII result proves nothing -- and when the ascii files do too, the
-    message says whether they are identical to the unicode ones (the
-    choice ignored outright) or merely not clean (honoured in part).
-    """
-    body = {"data": [_place_record(SUBJECT, SUBJECT + 1,
-                                   "王安石", "Wang Anshi"),
-                     _place_record(SUBJECT + 2, SUBJECT + 3,
-                                   "司马光", "Sima Guang")]}
-    unicode_files = _ascii_capable_files(
-        app, path, dict(body, encoding="unicode", **extra), envelope)
-    ascii_files = _ascii_capable_files(
-        app, path, dict(body, encoding="ascii", **extra), envelope)
-
-    def non_ascii(raw: bytes) -> int:
-        return sum(1 for b in raw.removeprefix(codecs.BOM_UTF8) if b > 0x7F)
-
-    if not any(non_ascii(raw) for _, raw in unicode_files):
-        # UCINet on 20260925: its .vna carries ids and pinyin whatever
-        # the encoding, so the choice has nothing to change.  A skip,
-        # not a pass -- an ASCII result here would prove nothing.
-        pytest.skip(
-            f"{key}: the unicode export holds no non-ASCII byte either, so "
-            "the records' Chinese never reaches this file and there is "
-            f"no choice to judge: {[name for name, _ in unicode_files]}")
-
-    dirty = {name: non_ascii(raw) for name, raw in ascii_files
-             if non_ascii(raw)}
-    described = ", ".join(f"{name} with {count} byte(s) above 0x7F"
-                          for name, count in sorted(dirty.items()))
-    same = ([raw for _, raw in ascii_files]
-            == [raw for _, raw in unicode_files])
-
-    # The two signatures this build ships, recognised exactly; anything
-    # else about an ascii export fails plainly below.
-    #
-    # Save to GIS and Save to KML: the ascii file IS the unicode file.
-    if dirty and same and key in ("places:gis", "places:kml"):
-        raise KnownShippedDefect(
-            f"{key}: asked for ASCII, {path} delivered {described} -- "
-            "byte-for-byte the unicode export, so the encoding choice is "
-            "ignored outright (handleExportGIS decodes Encoding and never "
-            "reads it)")
-    # Gephi: the edges switch to pinyin and the node labels do not, so
-    # every non-ASCII byte is in the nodedef section.
-    if dirty and not same and key == "places:gephi":
-        (_name, raw), = ascii_files
-        nodes, _, edges = raw.partition(b"edgedef>")
-        if non_ascii(edges) == 0 and non_ascii(nodes) == sum(dirty.values()):
-            raise KnownShippedDefect(
-                f"{key}: asked for ASCII, {path} delivered {described}, "
-                "all of them in the node section: the edge labels switched "
-                "to pinyin and the node labels stayed NameChn")
-
-    assert not dirty, (
-        f"{key}: asked for ASCII, {path} delivered {described}"
-        + (" -- byte-for-byte the unicode export" if same else ""))
+    offered: dict[str, list[str]] = {}
+    for page, path in sorted(controls.pages(layout).items()):
+        html = path.read_text(encoding="utf-8", errors="replace")
+        hits = [m.group(0) for m in _ENCODING_CONTROL.finditer(html)]
+        hits += [f"encoding: {m.group('value').strip()}"
+                 for m in _ENCODING_VALUE.finditer(html)
+                 if m.group("value").strip() not in ("'unicode'", '"unicode"')]
+        if hits:
+            offered[page] = hits
+    assert not offered, (
+        "these pages offer, or send, an export encoding other than the "
+        f"constant 'unicode': {offered}.  The choice was removed in 20261021 "
+        "(PLC-6); if it is back, test what each export does with it")

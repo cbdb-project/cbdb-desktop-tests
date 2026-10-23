@@ -21,6 +21,7 @@ import pytest
 
 from cbdb_desktop import routes as R
 from cbdb_desktop.app import CbdbApp
+from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
 
 pytestmark = pytest.mark.app
@@ -157,15 +158,31 @@ def test_every_registered_api_route_still_exists(app: CbdbApp, routes):
         f"these routes accept PATCH; the probe would invoke them: {_ids(patchable)}"
 
     failures = []
+    gone = []
     for route in routes:
         if not route.path.startswith("/api/") or "{" in route.path:
             continue
         response = app.request("PATCH", route.path)
         if response.status_code == 404:
+            gone.append(route.path)
             failures.append(f"{route.path} is gone: PATCH -> 404 ({route.source})")
         elif response.status_code != 405:
             failures.append(f"PATCH {route.path} -> {response.status_code}, "
                             f"expected 405 ({route.source})")
+
+    # The 20261021 signature, recognised exactly.  The route inventory is
+    # read from Code/*.go, and that archive's Code/ is the previous
+    # build's source: the binary dropped Rerun (the developers' NET-4)
+    # and the source still registers it.  The finding is the stale
+    # source -- test_build_provenance.py states it with the evidence --
+    # and this is one of the places it shows.
+    if gone == ["/api/networks/rerun"] and len(failures) == 1:
+        raise KnownShippedDefect(
+            f"{failures[0]}.  The route is registered in the shipped "
+            "Code/ but not in the shipped cbdb.exe: the Go source in the "
+            "archive is the previous build's (see "
+            "test_build_provenance.py), so this inventory, read from it, "
+            "lists a route the program no longer has")
     assert not failures, "\n".join(failures)
 
 

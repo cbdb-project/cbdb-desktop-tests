@@ -36,11 +36,12 @@ from cbdb_desktop.app import CbdbApp
 from cbdb_desktop.config import REPO_ROOT
 from cbdb_desktop.routes import all_routes
 
-#: Buttons per page in the shipped build, pinned exactly -- 248 of them.
+#: Buttons per page in the shipped build, pinned exactly -- 245 of them
+#: on 20261021.
 #: A build that adds a control has to be looked at: either the endpoint
 #: it reaches is already driven, or something has to start driving it.
 #:
-#: 248 is more than it sounds. It counts the three language buttons and
+#: 245 is more than it sounds. It counts the three language buttons and
 #: the result-tab buttons on every page, which change no state on the
 #: server at all. The endpoint gate below is what carries the real
 #: weight; this is here so that "a page grew a button" cannot pass
@@ -84,7 +85,9 @@ EXPECTED_BUTTONS = {
     "index_addr": 3,
     "kinship": 18,
     "navigation": 0,
-    "networks": 24,
+    # 23 since 20261021: Rerun Last Query was removed (NET-4); Store
+    # Person IDs then Recall IDs does the same job.
+    "networks": 23,
     "office": 21,
     "pickers/address_picker": 5,
     "pickers/associations_picker": 4,
@@ -99,7 +102,10 @@ EXPECTED_BUTTONS = {
     "pickers/status_picker": 4,
     "pickers/texts_picker": 4,
     "places": 13,
-    "qbe": 8,
+    # 11 since 20261021: Copy SQL and Save SQL on the SQL tab (QBE-3)
+    # and the join dialog's "+ Add fields" (QBE-4).  All three work in
+    # the page alone and reach no endpoint.
+    "qbe": 11,
     "status": 16,
     "texts": 17,
 }
@@ -121,7 +127,10 @@ EXPECTED_BUTTONS = {
 # test_page_contracts.py::test_every_api_endpoint_the_build_
 # routes_has_a_page_that_calls_it, which is where that is a
 # finding rather than a number.
-EXPECTED_REACHABLE_ENDPOINTS = 105
+#
+# 104 on 20261021: the Networks page no longer mentions
+# /api/networks/rerun, removed with its button (NET-4).
+EXPECTED_REACHABLE_ENDPOINTS = 104
 
 #: Endpoints the pages can reach that this suite deliberately does not
 #: request, with the reason.  Every entry is a decision; the gate

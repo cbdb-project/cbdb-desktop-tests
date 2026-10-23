@@ -35,18 +35,25 @@ Data/CBDB.db          1.2 GB SQLite, 661,124 people; 135 tables
 Data/qbe_schema.json  the Query Builder's table/column whitelist
 Templates/<form>/     one index.html per form, plus pickers/ and qbe/
 Static/               one stylesheet
-Code/*.go             the full source of the binary above
+Code/*.go             the source of the binary above -- *claimed*: see
+                      test_build_provenance.py, and do not assume it
 CBDBSetUpCode/*.go    the source of the separate database builder
+*.docx, *.txt         the developers' revision notes, beside the tree
+                      (since 20260925) -- converted to Markdown under
+                      docs/release-notes/<archive stem>/ by
+                      release_notes.py on every run
 ```
 
 This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1381 tests collected against
-`CBDB-Desktop_20260925.7z`, and the defect registry holds this round's
-findings.**  It was cleared on 2026-09-30, together with the previous
-round's reports and every run artefact, so that this distribution was
+**Current state: 1535 tests collected against
+`CBDB-Desktop_20261021.7z`, and the defect registry holds this round's
+eight findings** (the last canonical run: 1317 passed, 35 failed, 181
+skipped, 2 waived -- every failure but the two report gates that judge
+the *previous* run is a filed finding raising its signature).  It was
+refiled from scratch on 2026-10-22, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
 one.  Do not read it as an inventory of what CBDB-Desktop does wrong --
@@ -75,11 +82,12 @@ something to agree to leave alone in the waiver table; it is never
 something the suite quietly expects.
 
 Of those tests, 420 are generated from the shipped data
-(`test_query_matrix.py`, including the switch sweep) and 503 from the
+(`test_query_matrix.py`, including the switch sweep), 102 from the
+pages' own translation tables (`test_translations.py`), and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; on the 20260925 build,
-**105 of 105** endpoints the shipped pages mention were actually
+`artifacts/endpoint_coverage.json`; on the 20261021 build,
+**104 of 104** endpoints the shipped pages mention were actually
 requested, with nothing excused.  ("Mention", not "reach": an endpoint
 called only from a function nothing runs is counted too, because
 over-demanding is the safe error for a coverage gate; whether each is
@@ -87,9 +95,10 @@ really reachable is judged separately, as a finding, by
 `test_page_contracts.py`.)  The denominator moves with the build -- 105
 on 20260908, 106 on 20260910, 107 on 20260915_2, 105 on 20260916_2 (the
 entry and status pickers stopped fetching their code-to-type relations),
-and still 105 on 20260925, whose deletion of those two uncalled routes
-could not move it -- so read the artefact rather than this paragraph for
-the current run.
+still 105 on 20260925, whose deletion of those two uncalled routes
+could not move it, and 104 on 20261021, whose Networks page dropped
+Rerun Last Query (NET-4) -- so read the artefact rather than this
+paragraph for the current run.
 
 That number was not always earned.  It read 105 of 105 for a while
 because the denominator was built from what the suite happened to
@@ -102,13 +111,18 @@ travels from one form to another.  Read that file before adding to it:
 the endpoints are individually trivial and collectively are the
 feature, which is why driving them one at a time proves almost
 nothing.
-Enable-state coverage is the honest counterpart: 19 controls have a
-declared precondition across seven `PRECONDITIONS` entries, and the
-other 91 are pinned in `test_ui_pages.UNDECLARED`, which may only shrink.
+Enable-state coverage is the honest counterpart: of the 121 controls
+that ship disabled on 20261021, 53 have a declared precondition across
+17 `PRECONDITIONS` entries (19 across seven until this round, which
+declared the twelve the build newly greys out and more besides), and
+the other 68 are pinned in `test_ui_pages.UNDECLARED`, which may only
+shrink.  A `Precondition` may now carry a `choose` query that picks its
+input from the shipped database, so a new declaration needs no
+hand-picked code.
 Beside it sits the coverage number that says what a dead page costs:
 `test_every_button_is_wired_to_a_function_that_exists` checks, for each
-of the 202 buttons wired with an inline `onclick`, that the function it
-names exists once the page has loaded.  The 41 wired with
+of the 201 buttons wired with an inline `onclick`, that the function it
+names exists once the page has loaded.  The 44 wired with
 `addEventListener` cannot be asked that way -- such a function need
 never be global -- and the split is pinned so a build that moved them
 would fail rather than quietly shrink the check.
@@ -146,8 +160,8 @@ review. Both times the reasoning that led there sounded fine:
 | The HTTP contract | status codes, declared JSON keys, 405 on the wrong verb |
 | Agreement between two of the app's own outputs | the export vs. the grid it rendered; kinship's person-count vs. networks' |
 | **Base facts** from the shipped DB | `COUNT(*)` of one table; "is this code in `ADDR_CODES`" |
-| The Go source read as **data** | the list of registered routes; the `/{page}` map |
-| Frozen goldens | "the address picker returns 37,118 rows for 29,932 addresses" |
+| The Go source read as **data** | the list of registered routes; the `/{page}` map -- **only as good as the claim that it is the binary's source**: on 20261021 it was last build's, and `test_build_provenance.py` is what said so.  Where source and binary disagree, drive the binary |
+| Frozen goldens | "the address picker returns 37,180 rows for 29,992 addresses" |
 | Internal invariants of one response | every returned row carries a code that was asked for |
 | Choosing a cheap **input** from the data | "which entry codes have 2–12 rows" — selects an input, predicts nothing |
 
@@ -225,7 +239,7 @@ The trap is a `data` problem that *looks* like `software` because the
 application handles it badly.  **The Associations Neo4j export** is
 the model: it dies scanning `ADDR_CODES.c_admin_type` into
 an integer, and that column has held text in every build — names like
-`State` and `Shengshi`, all 30,100 rows. The data is doing nothing
+`State` and `Shengshi`, all 30,160 rows. The data is doing nothing
 wrong. The code assumed a code where the schema declares
 `varchar(255)`. Origin: `software`, and the fix is one `Scan`.
 
@@ -550,6 +564,52 @@ diffing against the last report.
 
 ---
 
+## ⭐ What the developers say, and what the labels say
+
+Two inputs arrived on 2026-10-22 that are not the build, and each got
+a program rather than a reading.
+
+**The release notes.**  The archive now carries the developers' own
+revision notes (Word documents and text files beside the tree).
+`release_notes.py` converts them, deterministically and idempotently,
+into `docs/release-notes/<archive stem>/` -- one Markdown file per note,
+an index, and the originals -- and `run_tests.ps1` runs it after
+staging.  Read them before the failures: on 20261021 they explained
+most of the 35 (a removed button, a removed export option, a fixed
+interference, a data refresh), and that is what turned a red run into
+a triage in one pass.  **They are claims, not expectations.**  Every
+"fixed" in them is verified against this build like any other lead
+(§ *Reproduce it yourself*), and on the same build the notes described
+Go changes the shipped `Code/` did not contain -- see
+`test_build_provenance.py`.
+
+**The label glossary.**  `docs/labels/FormLabels.xlsx` is CBDB's
+English / 简体 / 繁體 label table from the Access front end, the reference
+the maintainer asked the three languages to be checked against.
+`cbdb_desktop/i18n.py` reads every page's translation table as data and
+applies fixed rules (all three present; each Chinese text in its own
+script; 繁 and 简 the same word; Chinese and English agree with the
+glossary for the page's own Access form; one English label translated
+one way across forms), and `test_translations.py` runs them -- per page,
+plus a Chromium pass that presses each page's 繁 and 简 buttons and reads
+the screen, which is the only way to see a bilingual label hard-coded in
+the HTML.  `check_translations.py` writes the full list to
+`reports/CBDB_Desktop_Translations.md` / `.xlsx`.  The requirement was
+that repeated checks agree, so the inputs are committed, OpenCC (whose
+dictionaries decide script) is pinned exactly, and
+`test_the_check_gives_the_same_answer_every_time` compares two runs
+under different hash seeds byte for byte.  Read
+`docs/skills/translation-check.md` before changing a rule or filing a
+translation finding -- especially the two innocent explanations it
+lists (regional vocabulary, a different concept on another form).
+**A Taiwan/mainland vocabulary difference is never a finding** (the
+maintainer's ruling, 2026-10-22, on 連結/连接): a pair OpenCC does not
+know goes in `docs/labels/regional_terms.tsv`, never into code.  Likewise
+a character accepted in a script by ruling (`于` in Traditional, same
+day) goes in `docs/labels/accepted_characters.tsv`.
+
+---
+
 ## ⭐ Mission-critical landmines
 
 ### 1. Never run the application against the staged master
@@ -690,10 +750,18 @@ words exactly when they were needed.
   `un_tests.ps1` in the README; a `re.compile(r"\bZZ_...")` written the
   same way became a literal backspace character (`\x08`), so the pattern
   silently matched nothing and a coverage test reported perfect
-  coverage of zero tables. Both cost half an hour. **Use the
-  Edit/Write tools for anything containing a backslash escape**, and if
-  you must patch through Bash, check afterwards:
+  coverage of zero tables. Both cost half an hour. It does not stop at
+  `<<EOF`: a *quoted* `<<'EOF'` heredoc feeding `python -` still wrote
+  `"\n"` into a source file as a real line break, three times in the
+  2026-10-22 session, and `sed 's#...#C:\Users\...#'` read `\U` as GNU
+  sed's upper-case operator and wrote `C:SERSHOW612...` into `.env`.
+  **Use the Edit/Write tools for anything containing a backslash
+  escape** -- for a scripted change, Write the script to a file first --
+  and if you must patch through Bash, check afterwards.  Two checks,
+  because they catch different damage (a real newline inside a string
+  has no control byte, and a control byte inside a string still parses):
   `python -c "import pathlib; [print(p) for p in pathlib.Path('tests').rglob('*.py') if any(c < 9 for c in p.read_bytes())]"`
+  and `python -m compileall -q tests`.
 - PowerShell 5.1: no `&&`, no ternary. `Invoke-Expression $cmd` returns
   the command's stdout *and* the exit code — pipe to `Out-Host` first, or
   `$code -ne 0` compares an array and is always true.
@@ -726,6 +794,10 @@ tests/cbdb_desktop/     infrastructure only — no *oracle* SQL lives here
                         (envelope, files)
   controls.py           every button in Templates/, and what it calls
   discovery.py          picks populated inputs out of the shipped database
+  i18n.py               reads each page's translation table; the rules
+                        that judge English / 繁 / 简 against the glossary
+  i18n_report.py        writes the translation report (.md + .xlsx)
+  release_notes.py      converts the notes shipped beside the tree
   defects.py            this round's findings, in English and Chinese --
                         read only while its report is written
   waivers.py            the optional CBDB_WAIVERS table: outcomes agreed
@@ -737,8 +809,13 @@ tests/test_*.py         the tests themselves
                           drops nothing unwaived, prints waivers only on request
   test_zz_controls.py     ...runs LAST: judges the whole run's coverage
 reports/generate_report.py   registry + one run → both reports, 3 formats
-run_tests.ps1           stage → test → report, one command
+reports/CBDB_Desktop_Translations.md   the translation check's full list
+run_tests.ps1           stage → notes → test → reports, one command
 stage.py                stage without running pytest
+release_notes.py        notes in the archive → docs/release-notes/<stem>/
+check_translations.py   the translation report, without pytest
+docs/labels/            FormLabels.xlsx, the label glossary (reference)
+docs/release-notes/     one folder per archive: its notes, as Markdown
 artifacts/              gitignored: app logs, test_inputs.json,
                         endpoint_coverage.json, waivers_applied.json —
                         a run's measurements
@@ -759,7 +836,7 @@ covers its kind, is how this decays.
 .\run_tests.ps1              # everything: stage, test, both reports
 .\run_tests.ps1 -Restage     # discard the cached tree first
 .\run_tests.ps1 -Fast        # skip everything needing the running app
-python -m pytest tests -q                 # ~8 min on 20260925
+python -m pytest tests -q                 # ~8.5 min on 20261021
 python -m pytest tests -q -m "not slow"   # the same, less the rebuilds
 ```
 
@@ -851,7 +928,7 @@ the whole report its credibility.
 Each of these was investigated and left alone; the reasoning is in the
 named test, and re-deriving it costs an hour.
 
-- `/api/addresses` returns 37,118 rows for 29,932 addresses. The handler
+- `/api/addresses` returns 37,180 rows for 29,992 addresses. The handler
   inner-joins `ADDR_BELONGS_DATA`; each row carries its own year range.
 - `/api/indexaddr/codes` returns 20 rows while `/rankings` returns 22.
   Deliberate as of 2026-09-07: `[Missing Data]` (-1) and `unknown` (0)
@@ -1090,14 +1167,17 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 # 1. Point .env at the new archive
 #    CBDB_DESKTOP_ZIP=...\cbdb-desktop_<new date>.zip
 
-# 2. Run everything.  Staging notices the new fingerprint by itself.
+# 2. Run everything.  Staging notices the new fingerprint by itself,
+#    and the notes shipped beside the tree land in
+#    docs/release-notes/<archive stem>/.
 .\run_tests.ps1
 
-# 3. Read the failures, in this order:
+# 3. Read docs/release-notes/<archive stem>/ -- what the developers
+#    say changed -- then the failures, in this order:
 #    - A test that raised KnownShippedDefect last round and passes now
 #               → a defect was fixed.  Confirm, then retire its registry
 #               entry.  (XPASS means a waiver outlived what it waived.)
-#    - FAILED on a pinned count (140 routes, 1390 QBE columns, 37,118
+#    - FAILED on a pinned count (140 routes, 1390 QBE columns, 37,180
 #               addresses, the form-template set) → the build changed
 #               shape.  Decide whether that is intended, then update the
 #               pin in the same commit as the reason.
@@ -1108,7 +1188,11 @@ The rest of the design, in one place -- `tests/cbdb_desktop/waivers.py`:
 #    xfail -- see § the ban on any other way to tolerate a failure; a
 #    filed defect stays a red FAILED until it is fixed or waived.
 
-# 5. Commit the regenerated reports/*.md alongside the code.
+#    Translation findings: read reports/CBDB_Desktop_Translations.md
+#    and docs/skills/translation-check.md before filing.
+#
+# 5. Commit the regenerated reports/*.md and docs/release-notes/ alongside
+#    the code.
 ```
 
 ---
@@ -1172,6 +1256,7 @@ These are the ones that actually bit during this project.
 | `oracle-discipline.md` | writing or reviewing any assertion |
 | `coverage-inventories.md` | adding coverage of anything — an endpoint, a button, a filter |
 | `issue-report-maintainer.md` | adding, changing or retiring a defect, or waiving one |
+| `translation-check.md` | touching the translation rules or the glossary, or filing a translation finding |
 | `programmer-self-review-template.md` | reporting any change back |
 
 ---

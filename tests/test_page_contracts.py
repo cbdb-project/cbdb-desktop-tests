@@ -704,6 +704,18 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
             uncalled[path] = source
 
     unexpected = sorted(set(uncalled) - set(_ROUTED_AND_UNCALLED))
+    # The 20261021 signature, recognised exactly: the routes are read
+    # from Code/*.go, which in that archive is the previous build's
+    # source.  It still registers Rerun, which the binary and the page
+    # both dropped (the developers' NET-4) -- the stale source, stated
+    # with its evidence in test_build_provenance.py, not a dead endpoint.
+    if unexpected == ["/api/networks/rerun"]:
+        raise KnownShippedDefect(
+            "/api/networks/rerun is routed in the shipped source "
+            f"({uncalled['/api/networks/rerun']}) and called by no page -- "
+            "because the binary no longer has it either (PATCH answers 404).  "
+            "The Go source in the archive is the previous build's, not the "
+            "source of the shipped cbdb.exe; see test_build_provenance.py")
     assert not unexpected, (
         "an endpoint is routed that no page calls, and this file has not "
         f"judged it: { {p: uncalled[p] for p in unexpected} }")
@@ -846,8 +858,12 @@ def test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does(
               "exportUCINet, each posting the query result to its "
               "endpoint, and has no button, listener or load-time call "
               "that invokes any of them -- so the Pajek, Gephi/GUESS and "
-              "UCINet exports, and the ASCII option wired into each, are "
-              "implemented and offered by no control")
+              "UCINet exports are implemented and offered by no control.  "
+              "The developers say this is deliberate: their 20261021 "
+              "revision note (PLC-6) keeps the three functions and routes "
+              "'although the form has no buttons for them ... in case the "
+              "steering committee later wants the buttons added', and lists "
+              "commenting them as deliberate as an open item")
 
     assert not found, (
         "these endpoints are called by a page only from code nothing on it "

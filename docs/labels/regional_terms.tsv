@@ -1,0 +1,16 @@
+# Taiwan / mainland vocabulary that names the same thing.
+#
+# The translation check (tests/cbdb_desktop/i18n.py) treats the two sides
+# of each row as ONE word wherever it compares wording: 繁 against 简,
+# a label against the glossary, and one form against another.  OpenCC's
+# own Taiwan<->mainland phrase tables already cover the common computing
+# terms (匯出/导出, 資料庫/数据库, 檔案/文件, 儲存/保存, 搜尋/搜索); this
+# file is for pairs they do not know.  Maintained by hand, by the
+# maintainer's ruling of 2026-10-22: a regional difference between the
+# Traditional and Simplified pages is not a translation problem.
+#
+# One pair per line: Taiwan usage <TAB> mainland usage <TAB> note.
+# Either script may be used in either column; both sides are compared
+# after reducing to Simplified.  Lines starting with # are comments.
+連結	连接	link, connection (二階連結 / 二阶连接)
+紀錄	记录	record

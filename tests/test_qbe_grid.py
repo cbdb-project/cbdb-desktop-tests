@@ -472,11 +472,18 @@ def test_a_criterion_under_an_aggregate_filters_the_groups(
     ``>`` would report "returns nothing" and miss the half that
     returns a wrong answer instead of no answer.
 
-    The statement the grid printed is then run unaltered, with a
-    number and with the string, to show that the SQL is right and only
-    the binding is wrong.  That is a second oracle and not a
-    transcription: nothing is retyped, and the statement is the
-    grid's own.
+    The statement the grid printed is then run unaltered against the
+    master.  Since 20261021 (the developers' QBE-3) the printed SQL is a
+    display copy with each value written in as a literal, meant to be
+    pasted into DB Browser and run as it stands -- so it is run as it
+    stands, with no parameters.  That is a second oracle and not a
+    transcription: nothing is retyped, and the statement is the grid's
+    own.  It says whether any group *should* come back, which is what
+    keeps an empty answer from being read as a defect on data where it
+    is correct.  (Until 20260925 the printed SQL kept its ``?`` and the
+    same statement was bound once as a number and once as a string, to
+    show the binding was the fault; the 20261021 build answers both
+    directions correctly.)
     """
     def grouped(function: str, criterion: str) -> dict:
         column = _NUMERIC if function == "MAX" else "c_personid"
@@ -513,10 +520,9 @@ def test_a_criterion_under_an_aggregate_filters_the_groups(
     counted_violating = [row for row in (counted_below.get("rows") or [])
                          if row[1] is not None and row[1] >= 5]
 
-    # Re-run the grid's own printed statement, binding the same
-    # threshold the grid was asked for, once as a number and once as
-    # text.  This is the file's only second oracle and it is the
-    # sanctioned one: the app's own SQL, re-executed, nothing retyped.
+    # Re-run the grid's own printed statement, exactly as printed.  This
+    # is the file's only second oracle and it is the sanctioned one: the
+    # app's own SQL, re-executed, nothing retyped.
     #
     # An earlier version of the guard below wrote out the grouped
     # HAVING query in Python instead, with the correct integer
@@ -525,27 +531,23 @@ def test_a_criterion_under_an_aggregate_filters_the_groups(
     # answer by re-implementing the query under test -- and this
     # statement answers the same question without it.
     statement = above["sql"]
-    assert statement.count("?") == 1, (
-        "the grid's HAVING statement now carries "
-        f"{statement.count('?')} placeholders, so binding one value "
-        f"below would raise instead of measuring: {statement}")
-    as_number = len(sqlite_conn.execute(statement, (threshold,)).fetchall())
-    as_text = len(sqlite_conn.execute(statement, (str(threshold),)).fetchall())
+    assert "?" not in statement.replace("'?'", ""), (
+        "the SQL the grid shows still carries a placeholder, so it cannot "
+        "be pasted and run as the SQL tab promises (QBE-3), and this "
+        f"oracle cannot run it either: {statement}")
+    as_printed = len(sqlite_conn.execute(statement).fetchall())
 
-    # A build with the binding fixed and no group clearing the
-    # threshold would leave kept_above empty, and reading that as a
-    # symptom would report a defect against a correct build.
-    # ``as_number`` is how many groups the grid's own statement
-    # returns when its parameter is bound the way a working build
-    # would bind it, so it says whether any group should have come
-    # back at all.
-    assert as_number, (
-        f"the grid's own HAVING statement returns nothing even when "
-        f"its parameter is bound as the number {threshold}, so no "
-        f"group of {_TABLE} by {_GROUPING} has a maximum {_NUMERIC} "
-        "above it and an empty answer from the grid would be correct. "
-        "This test cannot tell a working build from a broken one on "
-        "this data; the threshold moved.")
+    # A build with no group clearing the threshold would leave
+    # kept_above empty, and reading that as a symptom would report a
+    # defect against a correct build.  ``as_printed`` is how many groups
+    # the grid's own statement returns, so it says whether any group
+    # should have come back at all.
+    assert as_printed, (
+        f"the grid's own HAVING statement returns nothing as printed, so "
+        f"no group of {_TABLE} by {_GROUPING} has a maximum {_NUMERIC} "
+        f"above {threshold} and an empty answer from the grid would be "
+        "correct.  This test cannot tell a working build from a broken "
+        f"one on this data; the threshold moved: {statement}")
 
     if kept_above and not violating and not counted_violating:
         # Both halves behave: every group above the threshold came
@@ -582,15 +584,14 @@ def test_a_criterion_under_an_aggregate_filters_the_groups(
         f"{len(counted_violating)} have five or more members and the "
         f"largest has {biggest:,}.  "
         f"The grid printed {' '.join(statement.split())}, and that "
-        f"statement returns {as_number} rows when its parameter is the "
-        f"number {threshold} and {as_text} when it is the string "
-        f"\"{threshold}\", "
-        "which is what the grid binds: a criterion's operand is parsed "
-        "out of the typed text and never converted.  A column's INTEGER "
-        "affinity hides that in a WHERE clause; MAX(...) is an "
-        "expression and has none, so SQLite compares an integer with a "
-        "string and orders every integer first -- false for every group "
-        "under >, true for every group under <")
+        f"statement, run as printed, returns {as_printed} rows -- so the "
+        "SQL shown is right and the statement executed is not.  The "
+        "shape seen before 20261021: a criterion's operand bound as the "
+        "typed text and never converted.  A column's INTEGER affinity "
+        "hides that in a WHERE clause; MAX(...) is an expression and has "
+        "none, so SQLite compares an integer with a string and orders "
+        "every integer first -- false for every group under >, true for "
+        "every group under <")
 
 
 # ---------------------------------------------------------------------------

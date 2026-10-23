@@ -123,7 +123,7 @@ The fix, where one exists, is usually to find the *asymmetric* version:
 | App-vs-app agreement | `store-person-ids` in Entry, then `store-count` in Kinship |
 | Base facts from the shipped DB | `COUNT(*) FROM BIOG_MAIN`; "is this id in `ADDR_CODES`" |
 | Go source as data | the 140 registered routes; the `/{page}` map |
-| Frozen goldens | 37,118 address rows; 1,390 QBE columns |
+| Frozen goldens | 37,180 address rows; 1,390 QBE columns |
 | Internal invariants | every row carries a code that was requested |
 | Monotonicity | a deeper kinship search cannot lose relatives |
 | Idempotence | the same query twice gives the same answer |

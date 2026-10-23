@@ -382,7 +382,18 @@ def test_criteria_are_parameterised_not_interpolated(app: CbdbApp, app_db):
     to -- its per-session copy -- not the pristine master.  Checking the
     master would prove nothing: the app never opens it, so a successful
     DROP in the copy would leave the master serenely intact and the test
-    green.
+    green.  That is the oracle; everything else here is about what the
+    user is *shown*.
+
+    Since 20261021 (the developers' QBE-3) the ``sql`` in the reply is a
+    display copy with each bound value written in as a SQL literal, so
+    the SQL tab can be copied into DB Browser and run; the statement
+    executed is still the parameterised one.  So the old "a ``?`` is in
+    the SQL" check no longer describes anything, and what replaces it is
+    the property the display copy must have to be safe to paste: the
+    criterion appears there **only** as one correctly quoted literal,
+    its own apostrophe doubled.  A display copy that forgot to double
+    the quote would show a statement that, pasted, runs the DROP.
     """
     import sqlite3
 
@@ -398,15 +409,22 @@ def test_criteria_are_parameterised_not_interpolated(app: CbdbApp, app_db):
     people_before = app.json("POST", "/api/qbe/run",
                              json=_count_query("BIOG_MAIN", "c_personid"))["rows"]
 
+    criterion = "1'; DROP TABLE BIOG_MAIN--"
     payload = app.json("POST", "/api/qbe/run", json={
         "tables": [{"alias": "t", "table": "EXTANT_CODES"}],
         "columns": [{"table_alias": "t", "field": "c_extant_code", "show": True,
-                     "criteria_text": ["1; DROP TABLE BIOG_MAIN--"]}],
+                     "criteria_text": [criterion]}],
     })
 
-    assert payload["status"] == "ok"
-    assert "?" in payload["sql"], payload["sql"]
-    assert "DROP" not in payload["sql"].upper()
+    assert payload["status"] == "ok", payload
+    literal = "'" + criterion.replace("'", "''") + "'"
+    shown = payload["sql"]
+    assert literal in shown, (
+        f"the SQL shown to the user does not carry the criterion as the "
+        f"quoted literal {literal}: {shown}")
+    assert "DROP" not in shown.replace(literal, "").upper(), (
+        f"the criterion's text appears outside its quoted literal in the "
+        f"SQL shown to the user, so pasting it would run it: {shown}")
 
     assert table_count() == before, "a table disappeared from the app's database"
     assert app.json("POST", "/api/qbe/run",

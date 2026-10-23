@@ -14,7 +14,8 @@ Three checks, in order of how much they buy:
    Cheap, and it covers all thirteen pages.
 
 2. **Every control that ships disabled is enabled by its precondition.**
-   110 controls across the build ship ``disabled`` (20260925); ``PRECONDITIONS``
+   121 controls across the build ship ``disabled`` (20261021), 53 of them
+   with a declared precondition; ``PRECONDITIONS``
    says, per page, what a user does and which controls that must
    un-grey.  It is a table rather than a script so that it reads as a
    claim about the application, and
@@ -86,6 +87,25 @@ class Precondition:
     #: Controls that must be enabled once all of that has happened.
     must_enable: tuple[str, ...] = ()
     notes: str = ""
+    #: An input chosen from the shipped database rather than fixed: one
+    #: SQL statement whose first row's columns replace ``$1``, ``$2``...
+    #: in ``interact``.  It selects a request to send and predicts
+    #: nothing (AGENTS.md, "Choosing a cheap input from the data").
+    choose: str = ""
+
+
+#: The start of a Networks ``interact``: choose the person the way the
+#: people picker does -- it posts ``people-picker-select`` to the form,
+#: whose listener registers the person with the server and then calls
+#: ``checkRunCriteria`` -- and wait for that round trip to finish.
+_NETWORKS_PICK_PERSON = """async () => {
+          window.dispatchEvent(new MessageEvent('message', {data: {
+            type: 'people-picker-select',
+            person: {personId: %d, name: 'p', nameChn: ''}}}));
+          for (let i = 0; i < 100 && !gUsePersonID; i++) {
+            await new Promise(done => setTimeout(done, 100));
+          }
+""" % SUBJECT
 
 
 PRECONDITIONS: tuple[Precondition, ...] = (
@@ -106,11 +126,17 @@ PRECONDITIONS: tuple[Precondition, ...] = (
     # one fires the handler that un-greys it.  Removed rather than
     # rewritten, because with the event dispatched it is exactly the
     # entry below.
+    #
+    # The person is chosen *after* the page has loaded, through the
+    # message the people picker posts.  Up to 20260925 this entry seeded
+    # ``/api/networks/set-person`` before opening the page; from 20261021
+    # (NET-5) serving the page clears ZZ_SIP_NETWORK, so a seeded person
+    # is gone by the time the page asks for its count -- correct
+    # behaviour, and a user cannot reach the old state anyway.
     Precondition(
         page="networks",
         path="/LookAtNetworks",
-        seed=(("/api/networks/set-person", {"personId": SUBJECT}),),
-        interact="""() => {
+        interact=_NETWORKS_PICK_PERSON + """
           for (const id of ['chk-kin', 'chk-nonkin', 'chk-male', 'chk-female']) {
             const box = document.getElementById(id);
             if (box && !box.disabled && !box.checked) {
@@ -119,9 +145,141 @@ PRECONDITIONS: tuple[Precondition, ...] = (
             }
           }
         }""",
-        must_enable=("btn-run", "chk-kin-param"),
+        must_enable=("btn-run", "chk-kin-param", "btn-all-people"),
         notes="ticking Kinship Relations is what enables Use Kinship "
-              "Parameters, so both are asserted together",
+              "Parameters, so both are asserted together; All People "
+              "un-greys on the person being registered",
+    ),
+    # The Networks form after a real query.  NET-6 (20261021) moved the
+    # KML and Include-ID boxes below the exports they modify and greys
+    # them until there are results; setExportButtonsEnabled is the one
+    # function that decides all nine.  A node distance of 1 keeps the
+    # network small.
+    Precondition(
+        page="networks",
+        path="/LookAtNetworks",
+        interact=_NETWORKS_PICK_PERSON + """
+          for (const id of ['chk-nonkin', 'chk-male', 'chk-female']) {
+            const box = document.getElementById(id);
+            if (box && !box.disabled && !box.checked) {
+              box.checked = true;
+              box.dispatchEvent(new Event('change'));
+            }
+          }
+          document.getElementById('txt-node-dist').value = '1';
+          await runQuery();
+        }""",
+        settle_ms=5000,
+        must_enable=("chk-kml", "chk-include-id", "btn-gis", "btn-guess",
+                     "btn-ucinet", "btn-pajek", "btn-neo4j",
+                     "btn-export-results", "btn-store-id"),
+        notes="NET-6: the two export checkboxes are disabled until a "
+              "query returns, together with the exports they modify",
+    ),
+    # Association Pairs after a real query on a directly associated pair:
+    # the person and one of their associates, chosen from ASSOC_DATA.
+    # Both slots are filled through the message the people picker posts,
+    # after setting which slot it is for, as the two Select buttons do.
+    Precondition(
+        page="association_pairs",
+        path="/LookAtAssociationPairs",
+        choose=f"SELECT c_personid, c_assoc_id FROM ASSOC_DATA "
+               f"WHERE c_personid = {SUBJECT} AND c_assoc_id > 0 "
+               "ORDER BY c_assoc_id LIMIT 1",
+        interact="""async () => {
+          for (const [slot, id] of [[1, $1], [2, $2]]) {
+            _pickerTarget = slot;
+            window.dispatchEvent(new MessageEvent('message', {data: {
+              type: 'people-picker-select',
+              person: {personId: id, name: 'p' + id, nameChn: ''}}}));
+          }
+          await runQuery();
+        }""",
+        settle_ms=3000,
+        must_enable=("btnQuery", "chkKML", "btnStoreIDs", "btnExportResults",
+                     "btnGIS", "btnNeo4j", "btnPajek", "btnGephi",
+                     "btnUCINet"),
+        notes="Run Query un-greys once both people are chosen; the KML box "
+              "(new in 20261021) and the exports once the pair has a result",
+    ),
+    # Status: choosing a place is what un-greys Include sub-units and
+    # Use XY (STA-2, 20261021) and All Places.  The address is only
+    # stored, never queried here, so any real one serves.
+    Precondition(
+        page="status",
+        path="/LookAtStatus",
+        choose="SELECT c_addr_id FROM ADDR_CODES WHERE c_addr_id > 0 "
+               "ORDER BY c_addr_id LIMIT 1",
+        interact="""() => {
+          handleAddressSelection({selectedAddresses:
+            [{id: $1, name: 'x', nameChn: ''}]});
+        }""",
+        settle_ms=200,
+        must_enable=("chkSubUnits", "chkUseXY", "btnAllPlaces",
+                     "btnRunQuery"),
+        notes="STA-2: the address checkboxes are disabled until a place is "
+              "selected; a place alone is also enough to run a query",
+    ),
+    # Status after a real query on a sparse status code.
+    Precondition(
+        page="status",
+        path="/LookAtStatus",
+        choose="SELECT c_status_code FROM STATUS_DATA "
+               "GROUP BY c_status_code HAVING COUNT(*) BETWEEN 2 AND 12 "
+               "ORDER BY COUNT(*) DESC, 1 LIMIT 1",
+        interact="""async () => {
+          handleStatusSelection([$1], ['x'], null, '', '');
+          await runQuery();
+        }""",
+        settle_ms=3000,
+        must_enable=("chkKML", "btnExportGIS", "btnExportNeo4j",
+                     "btnExportResults", "btnStoreIDs"),
+        notes="the KML box beside Save to GIS, and the exports, once the "
+              "query has a result",
+    ),
+    # Texts: Main source only and Self-biography only apply only to
+    # Biographical Sources (TXT-1, 20261021), so choosing that query mode
+    # -- clicking its radio button -- is what un-greys them.
+    Precondition(
+        page="texts",
+        path="/LookAtTexts",
+        interact="""() => {
+          document.getElementById('qmode-source').click();
+        }""",
+        settle_ms=200,
+        must_enable=("chk-main-source", "chk-self-bio"),
+        notes="TXT-1: disabled in the default Both mode",
+    ),
+    # Texts: choosing a place un-greys the address checkboxes (TXT-2).
+    Precondition(
+        page="texts",
+        path="/LookAtTexts",
+        choose="SELECT c_addr_id FROM ADDR_CODES WHERE c_addr_id > 0 "
+               "ORDER BY c_addr_id LIMIT 1",
+        interact="""() => {
+          handleAddressSelection({selectedAddresses:
+            [{id: $1, name: 'x', nameChn: ''}]});
+        }""",
+        settle_ms=200,
+        must_enable=("chk-sub-units", "chk-use-xy"),
+        notes="TXT-2: disabled until a place is selected",
+    ),
+    # Query Builder: Copy SQL and Save SQL (QBE-3, 20261021) un-grey once
+    # a query has run.  A one-column query on DYNASTIES, the smallest
+    # table a user would reach for: add the table, double-click a field
+    # into the grid, press Run.
+    Precondition(
+        page="qbe",
+        path="/QBE",
+        interact="""async () => {
+          addTableBox('DYNASTIES');
+          addFieldToGrid('t1', 'c_dynasty');
+          document.getElementById('btnRun').click();
+        }""",
+        settle_ms=3000,
+        must_enable=("btnCopySQL", "btnSaveSQL"),
+        notes="QBE-3: the SQL tab's Copy and Save are disabled until there "
+              "is SQL to copy",
     ),
     # The Associations form, which ships Run Query disabled as of the
     # 2026-09-08 build: it un-greys once at least one association code
@@ -224,9 +382,10 @@ PRECONDITIONS: tuple[Precondition, ...] = (
 #: harness for driving pickers that does not exist yet.  The form-page
 #: entries are the ones worth working through.
 UNDECLARED: dict[str, tuple[str, ...]] = {
-    "association_pairs": ("btnClearList", "btnExportResults", "btnGIS",
-                          "btnGephi", "btnNeo4j", "btnPajek", "btnQuery",
-                          "btnStoreIDs", "btnUCINet"),
+    # Eight fewer than 20260925: the query-result precondition declared
+    # in 20261021 covers Run Query and every export.  Clear List needs an
+    # imported file, which is a file chooser.
+    "association_pairs": ("btnClearList",),
     "associations": ("btn-export-query", "btn-kml", "btn-neo4j", "btn-store",
                      "btn-tab"),
     # chkGisKML is new in the 2026-09-15 build: an Export as KML
@@ -240,11 +399,9 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
     # Two fewer than the 2026-09-10 build: btn-from-dynasty and
     # btn-to-dynasty are gone, replaced by the one Select Dynasties
     # button the multi-select picker needs, which does not ship
-    # disabled.
-    "networks": ("btn-all-people", "btn-all-places", "btn-export-results",
-                 "btn-gis", "btn-guess", "btn-neo4j",
-                 "btn-pajek", "btn-recall-id", "btn-rerun", "btn-store-id",
-                 "btn-ucinet", "chk-place-limit",
+    # disabled.  Nine fewer again in 20261021: btn-rerun went with NET-4,
+    # and All People plus the seven exports are now declared.
+    "networks": ("btn-all-places", "btn-recall-id", "chk-place-limit",
                  "chk-sub-units", "chk-xy-ref", "txt-max-col", "txt-max-dwn",
                  "txt-max-mar", "txt-max-up"),
     "office": ("btn-all-offices", "btn-all-places-office",
@@ -270,8 +427,8 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
     "pickers/texts_picker": ("btn-select",),
     "places": ("btnExportNeo4j", "btnExportResults", "btnRunQuery",
                "btnSaveGIS", "btnSaveKML", "btnStorePersonIDs"),
-    "status": ("btnAllPlaces", "btnExportGIS", "btnExportNeo4j",
-               "btnExportResults", "btnRunQuery", "btnStoreIDs"),
+    # Empty since 20261021: the place and query-result preconditions
+    # declare every control the Status form ships disabled.
     "texts": ("btn-export-results", "btn-kml", "btn-neo4j", "btn-store",
               "btn-tab"),
 }
@@ -282,18 +439,32 @@ class _Result:
     log: browser.PageLog = field(default_factory=browser.PageLog)
 
 
-def _drive(app: CbdbApp, pre: Precondition) -> _Result:
+def _interaction(pre: Precondition, sqlite_conn) -> str:
+    """``pre.interact`` with its chosen inputs filled in."""
+    if not pre.choose:
+        return pre.interact
+    row = sqlite_conn.execute(pre.choose).fetchone()
+    assert row, f"{pre.page}: the data offers no input for {pre.choose!r}"
+    script = pre.interact
+    # Highest index first, so $1 does not eat the front of $12.
+    for index in range(len(row), 0, -1):
+        script = script.replace(f"${index}", str(int(row[index - 1])))
+    return script
+
+
+def _drive(app: CbdbApp, pre: Precondition, sqlite_conn=None) -> _Result:
     """Establish a precondition in a browser and read the control states."""
     for path, body in pre.seed:
         response = app.post(path, json=body)
         assert response.status_code == 200, \
             f"{pre.page}: seeding {path} gave {response.status_code}"
+    interact = _interaction(pre, sqlite_conn)
 
     result = _Result()
     with browser.open_page(app.base_url, pre.path) as (page, log):
         result.log = log
         _refuse_a_dead_page(page, pre, log)
-        page.evaluate(pre.interact)
+        page.evaluate(interact)
         page.wait_for_timeout(pre.settle_ms)
         result.states = browser.control_states(page, list(pre.must_enable))
     return result
@@ -342,7 +513,8 @@ def _refuse_a_dead_page(page, pre: Precondition, log) -> None:
 _NOT_PAGE_FUNCTIONS = frozenset({
     "async", "await", "function", "return", "typeof", "new", "delete",
     "if", "for", "while", "switch", "catch", "of", "in", "void",
-    "Event", "Array", "Object", "String", "Number", "Promise", "Date",
+    "Event", "MessageEvent", "Array", "Object", "String", "Number",
+    "Promise", "Date",
     "parseInt", "parseFloat", "setTimeout", "JSON", "console",
 })
 
@@ -350,6 +522,15 @@ _NOT_PAGE_FUNCTIONS = frozenset({
 # ---------------------------------------------------------------------------
 # does the page load at all
 # ---------------------------------------------------------------------------
+
+#: The one page that throws while loading in the 20261021 build, and
+#: exactly what it logs.  Recognising this shape is what lets any other
+#: page that starts throwing arrive as an ordinary failure.
+_GROUP_DATA_NULL_QUERY = {
+    "/LookAtGroupData": ["Cannot read properties of null (reading "
+                         "'statusRecords')"],
+}
+
 
 def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
                                                             layout):
@@ -386,10 +567,73 @@ def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
         except RuntimeError as exc:
             broken[path] = [str(exc)]
 
+    if broken == _GROUP_DATA_NULL_QUERY:
+        raise KnownShippedDefect(
+            "/LookAtGroupData throws while loading: \"Cannot read properties "
+            "of null (reading 'statusRecords')\".  "
+            "Templates/group_data/index.html updateRunButton() guards "
+            "hasData with `queryData !== null && ...`, then -- in six lines "
+            "new in 20261021, setting the per-section GIS checkboxes "
+            "chkGisStatus..chkGisAddr -- reads queryData.statusRecords, "
+            ".officeRecords, .entryRecords, .textRecords and .placeRecords "
+            "with no such guard.  queryData starts null and clearPeople() "
+            "sets it back to null, so the function throws whenever no "
+            "query has run: on load; after a successful Import from File "
+            "(the page reports 'Import error: ...' and leaves Clear "
+            "disabled); after Recall IDs; and inside Clear itself, which "
+            "then leaves the tabs and buttons uncleared.  "
+            "test_group_data_can_be_used_before_its_first_query shows the "
+            "user's side of it.")
+
     assert not broken, (
         "these pages logged an error while loading.  A page that throws "
         "during load stops attaching its handlers, and every control on "
         f"it is then dead: {broken}")
+
+
+def test_group_data_can_be_used_before_its_first_query(app: CbdbApp):
+    """Import a list of people into Group Data, as the first thing a user does.
+
+    The load check above says the page throws; this says what that
+    costs a user, measured on the first action the form asks for.  A
+    file with one person ID is handed to the page's own file input --
+    the same ``change`` event the Import button's file chooser fires --
+    and once the server has answered, the import must have taken:
+    no error shown, and Clear (which ships disabled) enabled so the list
+    can be emptied again.
+    """
+    with browser.open_page(app.base_url, "/LookAtGroupData") as (page, log):
+        with page.expect_response(
+                lambda r: "/api/groupdata/import-ids" in r.url) as answer:
+            page.set_input_files("#fileImport", files=[{
+                "name": "people.txt", "mimeType": "text/plain",
+                "buffer": f"{SUBJECT}\n".encode("ascii")}])
+        status = answer.value.status
+        page.wait_for_timeout(500)
+        error = page.evaluate(
+            "() => { const e = document.getElementById('globalError');"
+            " return e && !e.classList.contains('hidden') ? e.textContent : ''; }")
+        states = browser.control_states(page, ["btnClear", "btnImport"])
+        loaded = page.evaluate("() => loadedPeople.length")
+
+    assert status == 200, f"the server refused the import: HTTP {status}"
+    if ("Cannot read properties of null (reading 'statusRecords')" in error
+            and states["btnClear"] == "disabled"):
+        raise KnownShippedDefect(
+            f"Group Data: importing a one-person file (person {SUBJECT}) "
+            f"succeeds on the server (HTTP {status}, {loaded} person loaded "
+            f"into the page) and the page then reports \"{error}\", leaves "
+            f"Clear {states['btnClear']} and Import {states['btnImport']}.  "
+            "The import's success path calls updateRunButton(), which "
+            "reads queryData.statusRecords etc. while queryData is still "
+            "null (Templates/group_data/index.html, the six chkGis* lines "
+            "of updateRunButton, new in 20261021); the throw lands in the "
+            "import's catch, so the user is told the import failed and "
+            "cannot clear the list it actually loaded")
+    assert not error, f"Group Data reported an error after an import: {error}"
+    assert states["btnClear"] == "enabled", (
+        f"after importing {loaded} person(s), Clear is {states['btnClear']}")
+    assert log.clean, f"Group Data logged {log.page_errors} {log.console_errors}"
 
 
 def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
@@ -476,9 +720,12 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
     # silent shrink the guard exists to prevent, and which nothing else
     # would notice, because EXPECTED_BUTTONS pins the totals and not the
     # split.  Operating principle 5, applied to this file's own coverage.
-    assert (inline, listeners) == (202, 41), (
+    # (202, 41) on 20260925.  20261021 removed Networks' inline Rerun
+    # button (NET-4) and added three listener-wired Query Builder buttons:
+    # Copy SQL, Save SQL (QBE-3) and the join dialog's + Add fields (QBE-4).
+    assert (inline, listeners) == (201, 44), (
         f"{inline} buttons are wired with an inline onclick and "
-        f"{listeners} with addEventListener, against 202 and 41.  Only "
+        f"{listeners} with addEventListener, against 201 and 44.  Only "
         "the first kind can be checked here -- a listener's function "
         "need never be global -- so a build that moved them would "
         "shrink this test without failing it")
@@ -511,8 +758,8 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
 def test_every_disabled_control_has_a_declared_precondition(layout):
     """The coverage gate for this file: count what is not covered.
 
-    110 controls ship disabled.  This file declares a precondition for
-    some of them; the rest are listed in ``UNDECLARED``, pinned, and
+    121 controls ship disabled on 20261021.  This file declares a
+    precondition for 53 of them; the rest are listed in ``UNDECLARED``, pinned, and
     that list may only shrink.  Without this the file would look like
     full coverage of enable state while checking four pages' worth.
 
@@ -706,7 +953,8 @@ def test_all_offices_leaves_the_office_form_able_to_query(
     for pre in PRECONDITIONS
 ])
 def test_a_control_is_enabled_once_its_precondition_is_met(app: CbdbApp,
-                                                           pre: Precondition):
+                                                           pre: Precondition,
+                                                           sqlite_conn):
     """Do the thing the control waits for, and check it un-greys.
 
     The user-visible property, measured.  A control still disabled here
@@ -714,7 +962,7 @@ def test_a_control_is_enabled_once_its_precondition_is_met(app: CbdbApp,
     asks -- and the server, asked the same question over HTTP, answers
     perfectly.
     """
-    result = _drive(app, pre)
+    result = _drive(app, pre, sqlite_conn)
 
     missing = sorted(k for k, v in result.states.items() if v == "MISSING")
     assert not missing, \
