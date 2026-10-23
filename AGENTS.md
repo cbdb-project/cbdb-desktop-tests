@@ -48,11 +48,11 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1535 tests collected against
+**Current state: 1540 tests collected against
 `CBDB-Desktop_20261021.7z`, and the defect registry holds this round's
-eight findings** (the last canonical run: 1317 passed, 35 failed, 181
-skipped, 2 waived -- every failure but the two report gates that judge
-the *previous* run is a filed finding raising its signature).  It was
+eight findings, two of them waived** (the last canonical run: 1326
+passed, 29 failed, 181 skipped, 4 waived -- every failure is a filed
+finding raising its signature).  It was
 refiled from scratch on 2026-10-22, so that this distribution was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next

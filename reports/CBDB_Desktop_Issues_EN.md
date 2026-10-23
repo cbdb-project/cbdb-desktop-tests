@@ -4,7 +4,7 @@ _A respectful summary of issues uncovered during automated regression testing._
 
 _Build under test: CBDB-Desktop_20261021.7z_
 
-_Generated 2026-10-22 10:55 UTC from a run of 1535 tests (509s)._
+_Generated 2026-10-23 10:43 UTC from a run of 1540 tests (566s)._
 
 Dear maintainer,
 
@@ -18,26 +18,12 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1317 |
-| failed | 35 |
-| xfailed (agreed to leave for now) | 2 |
+| passed | 1326 |
+| failed | 29 |
+| xfailed (agreed to leave for now) | 4 |
 | skipped | 181 |
 
-Of the 35 failures, **31** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **4** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
-
-**3** of them are this suite's own business rather than defects in the distribution: something the interface offers that we have not yet driven, or a piece of our own bookkeeping that has slipped.  Ours to close, not yours.
-
-| Check | What it reported about us |
-| --- | --- |
-| `test_every_finding_this_run_raises_is_accounted_for` | 6 test(s) raised a finding that no registry entry names and no waiver covers |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_EN.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-001.title', 'CBD |
-| `test_the_committed_report_still_says_what_the_registry_says` | reports/CBDB_Desktop_Issues_ZH-Hant.md no longer says what the registry says -- the registry was edited after the report was generated, or the report was edited by hand. Missing: ['CBDB-D-001.title', |
-
-**1 failure(s) in this run are not yet classified.**  They are not among the issues below and they are not one of our known coverage gaps, which means this run found something nobody has looked at yet.  Each may turn out to be a defect worth filing or a problem with the check itself; please read them rather than trusting this list to be complete.
-
-| Check | What it reported |
-| --- | --- |
-| `test_the_coverage_table_describes_every_test_file_in_the_suite` | the coverage table and the suite disagree. Missing: ['test_build_provenance.py', 'test_release_notes.py', 'test_translations.py']; describing files that no longer exist: [] |
+Every one of the 29 failures is a test that demonstrates an issue below.
 
 ## What the suite covers
 
@@ -47,6 +33,7 @@ Of the 35 failures, **31** are the tests that demonstrate the issues below -- th
 | The application process | 13 | That the shipped binary starts, serves, and releases its database |
 | Every registered route | 17 | Every route read out of the shipped Go source, driven for real |
 | Passing a result from one form to another | 21 | The stored-person list: what one form stores, another recalls |
+| The Association Pairs form's intermediaries | 4 | That every person a 2-node query reports lies on a path between the two seeds, read off the reply's own network, in all four shapes of the query |
 | Each page against its own handler | 18 | Whether the two halves of a form agree about the request and the reply -- a control the handler never reads, a reply the page cannot read, a capability with no way in |
 | Whether each page's JavaScript still parses | 30 | A form keeps all its behaviour in one inline script, so a syntax error in it leaves every control on the page dead while the page still loads -- read out of the shipped templates, with no browser |
 | The code and address lists | 38 | The dropdowns each form offers before a query is run |
@@ -61,7 +48,7 @@ Of the 35 failures, **31** are the tests that demonstrate the issues below -- th
 | Every filter, on inputs read from the data | 420 | One query per populated combination the shipped database has, plus every switch turned both ways |
 | Every export button | 498 | Every file-producing endpoint pressed, and the files they return read back |
 | The pages in a real browser | 20 | That every page loads without throwing, and that a control waiting on the user un-greys when they do it |
-| English, Traditional and Simplified labels | 102 | Every translated label, from the templates and from the screen: all three languages present, each Chinese text in its own script, and agreement with the CBDB label glossary and across forms |
+| English, Traditional and Simplified labels | 103 | Every translated label, from the templates and from the screen: all three languages present, each Chinese text in its own script, and agreement with the CBDB label glossary and across forms |
 | The shipped source | 19 | That the Go source shipped in Code/ is the source of the shipped cbdb.exe |
 | The developers' release notes | 8 | That the notes shipped beside the tree convert to Markdown faithfully, and identically every time |
 | Two tabs at once | 3 | Whether one query can replace what another was about to export |
@@ -70,7 +57,7 @@ Of the 35 failures, **31** are the tests that demonstrate the issues below -- th
 | What was agreed to leave alone | 28 | That every waived outcome still names a check this run has, and that nothing else in the suite tolerates a failure |
 | This report's own sources | 25 | That every issue below still cites real code, in both languages |
 | This report itself | 35 | That it is reproducible from the run above, invents no issue, and drops none that was not agreed to be left alone |
-| every test in this run | 1535 |  |
+| every test in this run | 1540 |  |
 
 ### What this round did not reach
 
@@ -80,10 +67,8 @@ The table above counts what was checked; it is not a list of what the applicatio
 
 | ID | Priority | Status in this run | Issue |
 | --- | --- | --- | --- |
-| CBDB-D-008 | P0 | CONFIRMED | The Places UCINet export writes some people with their attributes blanked -- index year 0, no sex, coordinates 0.0 0.0 -- so those rows of network.vna are a field short |
 | CBDB-D-002 | P2 | CONFIRMED | Group Data throws whenever no query has run: importing a list reports "Import error" on an import that succeeded, Recall IDs reports an error, and Clear does not clear |
 | CBDB-D-001 | P3 | CONFIRMED | The Go source shipped in Code/ is not the source of the shipped cbdb.exe: only office_form_backend.go changed since 20260925, while the binary carries the revisions the notes describe |
-| CBDB-D-003 | P5 | CONFIRMED | The Places form's Pajek, Gephi/GUESS and UCINet exports are implemented and no control on its page calls them |
 | CBDB-D-004 | P6 | CONFIRMED | On ten of the eleven translated forms, Chinese labels differ from the CBDB glossary's terms -- some of them changing the meaning: the Office form's Index Years filter is labelled 生卒年 (birth and death years), and five forms call the index year 索引年 |
 | CBDB-D-005 | P6 | CONFIRMED | Twelve labels on four forms pair English and Chinese the glossary does not pair -- among them the Browser tab captioned Basic Information whose Chinese says 生卒年 (birth and death years) |
 | CBDB-D-006 | P6 | CONFIRMED | Seven forms show text in the wrong script for the language chosen: bilingual labels written into the page that the language switch never rewrites, and 指數 left in Simplified text |
@@ -91,56 +76,14 @@ The table above counts what was checked; it is not a list of what the applicatio
 
 ## Table of contents
 
-- [CBDB-D-008 — The Places UCINet export writes some people with their attributes blanked -- index year 0, no sex, coordinates 0.0 0.0 -- so those rows of network.vna are a field short](#cbdb-d-008--the-places-ucinet-export-writes-some-people-with-their-attributes-blanked----index-year-0-no-sex-coordinates-00-00----so-those-rows-of-networkvna-are-a-field-short)
 - [CBDB-D-002 — Group Data throws whenever no query has run: importing a list reports "Import error" on an import that succeeded, Recall IDs reports an error, and Clear does not clear](#cbdb-d-002--group-data-throws-whenever-no-query-has-run-importing-a-list-reports-import-error-on-an-import-that-succeeded-recall-ids-reports-an-error-and-clear-does-not-clear)
 - [CBDB-D-001 — The Go source shipped in Code/ is not the source of the shipped cbdb.exe: only office_form_backend.go changed since 20260925, while the binary carries the revisions the notes describe](#cbdb-d-001--the-go-source-shipped-in-code-is-not-the-source-of-the-shipped-cbdbexe-only-office-form-backendgo-changed-since-20260925-while-the-binary-carries-the-revisions-the-notes-describe)
-- [CBDB-D-003 — The Places form's Pajek, Gephi/GUESS and UCINet exports are implemented and no control on its page calls them](#cbdb-d-003--the-places-forms-pajek-gephiguess-and-ucinet-exports-are-implemented-and-no-control-on-its-page-calls-them)
 - [CBDB-D-004 — On ten of the eleven translated forms, Chinese labels differ from the CBDB glossary's terms -- some of them changing the meaning: the Office form's Index Years filter is labelled 生卒年 (birth and death years), and five forms call the index year 索引年](#cbdb-d-004--on-ten-of-the-eleven-translated-forms-chinese-labels-differ-from-the-cbdb-glossarys-terms----some-of-them-changing-the-meaning-the-office-forms-index-years-filter-is-labelled-生卒年-birth-and-death-years-and-five-forms-call-the-index-year-索引年)
 - [CBDB-D-005 — Twelve labels on four forms pair English and Chinese the glossary does not pair -- among them the Browser tab captioned Basic Information whose Chinese says 生卒年 (birth and death years)](#cbdb-d-005--twelve-labels-on-four-forms-pair-english-and-chinese-the-glossary-does-not-pair----among-them-the-browser-tab-captioned-basic-information-whose-chinese-says-生卒年-birth-and-death-years)
 - [CBDB-D-006 — Seven forms show text in the wrong script for the language chosen: bilingual labels written into the page that the language switch never rewrites, and 指數 left in Simplified text](#cbdb-d-006--seven-forms-show-text-in-the-wrong-script-for-the-language-chosen-bilingual-labels-written-into-the-page-that-the-language-switch-never-rewrites-and-指數-left-in-simplified-text)
 - [CBDB-D-007 — One English label, several Chinese words: 23 labels are translated differently on different forms (Save to GIS three ways, Index Year four ways)](#cbdb-d-007--one-english-label-several-chinese-words-23-labels-are-translated-differently-on-different-forms-save-to-gis-three-ways-index-year-four-ways)
 - [Severity legend](#severity-legend)
 - [Reproducing this report](#reproducing-this-report)
-
-## CBDB-D-008 — The Places UCINet export writes some people with their attributes blanked -- index year 0, no sex, coordinates 0.0 0.0 -- so those rows of network.vna are a field short
-
-**Affected area:** Places form, /api/places/export-ucinet (network.vna)
-
-**Severity:** P0 — Silent wrong answer — the application returns wrong or empty results, or produces a file nothing can read, with no error shown to the user.
-
-**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-In the `*node data` section, some people are written as `<id> 0  0.0 0.0`: index year 0, an empty unquoted sex field, and zero coordinates.  They are people who are in the result with a real sex and index year -- the writer appears to take their attributes from a record where they occur only as the associate.  Because VNA is whitespace-delimited, the empty sex disappears and every later column shifts left, so the row is malformed as well as wrong.  PLC-3 (Kinship now reads KIN_DATA) adds many associate-only appearances, which is why it shows now.  No control on the page reaches this export (CBDB-D-003), so no user can produce the file today; it is filed because the developers have kept the export to be wired up later.
-
-#### Evidence
-
-`test_an_export_produces_a_well_formed_file[places:ucinet]`, after the suite's own discovered Places query: 11 node rows in that shape, every short row matching it exactly.  On a denser input (address 14504, all seven categories, 932 records, on a private database copy) 155 of 465 node rows, e.g. person 145689, who is in the result as sex F, index year 747.  The binary's Places code is not in the shipped source (CBDB-D-001), so the writer could not be read; the mechanism is inferred from the output.
-
-#### Impact
-
-None today, because nothing on the page calls the export.  If it is wired up as it stands, UCINet would read the file's attribute columns misaligned for those people, without any error.
-
-#### Steps to reproduce
-
-1. POST a Places query result to /api/places/export-ucinet (no button does this) and open network.vna: some *node data rows read '<id> 0  0.0 0.0'.
-
-#### Suggested fix
-
-Take each person's node attributes from their own record (or BIOG_MAIN), not from a record where they appear as the associate, and quote empty values, before wiring the export to a button.
-
-#### Where it lives in the build
-
-- `Code/places_form_backend.go:1348 (handleExportUCINet, as shipped -- the source the binary was built from was not)`
-- `Templates/places/index.html:853 (exportUCINet, called by nothing)`
-
-#### Demonstrated by
-
-- 1 × failed: `test_an_export_produces_a_well_formed_file[places:ucinet]`
-- 53 × passed: `test_an_export_produces_a_well_formed_file[entry:results]`, `test_an_export_produces_a_well_formed_file[entry:gis]`, `test_an_export_produces_a_well_formed_file[entry:kml]`, `test_an_export_produces_a_well_formed_file[entry:neo4j]` (+49)
 
 ## CBDB-D-002 — Group Data throws whenever no query has run: importing a list reports "Import error" on an import that succeeded, Recall IDs reports an error, and Clear does not clear
 
@@ -223,48 +166,6 @@ Ship the `Code/` (and `CBDBSetUpCode/`) the binaries were built from, and make c
 #### Demonstrated by
 
 - 3 × failed: `test_the_shipped_source_is_the_source_of_the_shipped_binary`, `test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`, `test_every_registered_api_route_still_exists`
-
-## CBDB-D-003 — The Places form's Pajek, Gephi/GUESS and UCINet exports are implemented and no control on its page calls them
-
-**Affected area:** Places form (/LookAtPlace): /api/places/export-pajek, /api/places/export-gephi, /api/places/export-ucinet
-
-**Severity:** P5 — Unreachable feature — the application implements something no page can ask for.  The band says only that no user can get to it.  Whether the code behind it is correct is a separate question with a separate answer, so an unreachable feature that is also broken is recorded in both places rather than argued about in one.
-
-**Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
-
-**Status in this run:** CONFIRMED
-
-#### Description
-
-The Places page defines `exportPajek`, `exportGephi` and `exportUCINet`, each posting the query result to its endpoint and downloading the answer, and the three handlers are routed and answer.  Nothing on the page invokes any of the three functions: its buttons are Run Query, Store Person IDs, Export Query Results, Save to KML, Save to GIS and Export Neo4j CSVs, and no listener or load-time code calls them either.  The developers' 2026-10-15 revision note (PLC-6) says this is deliberate: the functions and routes are "kept, although the form has no buttons for them", because a Places query builds no social or kinship network and these exports would be fragmentary, in case the steering committee later wants the buttons.  Filed so that decision is visible in the report; it is the maintainer's to accept.
-
-#### Evidence
-
-`test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does` walks each page's call graph from everything that can run -- buttons, every inline `on...=` handler, load-time code, listeners registered by name, and the `window.X` callbacks popups call back into.  Across every page the build ships, these three are the only endpoints a page mentions that the walk never reaches.  The PLC-6 note confirms the intent and lists, as an open item, adding a comment above `exportUCINet()` saying they are kept on purpose.
-
-#### Impact
-
-A historian working in Places cannot produce the Pajek, Gephi or UCINet files the other network forms offer, and there is nothing on the page to say the feature exists.  No wrong answer is given; the feature is simply unreachable, by the developers' choice.
-
-#### Steps to reproduce
-
-1. Open Places and run a query that returns rows.
-2. Look for a Pajek, Gephi/GUESS or UCINet export: there is none, though the page's script defines exportPajek, exportGephi and exportUCINet.
-
-#### Suggested fix
-
-Either accept it as designed (a waiver keyed on the test above records that), or add the three buttons, or delete the functions and handlers.  The comment PLC-6 proposes would tell a reader of the page why they are there.
-
-#### Where it lives in the build
-
-- `Templates/places/index.html:853 (exportUCINet, called by nothing)`
-- `Templates/places/index.html:870 (exportPajek, called by nothing)`
-- `Templates/places/index.html:887 (exportGephi, called by nothing)`
-- `Templates/places/index.html:93 (the page's action buttons)`
-
-#### Demonstrated by
-
-- 1 × failed: `test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does`
 
 ## CBDB-D-004 — On ten of the eleven translated forms, Chinese labels differ from the CBDB glossary's terms -- some of them changing the meaning: the Office form's Index Years filter is labelled 生卒年 (birth and death years), and five forms call the index year 索引年
 
@@ -459,7 +360,7 @@ The whole report is generated from one command. With the distribution zip named 
 .\run_tests.ps1
 ```
 
-That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1535 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
+That stages the archive, launches the shipped binary against a private copy of the shipped database, runs 1540 tests, and rewrites these files. The suite never writes to the reference copy of `Data/CBDB.db` — every test runs against a per-session copy, so a run leaves the distribution exactly as it found it.
 
 The test that demonstrates each issue is named under it. To run just one:
 

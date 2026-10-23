@@ -312,6 +312,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_cross_form_channel.py",
      "Passing a result from one form to another",
      "The stored-person list: what one form stores, another recalls"),
+    ("test_assoc_pairs.py",
+     "The Association Pairs form's intermediaries",
+     "That every person a 2-node query reports lies on a path between "
+     "the two seeds, read off the reply's own network, in all four "
+     "shapes of the query"),
     ("test_page_contracts.py",
      "Each page against its own handler",
      "Whether the two halves of a form agree about the request and the "
@@ -411,6 +416,10 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
     "test_cross_form_channel.py": ("在表單之間傳遞查詢結果",
                                   "已儲存人物清單：一個表單存入的，"
                                   "另一個表單取回的"),
+    "test_assoc_pairs.py": ("關係人配對表單的中介人物",
+                            "二節點查詢回報的每一個人，都位於兩位起點人物"
+                            "之間的路徑上——依回應本身的網絡判斷，"
+                            "四種查詢形式都檢查"),
     "test_page_contracts.py": ("各頁面與其後端的對照",
                                "表單的前後兩半對於請求與回應是否一致——"
                                "後端從不讀取的控制項、頁面讀不懂的回應、"

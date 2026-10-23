@@ -52,3 +52,35 @@ reason    = "The same agreement, one step earlier: two tabs of one form share a 
 reason_zh = "同一項協商，發生在更早的一步：同一個表單的兩個分頁共用一份工作清單，因此第二次匯入會取代第一次，接下來的查詢對象也就換成了另一批人。基於同樣的理由暫時維持現狀。"
 agreed_by = "maintainer"
 agreed_on = 2026-09-09
+
+
+# --- The Places form's network exports, which it offers no button for ------
+#
+# The Places page still defines exportPajek, exportGephi and exportUCINet,
+# and their routes still answer, but no control on the page calls them.
+# The developers' 20261021 note (Places revisions 2026-10-15) says that is
+# deliberate: a Places query builds no social or kinship network, so the
+# buttons were left off and the code kept in case they are wanted later.
+# Since no user can reach these exports, neither the unreachable code nor
+# a defect in the UCINet file it would write is worth reporting.  UCINet
+# itself is still offered, and still checked, on Association Pairs,
+# Networks and Kinship -- this covers the Places parametrisation only.
+#
+# Both entries end the day a Places button for these exports appears:
+# the reachability test then passes (an unexpected pass retires the
+# first), and the export's defect becomes one a user can hit.
+
+[test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does]
+raises    = "KnownShippedDefect"
+reason    = "Agreed 2026-10-23: the Places form deliberately offers no Pajek, Gephi or UCINet button (developers' note of 2026-10-15); the kept functions and routes are not a problem for our users."
+reason_zh = "2026-10-23 協商：地點表單刻意不提供 Pajek、Gephi 與 UCINet 按鈕（開發者 2026-10-15 的修訂說明）；保留下來的函式與路由對我們的使用者不構成問題。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-23
+
+[test_an_export_produces_a_well_formed_file]
+params    = ["places:ucinet"]
+raises    = "KnownShippedDefect"
+reason    = "Agreed 2026-10-23: the Places UCINet export has no button, so no user can produce the malformed network.vna.  Revisit if the button is ever added."
+reason_zh = "2026-10-23 協商：地點表單的 UCINet 匯出沒有按鈕，使用者無法產生有問題的 network.vna。日後若加上按鈕，再重新檢討。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-23
