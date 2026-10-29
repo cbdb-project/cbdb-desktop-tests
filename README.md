@@ -64,7 +64,7 @@ documented inline (work directory, timeouts, browser suppression, or
 the tests with a JSON report, and regenerates the issues report. Useful
 flags: `-Restage`, `-Fast` (skip everything needing the running app),
 `-Filter <k>` (pass `-k` to pytest), `-DryRun`. Or drive pytest directly
-with `python -m pytest tests -q` (about 8.5 minutes on the 20261021 build,
+with `python -m pytest tests -q` (about 9.5 minutes on Build_20261028,
 a third of it the browser tests; `-m "not slow"` leaves out the
 index-address rebuilds and the master's `quick_check`). The full
 `run_tests.ps1` adds report generation, most of it Word starting twice to

@@ -108,6 +108,20 @@ _NETWORKS_PICK_PERSON = """async () => {
 """ % SUBJECT
 
 
+#: Any real place, for preconditions that only need *a* place selected:
+#: the address is stored by the page, never queried, so the first one
+#: serves.  A choice of input, not a prediction.
+_ANY_PLACE = ("SELECT c_addr_id FROM ADDR_CODES WHERE c_addr_id > 0 "
+              "ORDER BY c_addr_id LIMIT 1")
+
+#: What the address picker does on selection: call the opener's
+#: handleAddressSelection with the chosen place.
+_PICK_PLACE = """() => {
+          handleAddressSelection({selectedAddresses:
+            [{id: $1, name: 'x', nameChn: ''}]});
+        }"""
+
+
 PRECONDITIONS: tuple[Precondition, ...] = (
     # The Networks form, reloaded with a person already on the server.
     #
@@ -281,6 +295,77 @@ PRECONDITIONS: tuple[Precondition, ...] = (
         notes="QBE-3: the SQL tab's Copy and Save are disabled until there "
               "is SQL to copy",
     ),
+    # Build_20261028 gave every form with an address filter the rule
+    # Status and Texts had in 20261021 (the developers' ENT-1, ASC-1,
+    # OFF-1, PLC-7, TXT-6): Include Subordinate Units and Use XY are
+    # greyed until a place is selected, and so is the All Places button
+    # that clears it.  Each is driven through the page's own
+    # handleAddressSelection, which is what the address picker calls.
+    Precondition(
+        page="entry",
+        path="/LookAtEntry",
+        choose=_ANY_PLACE,
+        interact=_PICK_PLACE,
+        settle_ms=200,
+        must_enable=("chkSubUnits", "chkUseXY"),
+        notes="ENT-1: disabled until a place is selected",
+    ),
+    Precondition(
+        page="associations",
+        path="/LookAtAssociations",
+        choose=_ANY_PLACE,
+        interact=_PICK_PLACE,
+        settle_ms=200,
+        must_enable=("chk-subunits", "chk-usexy"),
+        notes="ASC-1: disabled until a place is selected",
+    ),
+    Precondition(
+        page="places",
+        path="/LookAtPlace",
+        choose=_ANY_PLACE,
+        interact=_PICK_PLACE,
+        settle_ms=200,
+        must_enable=("include-sub-units", "use-xy", "btnAllPlaces"),
+        notes="PLC-7: the address options and All Places wait for a place",
+    ),
+    # The Office form has two place filters, the people's and the
+    # office's; the picker fills whichever _addrPickerTarget names, as
+    # its two Select buttons set it.  Both are driven.
+    Precondition(
+        page="office",
+        path="/LookAtOffice",
+        choose=_ANY_PLACE,
+        interact="""() => {
+          for (const target of ['people', 'office']) {
+            _addrPickerTarget = target;
+            handleAddressSelection({selectedAddresses:
+              [{id: $1, name: 'x', nameChn: ''}]});
+          }
+        }""",
+        settle_ms=200,
+        must_enable=("chk-sub-people", "chk-xy-people",
+                     "btn-all-places-people", "chk-sub-office",
+                     "chk-xy-office", "btn-all-places-office"),
+        notes="OFF-1: each place filter's options, and its All Places, "
+              "un-grey when that filter has a place",
+    ),
+    # Texts: All Places and All Texts clear a selection, so they are
+    # grey until there is one (TXT-6).
+    Precondition(
+        page="texts",
+        path="/LookAtTexts",
+        choose=_ANY_PLACE,
+        interact="""() => {
+          handleAddressSelection({selectedAddresses:
+            [{id: $1, name: 'x', nameChn: ''}]});
+          textsPickerCallback({codes: [$1], desc: 'x', descChn: ''});
+        }""",
+        settle_ms=200,
+        must_enable=("btnAllPlaces", "btnAllTexts"),
+        notes="TXT-6: the two clear buttons wait for something to clear; "
+              "the text code is only stored, never queried, so any "
+              "integer serves",
+    ),
     # The Associations form, which ships Run Query disabled as of the
     # 2026-09-08 build: it un-greys once at least one association code
     # has been picked.  Driven through the page's own picker callback,
@@ -350,7 +435,7 @@ PRECONDITIONS: tuple[Precondition, ...] = (
           officePickerCallback({codes: [%d], desc: 'x', descChn: ''});
         }""" % OFFICE_CODE,
         settle_ms=200,
-        must_enable=("btnRunQuery",),
+        must_enable=("btnRunQuery", "btn-all-offices"),
         notes="new in the 2026-09-15_2 build; what All Offices does to "
               "it -- every office within a place, since 20260925 -- is "
               "test_all_offices_leaves_the_office_form_able_to_query",
@@ -404,8 +489,9 @@ UNDECLARED: dict[str, tuple[str, ...]] = {
     "networks": ("btn-all-places", "btn-recall-id", "chk-place-limit",
                  "chk-sub-units", "chk-xy-ref", "txt-max-col", "txt-max-dwn",
                  "txt-max-mar", "txt-max-up"),
-    "office": ("btn-all-offices", "btn-all-places-office",
-               "btn-all-places-people", "btn-export-results",
+    # Three fewer since Build_20261028: All Offices and the two All
+    # Places buttons are declared with the place preconditions.
+    "office": ("btn-export-results",
                "btn-gis-office", "btn-gis-people", "btn-kml-office",
                "btn-kml-people", "btn-neo4j", "btn-store-ids"),
     "pickers/address_picker": ("btn-clear-filter", "btn-sel-all-filt",
@@ -526,12 +612,6 @@ _NOT_PAGE_FUNCTIONS = frozenset({
 #: The one page that throws while loading in the 20261021 build, and
 #: exactly what it logs.  Recognising this shape is what lets any other
 #: page that starts throwing arrive as an ordinary failure.
-_GROUP_DATA_NULL_QUERY = {
-    "/LookAtGroupData": ["Cannot read properties of null (reading "
-                         "'statusRecords')"],
-}
-
-
 def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
                                                             layout):
     """No page may raise during load.
@@ -567,24 +647,6 @@ def test_every_page_the_build_serves_loads_without_throwing(app: CbdbApp,
         except RuntimeError as exc:
             broken[path] = [str(exc)]
 
-    if broken == _GROUP_DATA_NULL_QUERY:
-        raise KnownShippedDefect(
-            "/LookAtGroupData throws while loading: \"Cannot read properties "
-            "of null (reading 'statusRecords')\".  "
-            "Templates/group_data/index.html updateRunButton() guards "
-            "hasData with `queryData !== null && ...`, then -- in six lines "
-            "new in 20261021, setting the per-section GIS checkboxes "
-            "chkGisStatus..chkGisAddr -- reads queryData.statusRecords, "
-            ".officeRecords, .entryRecords, .textRecords and .placeRecords "
-            "with no such guard.  queryData starts null and clearPeople() "
-            "sets it back to null, so the function throws whenever no "
-            "query has run: on load; after a successful Import from File "
-            "(the page reports 'Import error: ...' and leaves Clear "
-            "disabled); after Recall IDs; and inside Clear itself, which "
-            "then leaves the tabs and buttons uncleared.  "
-            "test_group_data_can_be_used_before_its_first_query shows the "
-            "user's side of it.")
-
     assert not broken, (
         "these pages logged an error while loading.  A page that throws "
         "during load stops attaching its handlers, and every control on "
@@ -617,19 +679,6 @@ def test_group_data_can_be_used_before_its_first_query(app: CbdbApp):
         loaded = page.evaluate("() => loadedPeople.length")
 
     assert status == 200, f"the server refused the import: HTTP {status}"
-    if ("Cannot read properties of null (reading 'statusRecords')" in error
-            and states["btnClear"] == "disabled"):
-        raise KnownShippedDefect(
-            f"Group Data: importing a one-person file (person {SUBJECT}) "
-            f"succeeds on the server (HTTP {status}, {loaded} person loaded "
-            f"into the page) and the page then reports \"{error}\", leaves "
-            f"Clear {states['btnClear']} and Import {states['btnImport']}.  "
-            "The import's success path calls updateRunButton(), which "
-            "reads queryData.statusRecords etc. while queryData is still "
-            "null (Templates/group_data/index.html, the six chkGis* lines "
-            "of updateRunButton, new in 20261021); the throw lands in the "
-            "import's catch, so the user is told the import failed and "
-            "cannot clear the list it actually loaded")
     assert not error, f"Group Data reported an error after an import: {error}"
     assert states["btnClear"] == "enabled", (
         f"after importing {loaded} person(s), Clear is {states['btnClear']}")
@@ -723,9 +772,12 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
     # (202, 41) on 20260925.  20261021 removed Networks' inline Rerun
     # button (NET-4) and added three listener-wired Query Builder buttons:
     # Copy SQL, Save SQL (QBE-3) and the join dialog's + Add fields (QBE-4).
-    assert (inline, listeners) == (201, 44), (
+    # Build_20261028 added four inline buttons and removed one: the Query
+    # Builder's EN / 繁 / 简, the Places form's All Places (PLC-7), and
+    # Status lost its Help button (STA-5).
+    assert (inline, listeners) == (204, 44), (
         f"{inline} buttons are wired with an inline onclick and "
-        f"{listeners} with addEventListener, against 201 and 44.  Only "
+        f"{listeners} with addEventListener, against 204 and 44.  Only "
         "the first kind can be checked here -- a listener's function "
         "need never be global -- so a build that moved them would "
         "shrink this test without failing it")
@@ -758,8 +810,8 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
 def test_every_disabled_control_has_a_declared_precondition(layout):
     """The coverage gate for this file: count what is not covered.
 
-    121 controls ship disabled on 20261021.  This file declares a
-    precondition for 53 of them; the rest are listed in ``UNDECLARED``, pinned, and
+    134 controls ship disabled on Build_20261028.  This file declares a
+    precondition for 69 of them; the rest are listed in ``UNDECLARED``, pinned, and
     that list may only shrink.  Without this the file would look like
     full coverage of enable state while checking four pages' worth.
 

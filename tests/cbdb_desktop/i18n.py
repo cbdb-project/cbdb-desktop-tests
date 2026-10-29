@@ -694,14 +694,17 @@ def _used(source: str, start: int, end: int, table: str, key: str, *,
     read as ``t.key``, ``t['key']``, or by passing the key as a string to
     a helper (the Browser's ``T('fldCbdbId')``, ``labelKey:
     'tabBasicInfo'``) -- so any quoted occurrence counts; key-major ones
-    through a ``data-lbl-idx="key"`` attribute or ``TABLE[key]``.  A key
+    through a ``data-lbl-idx="key"`` attribute (numbered keys, until
+    Build_20261028), a ``data-lbl="key"`` one (Kinship's named keys since
+    then -- not ``data-lbl-prefix``, which decorates such an element) or
+    ``TABLE[key]``.  A key
     *built* at run time (``'fld' + name``) would read as unused; none is
     in this build, and the report lists unused labels so one would show.
     """
     outside = source[:start] + " " * (end - start) + source[end:]
     k = re.escape(key)
     if key_major:
-        pattern = (rf"""data-lbl-idx\s*=\s*["']{k}["']"""
+        pattern = (rf"""data-lbl(?:-idx)?\s*=\s*["']{k}["']"""
                    rf"""|\b{re.escape(table)}\s*\[\s*['"]?{k}['"]?\s*\]""")
     else:
         pattern = rf"""\.{k}\b|['"`]{k}['"`]"""

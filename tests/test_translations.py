@@ -60,14 +60,15 @@ from cbdb_desktop.staging import AppLayout
 #: one-line change that says the reference moved.
 GLOSSARY_ROWS = 643
 
-#: How many pages offer a choice of language: 11 on the 20261021 build.
+#: How many pages offer a choice of language: 11 on the 20261021 build,
+#: 12 on Build_20261028, whose Query Builder gained EN / 繁 / 简.
 #: The pages themselves are *derived* from the build at collection time
 #: (``pytest_generate_tests`` below) -- no page name is written here --
 #: and this count is the floor-free check on that derivation: a build
 #: that dropped a page's switch, or a reader that stopped recognising
 #: one, would otherwise shrink every per-page test below to fewer pages
 #: and stay green.
-TRANSLATED_PAGE_COUNT = 11
+TRANSLATED_PAGE_COUNT = 12
 
 
 def pytest_generate_tests(metafunc):
@@ -227,11 +228,30 @@ def test_the_script_converter_is_the_pinned_one():
         "the pin deliberately and read what changes")
 
 
+#: Translated pages the glossary has no Access form for, and why.  Their
+#: labels are still judged by every rule that needs no glossary (both
+#: scripts, 繁 against 简, one English one way across pages, on screen);
+#: only the glossary-term rules have nothing to say.  Exact: the test
+#: below fails if the glossary gains rows for one of these.
+PAGES_WITHOUT_A_GLOSSARY_FORM = {
+    # Translated from Build_20261028.  FormLabels comes from the Access
+    # front end, where the query builder was Access's own Query Design
+    # view, so the sheet has no rows for it -- the developers' note "QBE
+    # translation 2026-10-28" says the same.
+    "qbe": "the Access front end used Access's own Query Design view",
+}
+
+
 def test_every_translated_page_is_judged_against_the_glossary(
         page, checked, glossary):
     """Scoping to a page's own forms must never mean "against nothing"."""
     labels, _ = checked
     assert labels.get(page), f"{page}: no translation labels were read"
+    if page in PAGES_WITHOUT_A_GLOSSARY_FORM:
+        assert not glossary.by_page.get(page), (
+            f"{page}: the glossary now has rows for this page; remove it "
+            "from PAGES_WITHOUT_A_GLOSSARY_FORM so they are used")
+        return
     assert glossary.by_page.get(page), (
         f"{page}: no glossary form maps to this page, so none of its "
         "labels can be judged against the glossary -- add its Access form "
@@ -314,8 +334,19 @@ _USABLE, _WHY_NOT = browser.available()
 
 
 def _route_of(layout: AppLayout) -> dict[str, str]:
-    from cbdb_desktop.routes import page_map
-    return {page: "/" + target for page, target in page_map(layout).items()}
+    """``page -> route``, derived as ``test_ui_pages`` derives it.
+
+    The form pages from the build's navigation map; the Query Builder --
+    translated since Build_20261028 and not in that map -- from the
+    routing table, which serves it at ``/QBE``.
+    """
+    from cbdb_desktop.routes import all_routes, concrete_get_pages, page_map
+    route_of = {page: "/" + target
+                for page, target in page_map(layout).items()}
+    for route in concrete_get_pages(all_routes(layout)):
+        if route.path == "/QBE":
+            route_of["qbe"] = route.path
+    return route_of
 
 
 #: Findings from the rendered pages, gathered for the report, and which
@@ -392,6 +423,8 @@ def test_each_chinese_language_shows_only_its_own_script(
 
 _TABLE_PAGE = r"""
 <span data-lbl-idx="1"></span><span data-lbl-idx="3"></span>
+<button data-lbl="storeIDs" data-lbl-prefix="> ">Store</button>
+<span data-lbl-prefix="unread">x</span>
 <script>
 const notATable = { english: 'x', other: 1 };
 /* const T = { english: { dead: 'Dead' }, traditional: { dead: '死' },
@@ -407,7 +440,9 @@ const LABELS = {
   // 1: the person picker
   1: { E: 'Select Person', T: '選擇人名', S: '选择人名' },
   2: { E: 'Count', T: `數量`, S: '数量' },
-  3: { E: 'Half', T: '半' }
+  3: { E: 'Half', T: '半' },
+  storeIDs: { E: 'Store Person IDs', T: '儲存人物代碼', S: '存储人物代码' },
+  unread: { E: 'Unread', T: '未讀', S: '未读' }
 };
 function setLanguage(lang) {
   const t = translations[lang];
@@ -431,7 +466,8 @@ def test_the_extractor_reads_both_table_shapes():
     the shapes that make a hand-rolled reader drift silently: a decoy
     object, a commented-out table, comments holding quotes and braces, a
     ``\\u`` escape, a template literal, a key missing from two languages,
-    a key-major entry missing one, a comment above a key and a string
+    a key-major entry missing one, key-major tables keyed by number and
+    by name (``data-lbl-idx`` and ``data-lbl``), a comment above a key and a string
     holding ``1:`` (both must not move a key's line), two tables with one
     name, and labels the page never reads.
     """
@@ -445,7 +481,9 @@ def test_the_extractor_reads_both_table_shapes():
             for l in tables["LABELS"]] == [
         ("1", "Select Person", "選擇人名", "选择人名"),
         ("2", "Count", "數量", "数量"),
-        ("3", "Half", "半", None)]
+        ("3", "Half", "半", None),
+        ("storeIDs", "Store Person IDs", "儲存人物代碼", "存储人物代码"),
+        ("unread", "Unread", "未讀", "未读")]
     assert by_key["runQuery"].line == _TABLE_PAGE.count(
         "\n", 0, _TABLE_PAGE.index("runQuery")) + 1
     one = next(l for l in tables["LABELS"] if l.key == "1")
@@ -457,6 +495,10 @@ def test_the_extractor_reads_both_table_shapes():
         "demo:translations.only": True, "demo:translations.hint": True,
         "demo:translations.spare": False,
         "demo:LABELS.1": True, "demo:LABELS.2": False, "demo:LABELS.3": True,
+        # Kinship's named keys since Build_20261028 (the developers'
+        # KIN-2): read through data-lbl="key".  data-lbl-prefix is a
+        # decoration on such an element, not a reference to a key.
+        "demo:LABELS.storeIDs": True, "demo:LABELS.unread": False,
         "demo:translations#2.runQuery": True}
     assert i18n.unreadable_tables("demo", _TABLE_PAGE) == []
 

@@ -606,8 +606,10 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 # /api/status-code-type-rel -- the two endpoints this survey had found
 # reachable from no page after the 20260916_2 picker rework.  (116
 # before that, and 118 before the 2026-09-15 build removed the two
-# Networks autocomplete helpers the same way.)
-EXPECTED_API_ROUTES = 114
+# Networks autocomplete helpers the same way.)  113 since Build_20261028,
+# whose Code/ is at last the binary's own source and so no longer
+# registers /api/networks/rerun, which the binary dropped in 20261021.
+EXPECTED_API_ROUTES = 113
 
 # Empty, and empty is what a clean build looks like.  Twice now an
 # endpoint has been orphaned by a page rework nobody meant to orphan it
@@ -704,18 +706,6 @@ def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(
             uncalled[path] = source
 
     unexpected = sorted(set(uncalled) - set(_ROUTED_AND_UNCALLED))
-    # The 20261021 signature, recognised exactly: the routes are read
-    # from Code/*.go, which in that archive is the previous build's
-    # source.  It still registers Rerun, which the binary and the page
-    # both dropped (the developers' NET-4) -- the stale source, stated
-    # with its evidence in test_build_provenance.py, not a dead endpoint.
-    if unexpected == ["/api/networks/rerun"]:
-        raise KnownShippedDefect(
-            "/api/networks/rerun is routed in the shipped source "
-            f"({uncalled['/api/networks/rerun']}) and called by no page -- "
-            "because the binary no longer has it either (PATCH answers 404).  "
-            "The Go source in the archive is the previous build's, not the "
-            "source of the shipped cbdb.exe; see test_build_provenance.py")
     assert not unexpected, (
         "an endpoint is routed that no page calls, and this file has not "
         f"judged it: { {p: uncalled[p] for p in unexpected} }")

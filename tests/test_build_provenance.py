@@ -23,17 +23,7 @@ from __future__ import annotations
 import pytest
 
 from cbdb_desktop import gobinary
-from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
-
-#: The 20261021 archive's signature, recognised exactly: an unrelated
-#: drift between source and binary arrives as a plain failure.
-_SHIPPED_STALE_SOURCE = (
-    ["InlineArgsForDisplay", "PlaceHandler.fillIndexAddresses",
-     "fmtOptFloat", "sqlLiteral"],
-    {"NetworkHandler.handleRerun": "networks_form_backend.go"},
-)
-
 
 def test_the_shipped_source_is_the_source_of_the_shipped_binary(
         layout: AppLayout):
@@ -54,24 +44,6 @@ def test_the_shipped_source_is_the_source_of_the_shipped_binary(
         "declares were found by name in cbdb.exe -- the binary's "
         "function-name table is no longer being read (a new Go version's "
         "layout?), so this comparison cannot judge the build")
-
-    if (result.only_in_binary, result.only_in_source) == _SHIPPED_STALE_SOURCE:
-        raise KnownShippedDefect(
-            "the Go source shipped in Code/ does not build the shipped "
-            f"cbdb.exe.  The binary contains {result.only_in_binary}, which "
-            "no file in Code/ declares, and lacks "
-            f"{sorted(result.only_in_source)} "
-            f"({', '.join(sorted(set(result.only_in_source.values())))}), "
-            "which the source declares and registers as POST "
-            "/api/networks/rerun -- a route the binary answers with 404.  "
-            "These are exactly the changes the archive's own revision notes "
-            "describe (QBE-3 InlineArgsForDisplay/sqlLiteral, PLC-4 "
-            "fillIndexAddresses, ASP-6 fmtOptFloat, NET-4 removing Rerun): "
-            "the binary was rebuilt after them and the source folder was "
-            "not refreshed.  Every Code/*.go except office_form_backend.go "
-            "is byte-identical to the previous archive's.  So any reading of "
-            "Code/ -- the route inventory, file:line citations -- describes "
-            "the previous build.")
 
     assert not result.only_in_binary and not result.only_in_source, (
         "the Go source shipped in Code/ is not the source of cbdb.exe: "

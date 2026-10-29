@@ -14,3 +14,38 @@
 # after reducing to Simplified.  Lines starting with # are comments.
 連結	连接	link, connection (二階連結 / 二阶连接)
 紀錄	记录	record
+# Added for Build_20261028, whose Query Builder was translated with
+# Taiwan software terms in Traditional and mainland ones in Simplified
+# (the developers' note "QBE translation 2026-10-28"; qbe.html:470).
+範例	示例	example (Query By Example / 范例查询)
+資料表	表	table, in a database
+資料列	行	row, in a table
+新增	添加	add
+加入	添加	add (to a canvas or list)
+建立	构建	build (a query)
+聯結	联接	join (SQL)
+連結	关联	link (two fields in a join)
+結合	组合	combine (criteria with AND / OR)
+選取	选择	select
+選取	选中	selected
+清單	列表	list
+按兩下	双击	double-click
+按一下	单击	click
+點選	单击	click
+設定	设置	set
+重設	重置	reset
+群組	分组	group (GROUP BY)
+準則	条件	criteria
+遞增	升序	ascending
+遞減	降序	descending
+傳回	返回	return (rows)
+筆資料	条记录	records, as a count
+載入	加载	load
+欄位	字段	field
+標題列	标题栏	title bar
+彙總	聚合	aggregate
+定位字元	制表符	tab character
+分頁	选项卡	tab (a page's tab)
+拖曳	拖动	drag
+執行	运行	run
+開啟	打开	open

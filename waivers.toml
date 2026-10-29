@@ -84,3 +84,61 @@ reason    = "Agreed 2026-10-23: the Places UCINet export has no button, so no us
 reason_zh = "2026-10-23 協商：地點表單的 UCINet 匯出沒有按鈕，使用者無法產生有問題的 network.vna。日後若加上按鈕，再重新檢討。"
 agreed_by = "maintainer"
 agreed_on = 2026-10-23
+
+
+# --- The developers' label review of 2026-10-26/28 -------------------------
+#
+# Build_20261028 ships the developers' review of every form's labels
+# against the same FormLabels table the translation check uses (the
+# fourteen notes beside the tree, converted under
+# docs/release-notes/CBDB-Desktop_Build_20261028/).  What the check still
+# reports is where they departed from the table on purpose -- 保存于… for
+# every Save to …, abbreviations written out, the Browser's column
+# headers, each results tab named for what links its people -- and every
+# such wording is recorded in those notes.  The maintainer accepted them
+# as the developers' decisions on 2026-10-29.
+#
+# Each entry is narrowed to the pages that fail today, so a page that
+# starts departing from the glossary later is still reported.  A wording
+# that is to be CBDB's term from now on belongs in the glossary itself
+# (docs/labels/FormLabels.xlsx), which then retires the waiver by itself.
+
+[test_chinese_labels_use_the_glossary_term]
+params    = ["association_pairs", "browser", "networks", "office", "places", "status"]
+raises    = "KnownShippedDefect"
+reason    = "Accepted 2026-10-29: the 16 Chinese labels that differ from the glossary are wordings the developers chose in their 2026-10-26/28 label review and recorded in its notes (保存于…, the Browser's pinyin and English columns, 官名, 任官記錄, 社會機構, 綜合人地關係, 有社會區分的人)."
+reason_zh = "2026-10-29 接受：與對照表不同的 16 個中文標籤，都是開發者在 2026-10-26／28 標籤審查中選定並記錄在說明中的措辭（保存于…、人物瀏覽的拼音欄與英文欄、官名、任官記錄、社會機構、綜合人地關係、有社會區分的人）。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-29
+
+[test_english_labels_use_the_glossary_term]
+params    = ["browser", "entry", "group_data", "kinship", "networks", "places"]
+raises    = "KnownShippedDefect"
+reason    = "Accepted 2026-10-29: the 32 English/Chinese pairs the glossary does not pair are the developers' decisions -- the Browser's column headers (checked by the maintainer 2026-10-27), abbreviations written out (Max Ancestor Generations, Use Person Address), and Run Query / 查詢 and Save to GIS / 保存于GIS on every form."
+reason_zh = "2026-10-29 接受：對照表不這樣配對的 32 組英文／中文，都是開發者的決定——人物瀏覽的欄位標題（維護者已於 2026-10-27 檢查）、寫全的縮寫（Max Ancestor Generations、Use Person Address），以及所有表單上的 Run Query／查詢 與 Save to GIS／保存于GIS。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-29
+
+[test_one_english_label_is_translated_one_way_across_pages]
+raises    = "KnownShippedDefect"
+reason    = "Accepted 2026-10-29: the 9 English words translated more than one way across pages are short shared English over Chinese named for each page's context -- each query form's People tab, the Browser's column headers, the QBE's query Status."
+reason_zh = "2026-10-29 接受：在不同頁面上有多種譯法的 9 個英文詞，都是共用的簡短英文對應依各頁上下文命名的中文——各查詢表單的 People 分頁、人物瀏覽的欄位標題、QBE 的查詢狀態。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-29
+
+
+# --- The Query Builder's Taiwan and mainland Chinese -----------------------
+#
+# Translated for the first time in Build_20261028, with Taiwan software
+# terms in Traditional and mainland ones in Simplified (qbe.html:470).
+# The term pairs are in docs/labels/regional_terms.tsv; what remains is
+# whole sentences each written idiomatically for its own readers (與/和,
+# 至/到, 依/按, 會/将), which no word table should equate.
+
+[test_traditional_and_simplified_say_the_same_thing]
+params    = ["qbe"]
+raises    = "KnownShippedDefect"
+reason    = "Agreed 2026-10-29: the Query Builder's Traditional and Simplified texts are localised separately for Taiwan and mainland readers; the 13 remaining differences are idiomatic phrasing, not different meanings."
+reason_zh = "2026-10-29 協商：查詢建構器的繁體與簡體文字分別為台灣與大陸讀者在地化；剩下的 13 處差異是各自道地的措辭，意思並無不同。"
+agreed_by = "maintainer"
+agreed_on = 2026-10-29

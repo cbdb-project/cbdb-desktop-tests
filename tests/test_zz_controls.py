@@ -101,12 +101,16 @@ EXPECTED_BUTTONS = {
     "pickers/people_picker": 3,
     "pickers/status_picker": 4,
     "pickers/texts_picker": 4,
-    "places": 13,
+    # 14 since Build_20261028: All Places, which clears the place (PLC-7).
+    "places": 14,
     # 11 since 20261021: Copy SQL and Save SQL on the SQL tab (QBE-3)
     # and the join dialog's "+ Add fields" (QBE-4).  All three work in
     # the page alone and reach no endpoint.
-    "qbe": 11,
-    "status": 16,
+    # 14 since Build_20261028: the EN / 繁 / 简 language buttons.
+    "qbe": 14,
+    # 15 since Build_20261028: Help removed until the new version has
+    # help files (STA-5).
+    "status": 15,
     "texts": 17,
 }
 

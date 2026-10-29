@@ -21,7 +21,6 @@ import pytest
 
 from cbdb_desktop import routes as R
 from cbdb_desktop.app import CbdbApp
-from cbdb_desktop.defects import KnownShippedDefect
 from cbdb_desktop.staging import AppLayout
 
 pytestmark = pytest.mark.app
@@ -50,7 +49,7 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     them must not slip through because a floor was set low enough to
     accommodate it.
     """
-    assert len(routes) == 140, "\n".join(_ids(routes))
+    assert len(routes) == 139, "\n".join(_ids(routes))
 
     methods = sorted({m for r in routes for m in r.methods})
     assert methods == ["GET", "POST"], methods
@@ -77,10 +76,18 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     #                      relations the reworked pickers had stopped
     #                      fetching, reported last round as reachable
     #                      from no page.
+    #
+    # And Build_20261028 one more, 140 -> 139:
+    #
+    #   networks 18 -> 17  /api/networks/rerun.  The binary had already
+    #                      dropped it with its button (NET-4) in 20261021;
+    #                      that archive's Code/ was the previous build's
+    #                      and still registered it.  This one ships the
+    #                      binary's own source, so the count caught up.
     assert per_form == {
         "associations": 8, "assocpairs": 10, "browser": 14,
         "cbdb_navigation_backend": 5, "entry": 9, "groupdata": 8,
-        "indexaddr": 5, "kinship": 15, "main": 9, "networks": 18,
+        "indexaddr": 5, "kinship": 15, "main": 9, "networks": 17,
         "office": 8, "places": 10, "qbe_handlers": 3, "status": 10,
         "texts": 8,
     }, per_form
@@ -170,19 +177,6 @@ def test_every_registered_api_route_still_exists(app: CbdbApp, routes):
             failures.append(f"PATCH {route.path} -> {response.status_code}, "
                             f"expected 405 ({route.source})")
 
-    # The 20261021 signature, recognised exactly.  The route inventory is
-    # read from Code/*.go, and that archive's Code/ is the previous
-    # build's source: the binary dropped Rerun (the developers' NET-4)
-    # and the source still registers it.  The finding is the stale
-    # source -- test_build_provenance.py states it with the evidence --
-    # and this is one of the places it shows.
-    if gone == ["/api/networks/rerun"] and len(failures) == 1:
-        raise KnownShippedDefect(
-            f"{failures[0]}.  The route is registered in the shipped "
-            "Code/ but not in the shipped cbdb.exe: the Go source in the "
-            "archive is the previous build's (see "
-            "test_build_provenance.py), so this inventory, read from it, "
-            "lists a route the program no longer has")
     assert not failures, "\n".join(failures)
 
 

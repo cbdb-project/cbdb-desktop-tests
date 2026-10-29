@@ -48,12 +48,16 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1540 tests collected against
-`CBDB-Desktop_20261021.7z`, and the defect registry holds this round's
-eight findings, two of them waived** (the last canonical run: 1326
-passed, 29 failed, 181 skipped, 4 waived -- every failure is a filed
-finding raising its signature).  It was
-refiled from scratch on 2026-10-22, so that this distribution was
+**Current state: 1546 tests collected against
+`CBDB-Desktop_Build_20261028.7z`, and the defect registry holds this
+round's six findings, five of them waived** (the last canonical run:
+1344 passed, 3 failed, 181 skipped, 18 waived -- the three failures are
+the one unwaived finding raising its signature).  That build's
+`cbdb.exe` and `cbdb.db` are byte-identical to 20261021's; it changed
+the page templates (the developers' label review of 2026-10-26/28) and
+shipped the binary's own source, which retired the previous round's
+stale-source and Group Data findings.  The registry was
+refiled from scratch on 2026-10-22, so that 20261021 was
 assessed with no carried-over knowledge of what an earlier build did -- and it has since been filled by *this* round, which
 is the whole of its intended life: it is emptied again before the next
 one.  Do not read it as an inventory of what CBDB-Desktop does wrong --
@@ -83,10 +87,11 @@ something the suite quietly expects.
 
 Of those tests, 420 are generated from the shipped data
 (`test_query_matrix.py`, including the switch sweep), 102 from the
-pages' own translation tables (`test_translations.py`), and 503 from the
+pages' own translation tables (`test_translations.py`, 110 since
+Build_20261028 translated the Query Builder), and 503 from the
 build's own export and control inventories -- see § *Coverage is the
 program's job*.  The run's measured endpoint coverage is written to
-`artifacts/endpoint_coverage.json`; on the 20261021 build,
+`artifacts/endpoint_coverage.json`; on Build_20261028,
 **104 of 104** endpoints the shipped pages mention were actually
 requested, with nothing excused.  ("Mention", not "reach": an endpoint
 called only from a function nothing runs is counted too, because
@@ -97,7 +102,7 @@ on 20260908, 106 on 20260910, 107 on 20260915_2, 105 on 20260916_2 (the
 entry and status pickers stopped fetching their code-to-type relations),
 still 105 on 20260925, whose deletion of those two uncalled routes
 could not move it, and 104 on 20261021, whose Networks page dropped
-Rerun Last Query (NET-4) -- so read the artefact rather than this
+Rerun Last Query (NET-4), still 104 on Build_20261028 -- so read the artefact rather than this
 paragraph for the current run.
 
 That number was not always earned.  It read 105 of 105 for a while
@@ -111,17 +116,18 @@ travels from one form to another.  Read that file before adding to it:
 the endpoints are individually trivial and collectively are the
 feature, which is why driving them one at a time proves almost
 nothing.
-Enable-state coverage is the honest counterpart: of the 121 controls
-that ship disabled on 20261021, 53 have a declared precondition across
-17 `PRECONDITIONS` entries (19 across seven until this round, which
-declared the twelve the build newly greys out and more besides), and
-the other 68 are pinned in `test_ui_pages.UNDECLARED`, which may only
-shrink.  A `Precondition` may now carry a `choose` query that picks its
+Enable-state coverage is the honest counterpart: of the 134 controls
+that ship disabled on Build_20261028, 69 have a declared precondition
+across 22 `PRECONDITIONS` entries (five added for the thirteen the build
+newly greys out -- Sub-units, Use XY and the All Places / All Texts
+clear buttons until a place or text is chosen -- and Office's three
+clear buttons besides), and the other 65 are pinned in
+`test_ui_pages.UNDECLARED`, which may only shrink.  A `Precondition` may now carry a `choose` query that picks its
 input from the shipped database, so a new declaration needs no
 hand-picked code.
 Beside it sits the coverage number that says what a dead page costs:
 `test_every_button_is_wired_to_a_function_that_exists` checks, for each
-of the 201 buttons wired with an inline `onclick`, that the function it
+of the 204 buttons wired with an inline `onclick`, that the function it
 names exists once the page has loaded.  The 44 wired with
 `addEventListener` cannot be asked that way -- such a function need
 never be global -- and the split is pinned so a build that moved them
@@ -160,7 +166,7 @@ review. Both times the reasoning that led there sounded fine:
 | The HTTP contract | status codes, declared JSON keys, 405 on the wrong verb |
 | Agreement between two of the app's own outputs | the export vs. the grid it rendered; kinship's person-count vs. networks' |
 | **Base facts** from the shipped DB | `COUNT(*)` of one table; "is this code in `ADDR_CODES`" |
-| The Go source read as **data** | the list of registered routes; the `/{page}` map -- **only as good as the claim that it is the binary's source**: on 20261021 it was last build's, and `test_build_provenance.py` is what said so.  Where source and binary disagree, drive the binary |
+| The Go source read as **data** | the list of registered routes; the `/{page}` map -- **only as good as the claim that it is the binary's source**: on 20261021 it was last build's, and `test_build_provenance.py` is what said so (Build_20261028 ships the binary's own).  Where source and binary disagree, drive the binary |
 | Frozen goldens | "the address picker returns 37,180 rows for 29,992 addresses" |
 | Internal invariants of one response | every returned row carries a code that was asked for |
 | Choosing a cheap **input** from the data | "which entry codes have 2–12 rows" — selects an input, predicts nothing |
@@ -836,7 +842,7 @@ covers its kind, is how this decays.
 .\run_tests.ps1              # everything: stage, test, both reports
 .\run_tests.ps1 -Restage     # discard the cached tree first
 .\run_tests.ps1 -Fast        # skip everything needing the running app
-python -m pytest tests -q                 # ~8.5 min on 20261021
+python -m pytest tests -q                 # ~9.5 min on Build_20261028
 python -m pytest tests -q -m "not slow"   # the same, less the rebuilds
 ```
 
