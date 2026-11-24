@@ -141,6 +141,7 @@ The priority ladder (`PRIORITIES` in the same file):
 - **P3** packaging — the released files contain something they should not, or lack something they should
 - **P4** data integrity — a reference in the shipped data does not resolve
 - **P5** unreachable feature — implemented, and no page can ask for it
+- **P6** wording — a label says the wrong thing, or in the wrong script, in one of the three display languages (added 2026-10-22 with the translation check; see `translation-check.md`)
 
 P0-P2 run worst-first; P3 onward are kinds, not degrees. The ladder is not
 fixed in length. Add a band when a round finds a kind of defect the

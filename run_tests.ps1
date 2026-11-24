@@ -1,6 +1,7 @@
 # run_tests.ps1 -- the one command that produces a complete build report.
 #
-#   .\run_tests.ps1              stage, test, report
+#   .\run_tests.ps1              stage, convert the release notes, test,
+#                                report (issues and translations)
 #   .\run_tests.ps1 -Restage     discard the cached tree and unpack again
 #   .\run_tests.ps1 -Fast        skip everything that needs the running app
 #   .\run_tests.ps1 -Filter x    pass -k x to pytest
@@ -102,6 +103,14 @@ $stageArgs = if ($Restage) { "--force" } else { "" }
 $code = Run "python `"$ROOT\stage.py`" $stageArgs"
 if ($code -ne 0) { throw "staging failed" }
 
+# The developers' notes that ship beside the tree, as Markdown under
+# docs/release-notes/<archive stem>/.  Read them before the failures:
+# they say what this build claims to have changed.  Idempotent -- a
+# second run over the same archive changes nothing.
+Step "Converting the release notes"
+$code = Run "python `"$ROOT\release_notes.py`""
+if ($code -ne 0) { throw "release-note conversion failed" }
+
 # ---- 3. run the tests ----------------------------------------------------
 Step "Running the tests"
 $pytestArgs = @("`"$ROOT\tests`"", "-q", "--json-report",
@@ -135,6 +144,18 @@ if ($Fast) {
     }
 }
 
+# The translation check's full list, for whoever fixes the wording:
+# English, Traditional and Simplified Chinese against
+# docs/labels/FormLabels.xlsx (kept ASCII: PowerShell 5.1 reads a script
+# with no BOM as ANSI, where UTF-8 Chinese can decode to quote marks).  After the
+# tests, so it can include what the browser test saw on screen.  Needs no
+# app, so it runs under -Fast too (without the on-screen half).
+Step "Writing the translation report"
+$code = Run "python `"$ROOT\check_translations.py`""
+if ($code -ne 0) {
+    Write-Host "  the translation report could not be written (see above)" -ForegroundColor Yellow
+}
+
 # ---- 5. say what happened ------------------------------------------------
 Step "Summary"
 if (-not $DryRun -and -not $Fast) {
@@ -151,6 +172,7 @@ if (-not $DryRun -and -not $Fast) {
         (Count "passed"), (Count "xfailed"), (Count "skipped"), (Count "failed"), (Count "error"))
     Write-Host ("  issue reports: {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues_EN.*"))
     Write-Host ("                 {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Issues_ZH-Hant.*"))
+    Write-Host ("  translations:  {0}" -f (Join-Path $REPORTS "CBDB_Desktop_Translations.*"))
 
     if ((Count "xpassed") -gt 0) {
         Write-Host ("  {0} test(s) passed unexpectedly: a waived outcome may have gone away." -f (Count "xpassed")) -ForegroundColor Yellow

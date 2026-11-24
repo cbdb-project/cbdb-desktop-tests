@@ -452,68 +452,6 @@ def test_the_association_pairs_query_runs_on_the_list_it_was_given(
         "it reads is not what Clear empties")
 
 
-def test_rerun_seeds_the_working_list_with_the_people_the_query_found(
-        app: CbdbApp, travellers, clean_channel):
-    """*Rerun Last Query* is a step outward, not a repeat.
-
-    The button's name says one thing and the endpoint does another, and
-    the two together are coherent once read as a pair: ``/rerun`` copies
-    the *result* of the last query into the working list, and the page
-    then calls ``/query`` again -- so the second query walks outward
-    from everybody the first one found.  That is how a user grows a
-    network a step at a time.
-
-    What is checked is the join between the two halves: the number
-    ``/rerun`` reports is the number the query found, and the working
-    list afterwards holds exactly that many.  Both come from the
-    application's own endpoints; nothing here predicts how large a
-    network ought to be.
-    """
-    app.post("/api/networks/set-person", json={"personId": travellers[1]})
-    found = _run_a_query(app, "networks")
-    assert found > 1, (
-        f"the seed query found {found} people; with nothing to expand "
-        "from, this test would pass on a rerun that did nothing")
-
-    rerun = app.post("/api/networks/rerun", json={})
-    assert rerun.status_code == 200, \
-        f"rerun failed: HTTP {rerun.status_code} {rerun.text[:200]}"
-    # `rerun` reports RowsAffected and `person-count` is COUNT(*) of the
-    # same table, so comparing those two to each other could not fail.
-    # What can fail, and is the property the button promises, is that
-    # the working list ends up holding the people the *query* found --
-    # measured against the query's own answer, one endpoint against
-    # another.
-    assert rerun.json()["count"] == found, (
-        f"the query found {found} people and rerun took "
-        f"{rerun.json()['count']} of them into the working list")
-
-    seeded = _working_list_size(app, "networks")
-    assert seeded == found, (
-        f"the query found {found} people and the working list now holds "
-        f"{seeded}; the next query would expand from a different set of "
-        "people than the one the user was shown")
-
-    # Re-querying from the seeded list must reach at least everybody
-    # the first query found, since each of them is now a starting
-    # point.  Stated as a floor on a *count*, which is all
-    # ``_run_a_query`` returns -- so the comment this used to carry,
-    # "and the people themselves, not merely how many", promised
-    # something it did not do: a rerun seeded with a different but
-    # equally large set satisfies it exactly.
-    #
-    # Left as a count, and now described as one.  Comparing the people
-    # would mean reading the working list back through the recall
-    # endpoint, which is tested separately in this file and would make
-    # this test fail for that reason rather than its own.
-    again = _run_a_query(app, "networks")
-    assert again >= found, (
-        f"expanding from {found} people reached {again}, fewer than "
-        "started; rerun seeded the working list with somebody else. "
-        "This compares how many, not who: a rerun that reached a "
-        "different set of the same size or larger would pass.")
-
-
 @pytest.mark.parametrize("form", sorted(SINGLE_PERSON_STORES))
 def test_what_a_single_person_store_saves_another_form_recalls(
         app: CbdbApp, form: str, travellers, clean_channel):

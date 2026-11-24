@@ -86,6 +86,15 @@ PRIORITIES: dict[str, tuple[str, str]] = {
            "這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否"
            "正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又"
            "有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。"),
+    "P6": ("Wording — a label on a page says the wrong thing, or says it "
+           "in the wrong script, in one of the three display languages "
+           "(English, Traditional or Simplified Chinese).  Judged against "
+           "the CBDB label glossary by fixed rules; nothing the "
+           "application computes is affected, but a reader can be misled "
+           "about what a control does.",
+           "用語問題——頁面上的標籤在三種顯示語言（英文、繁體、簡體中文）"
+           "之一說錯了意思，或用錯了字體。依固定規則對照 CBDB 標籤對照表"
+           "判定；不影響程式的計算結果，但可能讓讀者誤解控制項的作用。"),
 }
 
 #: Where a defect comes from, which is the same question as who can fix
@@ -180,307 +189,6 @@ class Defect:
 #: in ``cbdb_desktop/waivers.py``.
 _DEFECTS: tuple[Defect, ...] = (
     Defect(
-        key="CBDB-D-001",
-        priority="P0", severity="medium", origin="software",
-        title="Opening someone's Kinship tab in the Browser replaces the "
-              "Kinship form's result: its Export Query Results then "
-              "exports the other person's network, and its Store Person "
-              "IDs adds the other person to the stored list",
-        title_zh="在人物瀏覽中開啟某人的「親屬關係」分頁，會取代親屬表單的"
-                 "查詢結果：之後「匯出查詢結果」匯出的是另一個人的親屬網絡，"
-                 "「儲存人物ID」也會把另一個人加進儲存清單",
-        area="Person Browser (/CBDB_Browser) and Kinship form "
-             "(/LookAtKinship)",
-        area_zh="人物瀏覽（/CBDB_Browser）與親屬表單（/LookAtKinship）",
-        summary="The Browser's Kinship tab calls "
-                "`GET /api/browser/person/{id}/kinship`, and "
-                "`handleGetKinship` begins by deleting `ZZ_KIN_LIST`, "
-                "`ZZ_KIN_LIST_TMP`, `ZZ_SCRATCH_KIN` and "
-                "`ZZ_SCRATCH_KINNET` before filling them with its own "
-                "traversal.  Those are the tables the Kinship form's query "
-                "left its answer in, and two of the Kinship form's buttons "
-                "read them back rather than what the page is showing:\n\n"
-                "- **Export Query Results** (`handleExportResults`) reads "
-                "`ZZ_SCRATCH_KINNET` and `ZZ_SCRATCH_KIN`, so it exports "
-                "the Browser person's network.  Only half of it changes: "
-                "its third file, `KinshipPeople.tsv`, is read from "
-                "`ZZ_SP_KINSHIP`, which the Browser does not touch, so the "
-                "bundle describes two different people at once.\n"
-                "- **Store Person IDs** (`doStorePersonIDsConfirmed`) "
-                "stores the kin from `ZZ_SP_KINSHIP` and the ego from "
-                "`ZZ_SCRATCH_KIN`, so the stored list -- the channel by "
-                "which a result travels to every other form -- gains the "
-                "Browser's person.\n\n"
-                "Reached two ways from the Browser page: pressing its "
-                "Kinship tab, and Export Profile, which loads every tab it "
-                "has not cached -- Kinship included -- for a user who never "
-                "opened it.  The Kinship page keeps showing its own result "
-                "throughout, and nothing on either page says anything has "
-                "changed.  The page's own comment on Export Query Results "
-                "says the export \"always reflects exactly what the last "
-                "query wrote to those tables\"; the Browser is a second "
-                "writer that comment does not allow for.",
-        summary_zh="人物瀏覽的「親屬關係」分頁會呼叫 "
-                   "`GET /api/browser/person/{id}/kinship`，而 "
-                   "`handleGetKinship` 一開始就刪除 `ZZ_KIN_LIST`、"
-                   "`ZZ_KIN_LIST_TMP`、`ZZ_SCRATCH_KIN` 與 "
-                   "`ZZ_SCRATCH_KINNET`，再寫入它自己的親屬走訪結果。"
-                   "這四張暫存表正是親屬表單查詢留下答案的地方，而親屬表單"
-                   "有兩個按鈕是從這些表讀回資料，而不是使用頁面上顯示的"
-                   "內容：\n\n"
-                   "- **匯出查詢結果**（`handleExportResults`）讀取 "
-                   "`ZZ_SCRATCH_KINNET` 與 `ZZ_SCRATCH_KIN`，因此匯出的是"
-                   "人物瀏覽中那個人的網絡。而且只換掉了一半：第三個檔案 "
-                   "`KinshipPeople.tsv` 讀自 `ZZ_SP_KINSHIP`，人物瀏覽不會"
-                   "動到這張表，所以壓縮檔同時描述了兩個不同的人。\n"
-                   "- **儲存人物 ID**（`doStorePersonIDsConfirmed`）從 "
-                   "`ZZ_SP_KINSHIP` 取親屬、從 `ZZ_SCRATCH_KIN` 取中心人物，"
-                   "因此儲存清單——也就是查詢結果傳往其他所有表單的管道——"
-                   "會多出人物瀏覽中的那個人。\n\n"
-                   "從人物瀏覽頁面有兩條路會觸發：按下「親屬關係」分頁，以及"
-                   "「匯出人物檔案」（Export Profile）——後者會載入所有尚未快取的分頁，包括"
-                   "親屬關係，即使使用者從未打開過它。整個過程中親屬頁面仍"
-                   "顯示原本的結果，兩個頁面都沒有任何訊息說明內容已改變。"
-                   "頁面自己在「匯出查詢結果」旁的註解寫著，匯出「永遠正好"
-                   "反映上一次查詢寫入這些表的內容」；人物瀏覽是這段註解沒有"
-                   "考慮到的第二個寫入者。",
-        evidence="Both halves driven through the running binary.  "
-                 "`test_looking_a_person_up_does_not_discard_a_kinship_"
-                 "result`: a Kinship query for person 1, then "
-                 "`GET /api/browser/person/10/kinship`, then Export Query "
-                 "Results -- HTTP 200, a `KinshipResults.zip` whose "
-                 "`EgoRelativeKinship.tsv` went from 920 to 9,795 "
-                 "characters and whose `KinshipNetwork.tsv` went from 1,067 "
-                 "to 295, while `KinshipPeople.tsv` came back identical.  "
-                 "Re-running the query for person 1 returns its 6 "
-                 "kinRecords again, so the result was replaced, not "
-                 "damaged.  `test_looking_a_person_up_does_not_change_what_"
-                 "kinship_stores`: from the same result, Store Person IDs "
-                 "stored 6 people before the lookup and 7 after -- person "
-                 "10 added, nobody removed.\n\n"
-                 "Read from the source: the four `DELETE`s at the top of "
-                 "`handleGetKinship`; the two tables "
-                 "`doStorePersonIDsConfirmed` reads; `loadTabKinship` on "
-                 "the Browser page, which `EXPORT_TABS` lists as Export "
-                 "Profile's Kinship loader "
-                 "(`test_export_profile_loads_the_kinship_tab_it_lists`).  "
-                 "The Kinship query's own clear step is commented \"add "
-                 "ZZ_SP_KINSHIP vs browser\" -- the Kinship query clears "
-                 "the tables the Browser also uses, plus the one it does "
-                 "not, so the sharing of the other four was known.  The "
-                 "five other "
-                 "Kinship exports build their rows from the records the "
-                 "page posts and are unaffected.",
-        evidence_zh="兩個部分都透過實際執行的程式驗證。"
-                    "`test_looking_a_person_up_does_not_discard_a_kinship_"
-                    "result`：先對人物 1 執行親屬查詢，再呼叫 "
-                    "`GET /api/browser/person/10/kinship`，然後按「匯出查詢"
-                    "結果」——回應 HTTP 200，得到的 `KinshipResults.zip` 中 "
-                    "`EgoRelativeKinship.tsv` 由 920 字元變為 9,795 字元，"
-                    "`KinshipNetwork.tsv` 由 1,067 變為 295，而 "
-                    "`KinshipPeople.tsv` 與原本相同。對人物 1 重新查詢仍回傳 "
-                    "6 筆 kinRecords，可見結果是被取代，而不是損壞。"
-                    "`test_looking_a_person_up_does_not_change_what_kinship_"
-                    "stores`：同一份結果，查看前「儲存人物ID」存了 6 人，"
-                    "查看後存了 7 人——多了人物 10，沒有人被移除。\n\n"
-                    "從原始碼讀出的部分：`handleGetKinship` 開頭的四個 "
-                    "`DELETE`；`doStorePersonIDsConfirmed` 讀取的兩張表；人物"
-                    "瀏覽頁面上的 `loadTabKinship`，`EXPORT_TABS` 把它列為"
-                    "「匯出人物檔案」（Export Profile）的親屬載入函式"
-                    "（`test_export_profile_loads_the_kinship_tab_it_lists`）。"
-                    "親屬查詢自己的清除步驟註解寫著「add ZZ_SP_KINSHIP vs "
-                    "browser」——親屬查詢清除人物瀏覽也在用的那幾張表，再加上"
-                    "它不用的這一張，可見開發者知道另外四張是與人物瀏覽共用的。親屬"
-                    "表單的其他五種匯出是用頁面傳來的資料列產生，不受影響。",
-        impact="A historian who looks somebody up in the Browser between "
-               "running a Kinship query and acting on it gets, without any "
-               "error or sign on either page, either an export about a "
-               "different person's kin stitched to the first person's "
-               "people list, or a stored list that carries one extra "
-               "person into whatever form it is recalled into next.  "
-               "It takes the Browser and the Kinship form open in two "
-               "tabs at once -- a natural way to check a relative, and "
-               "the circumstance the one-window agreement accepts, under "
-               "which this is currently waived -- and both results look "
-               "plausible, so they are likely to be used.  Medium rather "
-               "than high because it takes that particular sequence, and "
-               "the grid on screen stays correct.",
-        impact_zh="研究者若在執行親屬查詢之後、使用結果之前，到人物瀏覽查看了"
-                  "某個人，就會在沒有任何錯誤、兩個頁面也看不出跡象的情況下，"
-                  "得到一份描述另一個人親屬、卻拼上第一個人人物清單的匯出檔，"
-                  "或是一份多了一個人的儲存清單，並被帶進下一個調用它的表單。"
-                  "這需要同時在兩個分頁開著人物瀏覽與親屬表單——查看親屬時很"
-                  "自然的做法，也是「一次只用一個視窗」那項協商所接受、目前"
-                  "據以豁免本問題的情境——而兩種結果看起來都合理，因此很可能"
-                  "被直接拿去使用。嚴重度列為中而非高，是因為必須恰好走過這個順序，而且"
-                  "畫面上的表格本身仍是正確的。",
-        fix="Give the Browser its own kinship scratch tables, as each form "
-            "already has its own, or have `handleGetKinship` compute its "
-            "traversal without writing to the Kinship form's.  That cures "
-            "both buttons.  Changing Export Query Results to export the "
-            "records its page holds, as the other five exports do, would "
-            "cure the export and leave Store Person IDs as it is.",
-        fix_zh="讓人物瀏覽擁有自己的親屬暫存表（每個表單本來就各有一套），"
-               "或讓 `handleGetKinship` 在計算親屬走訪時不寫入親屬表單的"
-               "暫存表。這樣兩個按鈕都會一併修好。若只把「匯出查詢結果」改為"
-               "匯出頁面手上的資料列（另外五種匯出就是這樣做），能修好匯出，"
-               "但「儲存人物ID」的問題仍然存在。",
-        steps=(
-            "Open Kinship, choose a person, and press Run Query.  Note "
-            "the result.",
-            "In another tab, open the Person Browser, look up a different "
-            "person, and press the Kinship tab (or Export Profile).",
-            "Return to the Kinship tab -- it still shows the first "
-            "person's result -- and press Export Query Results.  Unzip "
-            "KinshipResults.zip: KinshipNetwork.tsv and "
-            "EgoRelativeKinship.tsv describe the second person; "
-            "KinshipPeople.tsv still describes the first.",
-            "Press Store Person IDs, then Recall on any other form: the "
-            "second person is among the people recalled.",
-        ),
-        steps_zh=(
-            "開啟親屬表單，選擇一位人物並按「執行查詢」，記下結果。",
-            "在另一個分頁開啟人物瀏覽，查詢另一位人物，並按「親屬關係」"
-            "分頁（或「匯出人物檔案」（Export Profile））。",
-            "回到親屬表單——畫面仍顯示第一個人的結果——按「匯出查詢結果」。"
-            "解壓縮 KinshipResults.zip：KinshipNetwork.tsv 與 "
-            "EgoRelativeKinship.tsv 描述的是第二個人；KinshipPeople.tsv "
-            "描述的仍是第一個人。",
-            "按「儲存人物ID」，再到任何其他表單按「調取ID」：第二個人也在"
-            "調用進來的人物之中。",
-        ),
-        source=(
-            "Code/browser_form_backend.go:handleGetKinship (the four "
-            "DELETEs at its top)",
-            "Code/kinship_form_backend.go:handleExportResults (reads "
-            "ZZ_SCRATCH_KINNET and ZZ_SCRATCH_KIN back, and ZZ_SP_KINSHIP)",
-            "Code/kinship_form_backend.go:doStorePersonIDsConfirmed (kin "
-            "from ZZ_SP_KINSHIP, ego from ZZ_SCRATCH_KIN)",
-            "Templates/browser/index.html:1724 (loadTabKinship)",
-            "Templates/browser/index.html:182 (EXPORT_TABS, which Export "
-            "Profile walks)",
-        ),
-        tests=("test_looking_a_person_up_does_not_discard_a_kinship_result",
-               "test_looking_a_person_up_does_not_change_what_kinship_stores"),
-    ),
-    Defect(
-        key="CBDB-D-002",
-        priority="P0", severity="medium", origin="software",
-        title="The Places form's \"Export as ASCII (pinyin)\" checkbox is "
-              "ignored by Save to GIS and Save to KML",
-        title_zh="地點表單的「以ASCII（拼音）而非Unicode匯出」核取方塊，對「保存到GIS」"
-                 "與「保存到KML」完全沒有作用",
-        area="Places form (/LookAtPlace): /api/places/export-gis",
-        area_zh="地點表單（/LookAtPlace）的「保存到GIS」與「保存到KML」兩種匯出",
-        summary="The Places page sends the checkbox as `encoding: "
-                "\"ascii\"` with each export beside it "
-                "(`getExportEncoding`).  Of those three buttons, Export "
-                "Neo4j CSVs honours it and the other two do not: "
-                "`handleExportGIS` decodes `Encoding` and never reads it, "
-                "and both of its writers put the Chinese fields in the "
-                "file whatever was asked -- `writePlaceTab` writes every "
-                "`*Chn` column beside its pinyin twin, and `writePlaceKML` "
-                "writes `NameChn` into each placemark's description.  A "
-                "user who ticks the "
-                "box and presses Save to GIS or Save to KML gets the "
-                "Unicode file, byte for byte, with nothing to say so.\n\n"
-                "The same form's Gephi writer honours the choice in part: "
-                "its edge labels switch to pinyin and its node labels stay "
-                "`NameChn`.  No button reaches that export on this build "
-                "(CBDB-D-003); it is recorded here too so that wiring one "
-                "up does not ship the same fault.",
-        summary_zh="地點表單在這個核取方塊旁的每一種匯出中，都會把它以 "
-                   "`encoding: \"ascii\"` 傳給後端（`getExportEncoding`）。"
-                   "這三個按鈕中，「導出Neo4j CSV」有遵照，另外兩個"
-                   "沒有：`handleExportGIS` 解析了 `Encoding` 卻從未讀取，"
-                   "兩個寫檔函式不論要求為何都會寫入中文欄位——"
-                   "`writePlaceTab` 把每個 `*Chn` 欄位與其拼音欄位並列寫出，"
-                   "`writePlaceKML` 則把 `NameChn` 寫進每個地標的說明。使用者"
-                   "勾選後按「保存到GIS」或「保存到KML」，拿到的是與 "
-                   "Unicode 版本逐位元組相同的檔案，而且沒有任何提示。\n\n"
-                   "同一表單的 Gephi 匯出只遵照了一部分：邊的標籤改為拼音，"
-                   "節點標籤仍是 `NameChn`。這個版本沒有任何按鈕能觸發該匯出"
-                   "（見 CBDB-D-003）；一併記錄在這裡，免得日後接上按鈕時帶著"
-                   "同樣的問題上線。",
-        evidence="`test_an_export_asked_for_ascii_contains_only_ascii` "
-                 "posts two records in which every Chinese field has an "
-                 "ASCII pinyin twin, once with `encoding=unicode` and once "
-                 "with `encoding=ascii`, and reads each file past any "
-                 "leading byte-order mark.  With ascii: `places:gis` "
-                 "delivered `places_export.tsv` with 72 bytes above 0x7F "
-                 "and `places:kml` delivered `places_export.kml` with 18 "
-                 "-- both byte-for-byte the unicode export.  "
-                 "`places:gephi` delivered `network_ascii.gdf` with 42, "
-                 "different from its unicode file.  `places:neo4j` and "
-                 "`places:pajek` passed (pure ASCII past the mark); "
-                 "`places:ucinet` writes no Chinese in either mode and "
-                 "has nothing to judge.",
-        evidence_zh="`test_an_export_asked_for_ascii_contains_only_ascii` 送出"
-                    "兩筆每個中文欄位都有 ASCII 拼音對應的資料，分別以 "
-                    "`encoding=unicode` 與 `encoding=ascii` 各送一次，並略過"
-                    "檔首的位元組順序標記後讀取檔案。以 ascii 送出時："
-                    "`places:gis` 得到的 `places_export.tsv` 有 72 個大於 "
-                    "0x7F 的位元組，`places:kml` 得到的 `places_export.kml` "
-                    "有 18 個——兩者都與 unicode 版本逐位元組相同。"
-                    "`places:gephi` 得到的 `network_ascii.gdf` 有 42 個，"
-                    "與它的 unicode 檔案不同。`places:neo4j` 與 "
-                    "`places:pajek` 通過（標記之後全為 ASCII）；"
-                    "`places:ucinet` 兩種模式都不寫入中文，無從判斷。",
-        impact="The checkbox is there for a user whose GIS or mapping tool "
-               "cannot read Chinese, and those are exactly the files it "
-               "does nothing to.  They get Unicode names they asked not "
-               "to get, in a file that looks like the one they asked for, "
-               "and the only sign is the tool that then shows them "
-               "garbage.  Medium: the files are not wrong for anyone who "
-               "did not tick the box, and Neo4j does honour it.",
-        impact_zh="這個核取方塊是為了 GIS 或地圖工具無法讀取中文的使用者而設，"
-                  "而它恰恰對這兩種檔案不起作用。使用者明明要求不要中文，拿到"
-                  "的卻是 Unicode 名稱，檔案看起來又像是他們要的那一份，唯一的"
-                  "跡象是之後工具顯示出一堆亂碼。嚴重度列為中：對沒有勾選的人"
-                  "而言檔案並沒有錯，而且 Neo4j 匯出確實有遵照。",
-        fix="In `handleExportGIS`, read `Encoding` and pass it to both "
-            "writers, which in ascii mode should leave the Chinese out, as "
-            "`buildPlaceNeo4jFiles` already does: `writePlaceTab` by "
-            "omitting or blanking its `*Chn` columns, `writePlaceKML` by "
-            "leaving `NameChn` out of the description.  In "
-            "`handleExportGephi`, use `n.NamePY` as the node label in "
-            "ascii mode, as its edge labels already do.",
-        fix_zh="在 `handleExportGIS` 中讀取 `Encoding` 並傳給兩個寫檔函式，"
-               "ascii 模式下不寫入中文，就像 `buildPlaceNeo4jFiles` 已經做的"
-               "那樣：`writePlaceTab` 省略或清空各個 `*Chn` 欄位，"
-               "`writePlaceKML` 不把 `NameChn` 寫進說明。在 "
-               "`handleExportGephi` 中，ascii 模式下以 `n.NamePY` 作為節點"
-               "標籤，與它的邊標籤一致。",
-        steps=(
-            "Open Places and run any query that returns rows with "
-            "Chinese names.",
-            "Tick \"Export as ASCII (pinyin) instead of Unicode\".",
-            "Press Save to KML, and separately Save to GIS.",
-            "Open either file: it carries the Chinese -- the KML in each "
-            "placemark's description, the GIS file in its *Chn columns -- "
-            "and is identical to the one saved with the box unticked.",
-        ),
-        steps_zh=(
-            "開啟地點表單，執行任何會回傳中文名稱的查詢。",
-            "勾選「以ASCII（拼音）而非Unicode匯出」。",
-            "按「保存到KML」，再另外按「保存到GIS」。",
-            "打開任一檔案：中文仍在其中——KML 在每個地標的說明裡，GIS "
-            "檔在各個 *Chn 欄位——而且與沒有勾選時存下的檔案完全相同。",
-        ),
-        source=(
-            "Code/places_form_backend.go:handleExportGIS (decodes Encoding, "
-            "never reads it)",
-            "Code/places_form_backend.go:writePlaceTab (every *Chn column "
-            "beside its pinyin twin)",
-            "Code/places_form_backend.go:writePlaceKML (NameChn in the "
-            "placemark description)",
-            "Code/places_form_backend.go:handleExportGephi (NameChn as the "
-            "node label in both modes)",
-            "Templates/places/index.html:727 (getExportEncoding)",
-        ),
-        tests=("test_an_export_asked_for_ascii_contains_only_ascii",),
-    ),
-    Defect(
         key="CBDB-D-003",
         priority="P5", severity="low", origin="software",
         title="The Places form's Pajek, Gephi/GUESS and UCINet exports "
@@ -491,28 +199,31 @@ _DEFECTS: tuple[Defect, ...] = (
              "/api/places/export-gephi, /api/places/export-ucinet",
         area_zh="地點表單（/LookAtPlace）的 Pajek、Gephi/GUESS 與 UCINet 三種網絡匯出",
         summary="The Places page defines `exportPajek`, `exportGephi` and "
-                "`exportUCINet`, each posting the query result and the "
-                "ASCII choice to its endpoint and downloading the answer, "
-                "and the three handlers are routed and answer.  Nothing "
-                "on the page invokes any of the three functions: its "
-                "buttons are Run Query, Store Person IDs, Export Query "
-                "Results, Save to KML, Save to GIS and Export Neo4j CSVs, "
-                "and no listener or load-time code calls them either.  "
-                "So three network exports -- the formats the other network "
-                "forms offer -- exist on both sides and no user can reach "
-                "them.  Whether their output is right is a separate "
-                "question: the Gephi one keeps Chinese node labels in "
-                "ASCII mode (CBDB-D-002).",
+                "`exportUCINet`, each posting the query result to its "
+                "endpoint and downloading the answer, and the three "
+                "handlers are routed and answer.  Nothing on the page "
+                "invokes any of the three functions: its buttons are Run "
+                "Query, Store Person IDs, Export Query Results, Save to KML, "
+                "Save to GIS and Save to Neo4j, and no listener or "
+                "load-time code calls them either.  The developers' "
+                "2026-10-15 revision note (PLC-6) says this is deliberate: "
+                "the functions and routes are \"kept, although the form has "
+                "no buttons for them\", because a Places query builds no "
+                "social or kinship network and these exports would be "
+                "fragmentary, in case the steering committee later wants "
+                "the buttons.  Filed so that decision is visible in the "
+                "report; it is the maintainer's to accept.",
         summary_zh="地點表單頁面定義了 `exportPajek`、`exportGephi` 與 "
-                   "`exportUCINet`，各自把查詢結果與 ASCII 選項送到對應的"
-                   "端點並下載回應，三個後端處理函式也都有路由、能夠回應。"
-                   "但頁面上沒有任何東西會呼叫這三個函式：它的按鈕只有執行"
-                   "查詢、儲存人物ID、導出查詢結果、保存到KML、保存到GIS "
-                   "與導出Neo4j CSV，也沒有任何事件監聽或載入時執行的程式碼"
-                   "呼叫它們。因此這三種網絡匯出——其他網絡類表單都有提供的"
-                   "格式——前後端都已存在，卻沒有使用者到得了。至於輸出是否"
-                   "正確是另一個問題：Gephi 匯出在 ASCII 模式下仍保留中文節點"
-                   "標籤（見 CBDB-D-002）。",
+                   "`exportUCINet`，各自把查詢結果送到對應的端點並下載回應，"
+                   "三個後端處理函式也都有路由、能夠回應。但頁面上沒有任何"
+                   "東西會呼叫這三個函式：它的按鈕只有執行查詢、儲存人物ID、"
+                   "導出查詢結果、保存到KML、保存到GIS 與保存到Neo4j，也沒有"
+                   "任何事件監聽或載入時執行的程式碼呼叫它們。開發者 2026-10-15 "
+                   "的修訂說明（PLC-6）表示這是刻意的：雖然表單上沒有按鈕，"
+                   "這些函式與路由仍「保留」，因為地點查詢不建立社會或親屬網絡，"
+                   "這些匯出只會產生片段的網絡；保留是為了日後指導委員會若要"
+                   "加上按鈕時備用。列入報告是為了讓這個決定可見；是否接受由"
+                   "維護者決定。",
         evidence="`test_every_endpoint_a_page_calls_is_reachable_from_"
                  "something_a_user_does` walks each page's call graph from "
                  "everything that can run -- buttons, every inline "
@@ -520,36 +231,33 @@ _DEFECTS: tuple[Defect, ...] = (
                  "by name, and the `window.X` callbacks popups call back "
                  "into.  Across every page the build ships, these three "
                  "are the only endpoints a page mentions that the walk "
-                 "never reaches.  The textual survey "
-                 "(`test_every_api_endpoint_the_build_routes_has_a_page_"
-                 "that_calls_it`) counts them as called, because the "
-                 "fetches are there, inside functions nothing runs.",
+                 "never reaches.  The PLC-6 note confirms the intent and "
+                 "lists, as an open item, adding a comment above "
+                 "`exportUCINet()` saying they are kept on purpose.",
         evidence_zh="`test_every_endpoint_a_page_calls_is_reachable_from_"
                     "something_a_user_does` 從每個頁面上所有可能執行的地方"
                     "出發——按鈕、每個行內 `on...=` 處理函式、載入時執行的"
                     "程式碼、以名稱註冊的事件監聽，以及彈出視窗回呼的 "
                     "`window.X`——沿著頁面的呼叫關係走訪。在這個版本的所有"
-                    "頁面中，只有這三個端點是頁面提到、卻走訪不到的。純文字"
-                    "的普查（`test_every_api_endpoint_the_build_routes_has_a_"
-                    "page_that_calls_it`）把它們算作「有呼叫」，因為 fetch "
-                    "確實寫在頁面裡，只是位於沒有任何東西會執行的函式中。",
+                    "頁面中，只有這三個端點是頁面提到、卻走訪不到的。PLC-6 "
+                    "說明證實這是刻意的，並把「在 `exportUCINet()` 上方加註解"
+                    "說明刻意保留」列為待辦事項。",
         impact="A historian working in Places cannot produce the Pajek, "
                "Gephi or UCINet files the other network forms offer, and "
                "there is nothing on the page to say the feature exists.  "
                "No wrong answer is given; the feature is simply "
-               "unreachable.",
+               "unreachable, by the developers' choice.",
         impact_zh="在地點表單中工作的研究者，無法產生其他網絡類表單都能產生的 "
                   "Pajek、Gephi 或 UCINet 檔案，頁面上也沒有任何跡象顯示這項"
-                  "功能存在。這不會給出錯誤的結果，只是功能到不了。",
-        fix="Add the three buttons the functions were written for, as the "
-            "Kinship and Networks pages have, or delete the functions and "
-            "handlers if the Places form is not meant to offer these "
-            "formats.  Fix the Gephi ASCII labels (CBDB-D-002) before "
-            "wiring it up.",
-        fix_zh="補上這三個函式原本要搭配的按鈕（親屬與網絡頁面都有），或者若"
-               "地點表單本來就不打算提供這些格式，就刪除這些函式與後端處理"
-               "函式。接上 Gephi 之前，請先修正它的 ASCII 標籤問題"
-               "（CBDB-D-002）。",
+                  "功能存在。這不會給出錯誤的結果，只是功能到不了——而這是開發者"
+                  "的選擇。",
+        fix="Either accept it as designed (a waiver keyed on the test "
+            "above records that), or add the three buttons, or delete the "
+            "functions and handlers.  The comment PLC-6 proposes would "
+            "tell a reader of the page why they are there.",
+        fix_zh="可以接受為既定設計（以上述測試為鍵登錄一筆豁免即可記錄這個決定），"
+               "或補上三個按鈕，或刪除這些函式與後端處理函式。PLC-6 提議的"
+               "註解可讓閱讀頁面程式碼的人知道它們為何存在。",
         steps=(
             "Open Places and run a query that returns rows.",
             "Look for a Pajek, Gephi/GUESS or UCINet export: there is "
@@ -562,16 +270,364 @@ _DEFECTS: tuple[Defect, ...] = (
             "程式碼中定義了 exportPajek、exportGephi 與 exportUCINet。",
         ),
         source=(
-            "Templates/places/index.html:825 (exportUCINet, called by "
+            "Templates/places/index.html:953 (exportUCINet, called by "
             "nothing)",
-            "Templates/places/index.html:842 (exportPajek, called by "
+            "Templates/places/index.html:970 (exportPajek, called by "
             "nothing)",
-            "Templates/places/index.html:859 (exportGephi, called by "
+            "Templates/places/index.html:987 (exportGephi, called by "
             "nothing)",
-            "Templates/places/index.html:92 (the page's action buttons)",
+            "Templates/places/index.html:94 (the page's action buttons)",
         ),
         tests=("test_every_endpoint_a_page_calls_is_reachable_from_"
                "something_a_user_does",),
+    ),
+    Defect(
+        key="CBDB-D-004",
+        priority="P6", severity="low", origin="software",
+        title="On six of the twelve translated pages, 16 Chinese labels "
+              "differ from the CBDB glossary's terms -- every one a "
+              "wording the developers chose in their 2026-10-26/28 label "
+              "review, such as 保存于… for every Save to … button",
+        title_zh="十二個有翻譯的頁面中有六個，共 16 個中文標籤與 CBDB 標籤"
+                 "對照表的用語不同——每一個都是開發者在 2026-10-26／28 標籤"
+                 "審查中選定的措辭，例如所有 Save to … 按鈕都寫作「保存于…」",
+        area="The translation tables of Association Pairs, Browser, "
+             "Networks, Office, Places and Status",
+        area_zh="兩兩關係、人物瀏覽、社會網絡、官職、地點與社會區分頁面的翻譯表",
+        summary="When a label's English is a term the CBDB label glossary "
+                "(the Access front end's FormLabels table, "
+                "docs/labels/FormLabels.xlsx in the test repository) "
+                "defines for that form, its Chinese should be one of the "
+                "glossary's renderings of that term.  16 labels on six "
+                "pages are not, down from 116 on ten forms in 20261021: "
+                "the developers reviewed every form against the same table "
+                "between 2026-10-26 and 2026-10-28 and recorded where they "
+                "departed from it.  What is left is those departures:\n\n"
+                "- Save to UCINet / GIS / Gephi / Pajek: `保存于…` on "
+                "Association Pairs (1) and Networks (4), the wording their "
+                "conventions note fixes for every form.\n"
+                "- Browser (6): the pinyin and English columns beside a "
+                "Chinese one -- `出處拼音`, `地名拼音`, `機構拼音`, "
+                "`社會機構拼音`, `社會區分(英文)`, `入仕法(英文)`.\n"
+                "- Office: *Office* `官名`, *Office Postings* `任官記錄`.\n"
+                "- Places: *Institutional* `社會機構`, *Aggregated People "
+                "and Places* `綜合人地關係` (the HTML wording kept and the "
+                "Chinese rewritten to match, 2026-10-28).\n"
+                "- Status: *People* `有社會區分的人`, which the notes "
+                "propose as a correction to the glossary's LAS 10.\n\n"
+                "Every one of these wordings appears in the developers' "
+                "label-revision notes shipped beside the tree.",
+        summary_zh="當一個標籤的英文是 CBDB 標籤對照表（Access 前端的 "
+                   "FormLabels 表，即測試儲存庫中的 docs/labels/FormLabels.xlsx）"
+                   "為該表單定義的用語時，它的中文應當是對照表為該用語給出的"
+                   "譯名之一。六個頁面共 16 個標籤不是如此，比 20261021 版十個"
+                   "表單 116 個大幅減少：開發者在 2026-10-26 至 2026-10-28 "
+                   "之間依同一份對照表逐一審查了所有表單，並記錄了與對照表"
+                   "不同之處。剩下的就是這些刻意的差異：\n\n"
+                   "- Save to UCINet／GIS／Gephi／Pajek：兩兩關係（1）與社會"
+                   "網絡（4）寫作 `保存于…`，這是開發者的慣例說明為所有表單"
+                   "定下的措辭。\n"
+                   "- 人物瀏覽（6）：中文欄旁的拼音欄與英文欄——`出處拼音`、"
+                   "`地名拼音`、`機構拼音`、`社會機構拼音`、`社會區分(英文)`、"
+                   "`入仕法(英文)`。\n"
+                   "- 官職：*Office* 寫作 `官名`，*Office Postings* 寫作 "
+                   "`任官記錄`。\n"
+                   "- 地點：*Institutional* 寫作 `社會機構`，*Aggregated People "
+                   "and Places* 寫作 `綜合人地關係`（保留 HTML 的英文，改寫"
+                   "中文以符合之，2026-10-28）。\n"
+                   "- 社會區分：*People* 寫作 `有社會區分的人`，開發者的說明"
+                   "建議據此更正對照表的 LAS 10。\n\n"
+                   "這些措辭全都出現在隨版本附上的開發者標籤修訂說明中。",
+        evidence="`test_chinese_labels_use_the_glossary_term`, one test "
+                 "per page, fails on six of twelve: networks 4, browser 6, "
+                 "office 2, places 2, association_pairs 1, status 1.  "
+                 "Labels are read as data from each template's translation "
+                 "object, only labels the page reads are judged, and each is "
+                 "compared only with its own Access form's glossary rows, "
+                 "after reducing both sides to one script and allowing "
+                 "Taiwan/mainland vocabulary.  Each Chinese wording above "
+                 "was searched for in the fourteen revision notes and found.",
+        evidence_zh="`test_chinese_labels_use_the_glossary_term` 每個頁面一個"
+                    "測試，十二個中有六個失敗：社會網絡 4、人物瀏覽 6、官職 2、"
+                    "地點 2、兩兩關係 1、社會區分 1。標籤是從每個模板的翻譯物件"
+                    "中以資料方式讀出，只判定頁面實際使用的標籤，且每個標籤只和"
+                    "它自己的 Access 表單的對照表列比較，比較前先把兩邊轉成同一種"
+                    "字體，並容許兩岸用語差異。上述每個中文措辭都在十四份修訂"
+                    "說明中搜尋過，均有記錄。",
+        impact="None for a reader beyond wording: none of these changes "
+               "what a label says the control does.  The meaning-changing "
+               "labels of 20261021 (生卒年 for Index Years, 索引年, 身份 "
+               "for Status, 服制圈) are gone.",
+        impact_zh="對讀者而言只是措辭差異：沒有一個改變標籤所說明的控制項"
+                  "作用。20261021 版中改變意思的標籤（Index Years 寫作生卒年、"
+                  "索引年、Status 寫作身份、服制圈）都已不存在。",
+        fix="Accepted by the maintainer on 2026-10-29 as the developers' "
+            "decisions.  Where a wording is meant to be CBDB's term from "
+            "now on, change the glossary to it, so the two stay one "
+            "vocabulary.",
+        fix_zh="維護者已於 2026-10-29 接受為開發者的決定。若某個措辭今後即為 "
+               "CBDB 的用語，應據此修改對照表，讓兩者維持同一套用語。",
+        steps=(
+            "Open Look At Social Networks and press 繁: the export "
+            "buttons read 保存于GIS, 保存于Gephi, 保存于UCINet, 保存于Pajek.",
+        ),
+        steps_zh=(
+            "開啟社會網絡表單，按「繁」：匯出按鈕寫作 保存于GIS、保存于Gephi、"
+            "保存于UCINet、保存于Pajek。",
+        ),
+        source=(
+            "Templates/networks/index.html:453 (saveToGIS: '保存于GIS')",
+            "Templates/office/index.html:224 (office: '官名')",
+            "Templates/status/index.html:230 (people: '有社會區分的人')",
+        ),
+        tests=("test_chinese_labels_use_the_glossary_term",),
+    ),
+    Defect(
+        key="CBDB-D-005",
+        priority="P6", severity="low", origin="software",
+        title="32 labels on six pages pair English and Chinese the glossary "
+              "does not pair -- the Browser's column headers, written-out "
+              "abbreviations such as Max Ancestor Generations over 先世值≤, "
+              "and Run Query over 查詢",
+        title_zh="六個頁面上有 32 個標籤，其英文與中文的配對與對照表不符——"
+                 "人物瀏覽的欄位標題、寫全的縮寫（如 Max Ancestor Generations "
+                 "對應「先世值≤」），以及 Run Query 對應「查詢」",
+        area="Browser, Entry, Group Data, Kinship, Networks and Places "
+             "translation tables",
+        area_zh="人物瀏覽、入仕、群體資料、親屬、社會網絡與地點頁面的翻譯表",
+        summary="When a label's Chinese is a glossary term for its form "
+                "and its English is not a glossary term at all, the English "
+                "should be the glossary's English for that Chinese.  32 "
+                "are not:\n\n"
+                "- Browser (21): column headers named in context -- *First "
+                "Year*/*Last Year* over `始年`/`終年` on four tabs, *CBDB "
+                "ID* and *ID:* over `人物代碼`, *Birth:*/*Death:* over "
+                "`生年`/`卒年`, *Age* over `享年`, *Offices* over `職官`, "
+                "*Exam Rank* over `科第名次` and others.\n"
+                "- Kinship and Networks (4): *Max Ancestor Generations* / "
+                "*Max Descendant Generations* over `先世值≤` / `後世值≤`, "
+                "the glossary's \"Max Ancestor Gen.\" written out (LBL-72); "
+                "Networks also *Max Node Distance:* over `距離限制：`.\n"
+                "- Entry (2): *Use Person Address* / *Use Entry Address* "
+                "over `使用指數地址` / `使用入仕地址` (\"Use Person Addr\" "
+                "written out).\n"
+                "- Group Data (2): *Run Query* over `查詢` and *Save to GIS* "
+                "over `保存于GIS`, the conventions note's wording for every "
+                "form.\n"
+                "- Places (2): *From year* / *To year* over `始年` / `終年`.\n\n"
+                "The Browser was checked by the maintainer on 2026-10-27; "
+                "the other wordings are recorded in the developers' notes.",
+        summary_zh="當一個標籤的中文是其表單的對照表用語、而英文完全不是對照表"
+                   "用語時，英文應是對照表為該中文所給的英文。有 32 個不是：\n\n"
+                   "- 人物瀏覽（21）：依上下文命名的欄位標題——四個分頁上的 "
+                   "*First Year*／*Last Year* 對應 `始年`／`終年`，*CBDB ID* 與 "
+                   "*ID:* 對應 `人物代碼`，*Birth:*／*Death:* 對應 `生年`／"
+                   "`卒年`，*Age* 對應 `享年`，*Offices* 對應 `職官`，*Exam "
+                   "Rank* 對應 `科第名次` 等。\n"
+                   "- 親屬與社會網絡（4）：*Max Ancestor Generations*／*Max "
+                   "Descendant Generations* 對應 `先世值≤`／`後世值≤`，即把"
+                   "對照表的「Max Ancestor Gen.」寫全（LBL-72）；社會網絡另有 "
+                   "*Max Node Distance:* 對應 `距離限制：`。\n"
+                   "- 入仕（2）：*Use Person Address*／*Use Entry Address* 對應 "
+                   "`使用指數地址`／`使用入仕地址`（把「Use Person Addr」寫全）。\n"
+                   "- 群體資料（2）：*Run Query* 對應 `查詢`，*Save to GIS* 對應 "
+                   "`保存于GIS`，皆為慣例說明為所有表單定下的措辭。\n"
+                   "- 地點（2）：*From year*／*To year* 對應 `始年`／`終年`。\n\n"
+                   "人物瀏覽已由維護者於 2026-10-27 檢查；其餘措辭都記錄在開發者"
+                   "的說明中。",
+        evidence="`test_english_labels_use_the_glossary_term` fails for "
+                 "browser (21), networks (3), entry (2), group_data (2), "
+                 "kinship (2) and places (2).  Only labels whose English is "
+                 "*not* a glossary term are judged this way, so a pair is "
+                 "reported once (by D-004 or here), never from both sides.  "
+                 "Kinship's two are measured for the first time on this "
+                 "build: the page moved to named label keys "
+                 "(data-lbl=\"maxUp\", KIN-2), which the checker read as "
+                 "unused until it was taught the new shape.",
+        evidence_zh="`test_english_labels_use_the_glossary_term` 在人物瀏覽"
+                    "（21）、社會網絡（3）、入仕（2）、群體資料（2）、親屬（2）"
+                    "與地點（2）上失敗。只有英文「不是」對照表用語的標籤才以這種"
+                    "方式判定，因此一組對應只會被報告一次（在 D-004 或這裡）。"
+                    "親屬的兩個是在此版本首次量測到：該頁改用具名的標籤鍵"
+                    "（data-lbl=\"maxUp\"，KIN-2），檢查程式在學會這種寫法之前"
+                    "把它們當成未使用。",
+        impact="Wording only.  The 20261021 mismatch that told the two "
+               "readers different things -- the Browser tab captioned "
+               "Basic Information over 生卒年 -- is gone.",
+        impact_zh="只是措辭差異。20261021 版中讓兩種讀者得到不同訊息的配對——"
+                  "人物瀏覽英文為 Basic Information、中文卻為「生卒年」的分頁——"
+                  "已不存在。",
+        fix="Accepted by the maintainer on 2026-10-29 as the developers' "
+            "decisions.  Where the written-out English is to be CBDB's "
+            "label from now on, add it to the glossary.",
+        fix_zh="維護者已於 2026-10-29 接受為開發者的決定。若寫全的英文今後即為 "
+               "CBDB 的標籤，應將其加入對照表。",
+        steps=(
+            "Open Look At Kinship in English: the step limits read Max "
+            "Ancestor Generations: etc.; press 繁: 先世值≤, the glossary's "
+            "Chinese for Max Ancestor Gen.",
+        ),
+        steps_zh=(
+            "以英文開啟親屬表單：步數限制寫作 Max Ancestor Generations: 等；"
+            "按「繁」：寫作「先世值≤」，即對照表中 Max Ancestor Gen. 的中文。",
+        ),
+        source=(
+            "Templates/kinship/index.html:167 (maxUp: '先世值≤')",
+            "Templates/browser/index.html:432 (adFirst: '始年')",
+        ),
+        tests=("test_english_labels_use_the_glossary_term",),
+    ),
+    Defect(
+        key="CBDB-D-007",
+        priority="P6", severity="low", origin="software",
+        title="One English label, several Chinese words: 9 labels are "
+              "translated differently on different pages (People six "
+              "ways, Type four ways)",
+        title_zh="同一個英文標籤、好幾種中文：9 個標籤在不同頁面上譯法不同"
+                 "（People 有六種、Type 有四種）",
+        area="Translation tables across all pages",
+        area_zh="所有頁面的翻譯表",
+        summary="Grouping every translated label by its English shows 9 "
+                "that the pages translate in more than one way: *People* "
+                "(`社會關係的人`, `人物`, `於地址有關係的人`, "
+                "`有社會區分的人`, ... -- the results tab of each query "
+                "form named for what links its people), *Type*, "
+                "*Chinese*, *Addresses*, *Entry*, *Offices*, *Status*, "
+                "*Texts* and *Place*.  Most of the other wordings are the "
+                "Browser's column headers, a short English word over a "
+                "field named in context (*Chinese* over `親戚姓名`), and "
+                "the QBE's *Status* heading `狀態`, which is a query's "
+                "status rather than CBDB's social distinction.  Down from "
+                "23 in 20261021; Save to GIS, Index Year and Recall IDs "
+                "are now one wording each.",
+        summary_zh="把所有翻譯標籤依英文分組，有 9 個在不同頁面上有多於一種"
+                   "譯法：*People*（`社會關係的人`、`人物`、`於地址有關係的人`、"
+                   "`有社會區分的人`……——每個查詢表單的結果分頁依其人物之間的"
+                   "關聯命名）、*Type*、*Chinese*、*Addresses*、*Entry*、"
+                   "*Offices*、*Status*、*Texts* 與 *Place*。其他譯法大多是人物"
+                   "瀏覽的欄位標題，即一個簡短英文詞對應依上下文命名的欄位"
+                   "（*Chinese* 對應 `親戚姓名`），以及 QBE 的 *Status* 標題 "
+                   "`狀態`，指的是查詢的狀態，而非 CBDB 的社會區分。比 20261021 "
+                   "版的 23 個減少；Save to GIS、Index Year 與 Recall IDs 現在"
+                   "各只有一種譯法。",
+        evidence="`test_one_english_label_is_translated_one_way_across_"
+                 "pages` (needs no glossary).  Wordings are grouped by "
+                 "OpenCC's script and Taiwan/mainland equivalence plus the "
+                 "pairs in docs/labels/regional_terms.tsv; several Chinese "
+                 "labels under one English word on the *same* page are "
+                 "fields named in context and are not counted.",
+        evidence_zh="`test_one_english_label_is_translated_one_way_across_"
+                    "pages`（不需對照表）。措辭依 OpenCC 的字體與兩岸用語對應，"
+                    "加上 docs/labels/regional_terms.tsv 中的詞對歸類；同一頁面"
+                    "內一個英文詞對應數個中文標籤，是依上下文命名的欄位，不計入。",
+        impact="Wording only: each Chinese label is right for its own "
+               "page, and the English is the shorter, shared word.",
+        impact_zh="只是措辭差異：每個中文標籤在它自己的頁面上都正確，英文則是"
+                  "較短、共用的詞。",
+        fix="Accepted by the maintainer on 2026-10-29 as the developers' "
+            "decisions.",
+        fix_zh="維護者已於 2026-10-29 接受為開發者的決定。",
+        steps=(
+            "Press 繁 on Look At Associations, Look At Place and Look At "
+            "Status and compare the People results tab: 社會關係的人, "
+            "於地址有關係的人, 有社會區分的人.",
+        ),
+        steps_zh=(
+            "在社會關係、地點與社會區分表單上按「繁」，比較 People 結果分頁："
+            "社會關係的人、於地址有關係的人、有社會區分的人。",
+        ),
+        source=(
+            "Templates/status/index.html:230 (people: '有社會區分的人')",
+        ),
+        tests=("test_one_english_label_is_translated_one_way_across_pages",),
+    ),
+    Defect(
+        key="CBDB-D-008",
+        priority="P0", severity="low", origin="software",
+        title="The Places UCINet export writes some people with their "
+              "attributes blanked -- index year 0, no sex, coordinates "
+              "0.0 0.0 -- so those rows of network.vna are a field short",
+        title_zh="地點表單的 UCINet 匯出把部分人物的屬性寫成空白——指數年 0、"
+                 "性別空白、座標 0.0 0.0——使 network.vna 中這些列少了一個欄位",
+        area="Places form, /api/places/export-ucinet (network.vna)",
+        area_zh="地點表單的 UCINet 網絡匯出（輸出檔 network.vna）",
+        summary="In the `*node data` section, some people are written as "
+                "`<id> 0  0.0 0.0`: index year 0, an empty unquoted sex "
+                "field, and zero coordinates.  They are people who are in "
+                "the result with a real sex and index year.  The writer "
+                "keeps the first attributes it sees for each person, and "
+                "when that person first appears as another row's associate "
+                "it records them with no index year, an empty sex and no "
+                "coordinates; their own row, later, is ignored.  Because "
+                "VNA is whitespace-delimited, the empty sex disappears and "
+                "every later column shifts left, so the row is malformed "
+                "as well as wrong.  No control on the page reaches this "
+                "export (CBDB-D-003), so no user can produce the file "
+                "today; it is filed because the developers have kept the "
+                "export to be wired up later.",
+        summary_zh="在 `*node data` 區段中，部分人物被寫成 `<id> 0  0.0 0.0`："
+                   "指數年 0、性別欄空白且未加引號、座標為零。這些人其實在查詢"
+                   "結果中有真實的性別與指數年。寫出程式對每個人只保留第一次看到"
+                   "的屬性；若此人第一次出現時是另一列的關係人，就會被記成沒有"
+                   "指數年、性別空白、沒有座標，之後他自己的那一列則被忽略。由於 "
+                   "VNA 以空白分隔，空白的性別欄會消失，後面每一欄都往左移，因此"
+                   "這些列不只是錯誤，格式也壞了。頁面上沒有任何控制項到得了這個"
+                   "匯出（CBDB-D-003），目前沒有使用者能產生這個檔案；列入是因為"
+                   "開發者保留了這個匯出，打算日後接上。",
+        evidence="`test_an_export_produces_a_well_formed_file[places:"
+                 "ucinet]`, after the suite's own discovered Places query: "
+                 "node rows in that shape, every short row matching it "
+                 "exactly.  On a denser input (address 14504, all seven "
+                 "categories, 932 records, on a private database copy) 155 "
+                 "of 465 node rows in 20261021, e.g. person 145689, who is "
+                 "in the result as sex F, index year 747.  The binary is "
+                 "unchanged in this build, and its source now ships: "
+                 "`handleExportUCINet` adds each associate as "
+                 "`addNode(rec.AssocID, nil, \"\", ...)`, `addNode` keeps "
+                 "only a person's first appearance, and the row is written "
+                 "with `%s` for sex, unquoted.",
+        evidence_zh="`test_an_export_produces_a_well_formed_file[places:"
+                    "ucinet]`，以套件自己找出的地點查詢執行：有節點列是這種"
+                    "形式，所有欄位不足的列都完全符合。在較密集的輸入上（地址 "
+                    "14504、七個類別全選、932 筆記錄，於私有資料庫副本上），"
+                    "20261021 版 465 個節點列中有 155 列，例如人物 145689，在"
+                    "結果中為性別 F、指數年 747。此版本的執行檔未變，而它的原始碼"
+                    "現在隨附了：`handleExportUCINet` 以 "
+                    "`addNode(rec.AssocID, nil, \"\", ...)` 加入每個關係人，"
+                    "`addNode` 只保留一個人第一次出現時的屬性，寫出時性別欄用 "
+                    "`%s`，未加引號。",
+        impact="None today, because nothing on the page calls the export.  "
+               "If it is wired up as it stands, UCINet would read the "
+               "file's attribute columns misaligned for those people, "
+               "without any error.",
+        impact_zh="目前沒有影響，因為頁面上沒有任何東西呼叫這個匯出。若照現狀"
+                  "接上，UCINet 會在沒有任何錯誤提示的情況下，把這些人的屬性欄位"
+                  "錯位讀入。",
+        fix="Take each person's node attributes from their own record (or "
+            "BIOG_MAIN), not from a record where they appear as the "
+            "associate, and quote empty values, before wiring the export "
+            "to a button.",
+        fix_zh="每個人的節點屬性應取自他自己的記錄（或 BIOG_MAIN），而不是他以"
+               "關係人身分出現的記錄；並在接上按鈕之前為空值加上引號。",
+        steps=(
+            "POST a Places query result to /api/places/export-ucinet (no "
+            "button does this) and open network.vna: some *node data rows "
+            "read '<id> 0  0.0 0.0'.",
+        ),
+        steps_zh=(
+            "把一次地點查詢的結果 POST 到 /api/places/export-ucinet（沒有"
+            "任何按鈕會這樣做），打開 network.vna：部分 *node data 列為 "
+            "'<id> 0  0.0 0.0'。",
+        ),
+        source=(
+            "Code/places_form_backend.go:1438 (an associate added with no "
+            "attributes)",
+            "Code/places_form_backend.go:1420 (only the first appearance "
+            "is kept)",
+            "Templates/places/index.html:953 (exportUCINet, called by "
+            "nothing)",
+        ),
+        tests=("test_an_export_produces_a_well_formed_file",),
     ),
 )
 

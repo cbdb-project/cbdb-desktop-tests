@@ -454,40 +454,48 @@ EXPORTS: tuple[ExportSpec, ...] = (
         bundle="PlacesResults.zip",
         files=("PlacePeopleRecords.tsv", "PlacePeopleRecordsPeople.tsv"),
     ),
+    # 20261021 (PLC-6) removed the Places "Export as ASCII" option, so
+    # the page no longer sends ``encoding`` and neither do these bodies.
+    # The same build dropped the ``_UTF8`` suffix from every Places file
+    # name below -- although the PLC-6 revision note says the opposite
+    # ("Output file names keep the _UTF8 suffix ... so existing Neo4j
+    # import scripts and documentation still match"), and the other forms
+    # all still write ``*_UTF8``.  Pinned here as what the binary writes;
+    # whether the contradiction matters is the maintainer's call.
     ExportSpec(
         form="places", path="/api/places/export-gis", family="gis",
         envelope=RAW, content=TABLE,
-        body=_data(format="tab", encoding="unicode"),
+        body=_data(format="tab"),
     ),
     ExportSpec(
         form="places", path="/api/places/export-gis", family="kml",
         envelope=RAW, content=KML,
-        body=_data(format="kml", encoding="unicode"),
+        body=_data(format="kml"),
     ),
     ExportSpec(
         form="places", path="/api/places/export-neo4j", family="neo4j",
-        envelope=STATUS_FILES, content=TABLE, body=_data(encoding="unicode"),
-        bundle="PlacesNeo4j_UTF8.zip",
-        files=("People_UTF8.csv", "PeopleIndexAddr_UTF8.csv",
-               "Places_UTF8.csv", "PeoplePlaceRelations_UTF8.csv",
-               "PeoplePlaceRelationCodes_UTF8.csv",
-               "IndexAddrCode_UTF8.csv"),
+        envelope=STATUS_FILES, content=TABLE, body=_data(),
+        bundle="PlacesNeo4j.zip",
+        files=("People.csv", "PeopleIndexAddr.csv",
+               "Places.csv", "PeoplePlaceRelations.csv",
+               "PeoplePlaceRelationCodes.csv",
+               "IndexAddrCode.csv"),
         machine_import=True,
     ),
     ExportSpec(
         form="places", path="/api/places/export-pajek", family="pajek",
-        envelope=SINGLE_FILE, content=TABLE, body=_data(encoding="unicode"),
-        files=("network_UTF8.net",),
+        envelope=SINGLE_FILE, content=TABLE, body=_data(),
+        files=("network.net",),
     ),
     ExportSpec(
         form="places", path="/api/places/export-gephi", family="gephi",
-        envelope=SINGLE_FILE, content=TABLE, body=_data(encoding="unicode"),
-        files=("network_UTF8.gdf",),
+        envelope=SINGLE_FILE, content=TABLE, body=_data(),
+        files=("network.gdf",),
     ),
     ExportSpec(
         form="places", path="/api/places/export-ucinet", family="ucinet",
-        envelope=SINGLE_FILE, content=TABLE, body=_data(encoding="unicode"),
-        files=("network_UTF8.vna",),
+        envelope=SINGLE_FILE, content=TABLE, body=_data(),
+        files=("network.vna",),
     ),
 
     # -- associations -----------------------------------------------------
@@ -830,12 +838,11 @@ FORMAT_RULES: dict[str, FormatRule] = {
         None, BOM_REQUIRED,
         "Pajek: not a delimited table, and its UTF-8 reader expects the "
         "mark -- all four writers say so where they emit it"),
-    # The Places Pajek writer prepends the mark in ascii mode too, to a
-    # file it names network_ascii.net.  That is this rule working, not a
-    # gap in it: the mark is the format's, a UTF-8 reader consumes it,
-    # and everything past it is pinyin.  Whether an ascii export keeps
-    # Chinese labels is judged on the content, past any mark, by
-    # test_exports.py::test_an_export_asked_for_ascii_contains_only_ascii.
+    # Until 20261021 the Places Pajek writer also had an ascii mode and
+    # prepended the mark there too; that was this rule working -- the
+    # mark is the format's, and a UTF-8 reader consumes it.  The option
+    # is gone (PLC-6); test_exports.py::test_no_page_offers_an_encoding_
+    # choice is what notices if it comes back.
     ".gdf": FormatRule(
         None, BOM_FORBIDDEN,
         "Gephi/GUESS reads the mark as part of the first field name"),

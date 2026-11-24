@@ -64,7 +64,7 @@ documented inline (work directory, timeouts, browser suppression, or
 the tests with a JSON report, and regenerates the issues report. Useful
 flags: `-Restage`, `-Fast` (skip everything needing the running app),
 `-Filter <k>` (pass `-k` to pytest), `-DryRun`. Or drive pytest directly
-with `python -m pytest tests -q` (about 8 minutes on the 20260925 build,
+with `python -m pytest tests -q` (about 9.5 minutes on Build_20261028,
 a third of it the browser tests; `-m "not slow"` leaves out the
 index-address rebuilds and the master's `quick_check`). The full
 `run_tests.ps1` adds report generation, most of it Word starting twice to
@@ -89,6 +89,9 @@ write the PDFs.
 | `test_scratch_tables.py` | who owns each `ZZ_*` table, and whether the code's declarations match the database |
 | `test_sessions.py` | what happens when the application is used from two tabs, or launched twice |
 | `test_ui_pages.py` | the pages in a real Chromium: do they load without throwing, and does each control un-grey when its precondition is met |
+| `test_translations.py` | every label in English, 繁體 and 简体: all three present, each Chinese text in its own script, 繁 and 简 the same word, agreement with the CBDB label glossary (`docs/labels/FormLabels.xlsx`), one translation per label across forms — from the templates, and from the screen in Chromium |
+| `test_build_provenance.py` | that the Go source shipped in `Code/` is the source of the shipped `cbdb.exe` |
+| `test_release_notes.py` | that the notes shipped beside the tree convert to Markdown faithfully, and identically every time |
 | `test_zz_controls.py` | every button in every template, and whether this run actually requested every endpoint the pages mention |
 | `test_defect_registry.py` | that every recorded defect still cites real code, in both languages |
 | `test_reports.py` | that the report is reproducible from one run, invents no issue, drops none unwaived, and prints waivers only on request |
@@ -155,6 +158,33 @@ by Word itself through COM: these documents are bilingual, and Word
 already has the CJK fonts and line-breaking rules. Without Word the
 Markdown and Word files are still written and the generator says which
 format it could not produce.
+
+### Translations
+
+```powershell
+python check_translations.py     # -> reports\CBDB_Desktop_Translations.md / .xlsx
+```
+
+The full list behind `test_translations.py`: every label the check
+disagrees with, the rule it broke, and the glossary rows the judgement
+rests on, plus the glossary's own problems (it is the reference, not a
+flawless one).  Same inputs, same bytes: the glossary is committed,
+OpenCC is pinned exactly in `requirements.txt`, and nothing records
+when it ran.  `run_tests.ps1` writes it after the tests, so it includes
+what the browser saw.  Rules and how to read a finding:
+[`docs/skills/translation-check.md`](docs/skills/translation-check.md).
+
+### Release notes
+
+```powershell
+python release_notes.py          # -> docs\release-notes\<archive stem>\
+```
+
+The developers ship Word and text notes beside the application tree.
+This converts them to Markdown (with the originals kept alongside), the
+same way every time; `run_tests.ps1` runs it after staging.  They are
+the developers' account of the build -- leads to verify, never
+expectations.
 
 ### Staging
 

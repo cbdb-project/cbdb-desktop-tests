@@ -713,21 +713,24 @@ def test_each_place_category_contributes_its_own_part_of_the_whole(
     # test_ui_pages.UNDECLARED -- it is the honest count of what this
     # test does *not* check, and it may only shrink.
     #
-    # Why these four.  The discovered places codes are drawn from
+    # Why these three.  The discovered places codes are drawn from
     # BIOG_ADDR_DATA, so the Biography branch is live by construction
-    # and the Associate-Place and Office-Place branches happen to be;
-    # the other four key off tables an address chosen that way need not
-    # appear in.  All three discovered codes give the same answer, so
+    # and the Associate-Person and Office-Place branches happen to be;
+    # the other three key off tables an address chosen that way need not
+    # appear in.  It was four until 20261021, when the Kinship branch
+    # stopped reading ASSOC_DATA's kin intermediaries and started reading
+    # KIN_DATA (the developers' PLC-3): a relative indexed to the chosen
+    # address is common, so Kinship now contributes rows and is judged.
+    # All three discovered codes give the same answer, so
     # this is a property of how the input is chosen, not of the code
     # that happened to win.  Deciding them needs an address that is busy
     # in those branches, and finding one without reproducing the
     # branch's own joins is the open problem -- a lead for the next
     # round, written here because that is where it will be read.
     silent = sorted(name for name in categories if not parts[name])
-    assert silent == ["includeAssocPlace", "includeEntry", "includeInst",
-                      "includeKinship"], (
+    assert silent == ["includeAssocPlace", "includeEntry", "includeInst"], (
         f"the Places categories no discovered address code can decide "
-        f"are now {silent}, and this test records four.  If the list "
+        f"are now {silent}, and this test records three.  If the list "
         "shrank, delete the names from it in the same commit -- the "
         "build or the data just became more testable.  If it grew, this "
         f"test is now judging {len(categories) - len(silent)} of "
@@ -885,10 +888,32 @@ def test_a_switch_changes_the_result_in_the_direction_it_claims(
     codes = candidates[0]
     assert codes, f"{toggle.form}: discovery found no codes"
 
-    def run(chosen, extra, value) -> Counter:
+    def run(chosen, extra, value) -> Counter | None:
+        """The result as pairs, or ``None`` when it trips the size guard.
+
+        Only the Use XY sweep offers more than one input, and only there
+        is an oversized result a reason to try the next one rather than
+        a failure: the input is chosen as the address with the most
+        neighbours, which is by construction a crowded city.  On
+        20261021 the Places Kinship branch (now read from KIN_DATA, the
+        developers' PLC-3) took Luoyang with XY on to 28,494 rows -- a
+        legitimate result too large for a narrow-switch test, not a
+        filter that stopped filtering.  With one candidate the guard
+        keeps its usual meaning and fails.
+        """
         body = dict(form.body(chosen), **extra)
         body[toggle.option] = value
-        return _pairs(form, _query(app, form, body))
+        if len(candidates) == 1:
+            return _pairs(form, _query(app, form, body))
+        response = app.post(form.query_path, json=body)
+        assert response.status_code == 200, \
+            f"{form.name}: {response.status_code} {response.text[:300]}"
+        rows = form.rows(response.json())
+        if len(rows) >= _MAX_RESULT_ROWS:
+            oversized.append(f"{chosen} via {extra} -> {len(rows):,} rows "
+                             f"with {toggle.option}={value}")
+            return None
+        return _pairs(form, rows)
 
     # The first candidate that can tell the two positions apart -- not
     # merely the first that returns rows.  Breaking on `if off:` threw
@@ -905,15 +930,23 @@ def test_a_switch_changes_the_result_in_the_direction_it_claims(
     # compare the switch's two positions on two different inputs.
     off = on = Counter()
     tried = 0
+    oversized: list[str] = []
     for codes in candidates:
         extra = _resolve_needs(toggle, sqlite_conn, form, codes)
         if extra is None:
             continue
+        first = run(codes, extra, toggle.off)
+        second = run(codes, extra, toggle.on) if first is not None else None
+        if first is None or second is None:
+            continue
         tried += 1
-        off = run(codes, extra, toggle.off)
-        on = run(codes, extra, toggle.on)
+        off, on = first, second
         if off != on:
             break
+
+    assert tried or not oversized, (
+        f"{toggle.id}: every discovered input was too large to judge "
+        f"(>= {_MAX_RESULT_ROWS:,} rows): {oversized}")
 
     if not tried:
         pytest.skip(

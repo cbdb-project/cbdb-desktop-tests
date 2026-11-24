@@ -65,6 +65,13 @@ _SCRIPT = re.compile(r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script>",
 #: external scripts while the page's real JavaScript went unscanned.
 _SRC_ATTR = re.compile(r"""\bsrc\s*=""", re.IGNORECASE)
 
+#: ...and the value that follows it, quoted or bare, read from just
+#: after the ``=``.  Two groups rather than one because an empty
+#: ``src=""`` is a real value (the page loads itself) and must not be
+#: confused with a ``src`` this failed to read at all.
+_SRC_VALUE = re.compile(r"""\s*(?:(?P<q>["'])(?P<quoted>.*?)(?P=q)"""
+                        r"""|(?P<bare>[^\s>]*))""")
+
 #: The character before a ``/`` that means the ``/`` divides rather than
 #: opens a regular expression.  After a value -- an identifier, a
 #: number, a closing bracket, a string -- a slash is division; after an
@@ -134,8 +141,36 @@ def inline_scripts(html: str) -> list[tuple[int, str]]:
 def external_scripts(html: str) -> int:
     """How many ``<script src=...>`` tags this page has, and so how much
     of its JavaScript ``inline_scripts`` did not look at."""
-    return sum(1 for match in _SCRIPT.finditer(html)
-               if _SRC_ATTR.search(match.group("attrs") or ""))
+    return len(external_script_srcs(html))
+
+
+def external_script_srcs(html: str) -> list[str]:
+    """The ``src`` of each ``<script src=...>``, in page order.
+
+    What ``external_scripts`` counts, named -- so a caller can follow
+    each one to the shipped file and scan it, instead of only knowing
+    that something went unread.  Build_20261102 is the first build to
+    need this: it moved the display-language logic the twelve form
+    pages share into ``/static/cbdb_language.js``, and a shared file is
+    exactly the one whose syntax error breaks every page at once.
+
+    The value is returned as the page wrote it, unresolved: turning a
+    URL path into a staged file is the caller's job, because only the
+    caller knows the tree.  A ``src`` with no value, or one this cannot
+    read, comes back as the empty string rather than being dropped, so
+    a page can never look as though it loaded fewer files than it does.
+    """
+    out: list[str] = []
+    for match in _SCRIPT.finditer(html):
+        attrs = match.group("attrs") or ""
+        found = _SRC_ATTR.search(attrs)
+        if not found:
+            continue
+        value = _SRC_VALUE.match(attrs, found.end())
+        out.append(
+            (value.group("quoted") if value and value.group("quoted") is not None
+             else value.group("bare") if value else "") or "")
+    return out
 
 
 def unterminated_strings(source: str, first_line: int = 1) -> list[Unterminated]:

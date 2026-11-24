@@ -606,8 +606,10 @@ def test_a_filter_the_places_handler_offers_has_a_control_that_can_set_it(
 # /api/status-code-type-rel -- the two endpoints this survey had found
 # reachable from no page after the 20260916_2 picker rework.  (116
 # before that, and 118 before the 2026-09-15 build removed the two
-# Networks autocomplete helpers the same way.)
-EXPECTED_API_ROUTES = 114
+# Networks autocomplete helpers the same way.)  113 since Build_20261028,
+# whose Code/ is at last the binary's own source and so no longer
+# registers /api/networks/rerun, which the binary dropped in 20261021.
+EXPECTED_API_ROUTES = 113
 
 # Empty, and empty is what a clean build looks like.  Twice now an
 # endpoint has been orphaned by a page rework nobody meant to orphan it
@@ -846,8 +848,12 @@ def test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does(
               "exportUCINet, each posting the query result to its "
               "endpoint, and has no button, listener or load-time call "
               "that invokes any of them -- so the Pajek, Gephi/GUESS and "
-              "UCINet exports, and the ASCII option wired into each, are "
-              "implemented and offered by no control")
+              "UCINet exports are implemented and offered by no control.  "
+              "The developers say this is deliberate: their 20261021 "
+              "revision note (PLC-6) keeps the three functions and routes "
+              "'although the form has no buttons for them ... in case the "
+              "steering committee later wants the buttons added', and lists "
+              "commenting them as deliberate as an open item")
 
     assert not found, (
         "these endpoints are called by a page only from code nothing on it "

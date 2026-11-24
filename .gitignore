@@ -16,6 +16,7 @@ reports/_*
 reports/*.json
 reports/*.docx
 reports/*.pdf
+reports/*.xlsx
 reports/*.new
 reports/runs/
 artifacts/
@@ -44,3 +45,6 @@ Thumbs.db
 # --- Claude / agents -------------------------------------------------------
 .claude/
 memory/
+
+# Office lock files (a spreadsheet open in Excel while the suite runs)
+~$*

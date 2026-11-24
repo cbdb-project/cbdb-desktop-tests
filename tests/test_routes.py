@@ -49,7 +49,7 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     them must not slip through because a floor was set low enough to
     accommodate it.
     """
-    assert len(routes) == 140, "\n".join(_ids(routes))
+    assert len(routes) == 139, "\n".join(_ids(routes))
 
     methods = sorted({m for r in routes for m in r.methods})
     assert methods == ["GET", "POST"], methods
@@ -76,10 +76,18 @@ def test_the_build_registers_the_expected_route_surface(routes, layout: AppLayou
     #                      relations the reworked pickers had stopped
     #                      fetching, reported last round as reachable
     #                      from no page.
+    #
+    # And Build_20261028 one more, 140 -> 139:
+    #
+    #   networks 18 -> 17  /api/networks/rerun.  The binary had already
+    #                      dropped it with its button (NET-4) in 20261021;
+    #                      that archive's Code/ was the previous build's
+    #                      and still registered it.  This one ships the
+    #                      binary's own source, so the count caught up.
     assert per_form == {
         "associations": 8, "assocpairs": 10, "browser": 14,
         "cbdb_navigation_backend": 5, "entry": 9, "groupdata": 8,
-        "indexaddr": 5, "kinship": 15, "main": 9, "networks": 18,
+        "indexaddr": 5, "kinship": 15, "main": 9, "networks": 17,
         "office": 8, "places": 10, "qbe_handlers": 3, "status": 10,
         "texts": 8,
     }, per_form
@@ -157,15 +165,18 @@ def test_every_registered_api_route_still_exists(app: CbdbApp, routes):
         f"these routes accept PATCH; the probe would invoke them: {_ids(patchable)}"
 
     failures = []
+    gone = []
     for route in routes:
         if not route.path.startswith("/api/") or "{" in route.path:
             continue
         response = app.request("PATCH", route.path)
         if response.status_code == 404:
+            gone.append(route.path)
             failures.append(f"{route.path} is gone: PATCH -> 404 ({route.source})")
         elif response.status_code != 405:
             failures.append(f"PATCH {route.path} -> {response.status_code}, "
                             f"expected 405 ({route.source})")
+
     assert not failures, "\n".join(failures)
 
 

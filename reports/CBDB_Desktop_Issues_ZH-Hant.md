@@ -2,9 +2,9 @@
 
 _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正。_
 
-_受測版本：CBDB-Desktop_20260925.7z_
+_受測版本：CBDB-Desktop_Build_20261102.7z_
 
-_本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行結果（耗時 436 秒）。_
+_本報告產生於 2026-11-05 09:22 UTC，依據一次 1546 項測試的執行結果（耗時 566 秒）。_
 
 尊敬的維護者：
 
@@ -20,12 +20,18 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 1190 |
-| 失敗 | 4 |
-| 預期失敗（已協商暫時擱置） | 4 |
-| 略過 | 183 |
+| 通過 | 1346 |
+| 失敗 | 1 |
+| 預期失敗（已協商暫時擱置） | 18 |
+| 略過 | 181 |
 
-4 項失敗全部都是用來證明下列問題的測試。
+在 1 項失敗中，有 **0** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
+
+**本次執行有 1 項失敗尚未歸類。**它們既不屬於下列問題，也不屬於我們已知的覆蓋缺口——換句話說，這次執行發現了還沒有人看過的東西。它們可能是值得立案的缺陷，也可能是檢查本身的問題；請務必逐一閱讀，不要把下面的清單當成已經完整。
+
+| 對應檢查 | 回報的內容 |
+| --- | --- |
+| `test_no_page_hides_its_javascript_where_this_check_cannot_read_it` | these pages load JavaScript from a file, which this scan does not read: {'association_pairs': 1, 'associations': 1, 'browser': 1, 'entry': 1, 'group_data': 1, 'kinship': 1, 'networks': 1, 'office': 1, |
 
 ## 測試套件的涵蓋範圍
 
@@ -34,7 +40,8 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 | 發行檔本身 | 63 | 受測的檔案樹確實逐一符合釋出的壓縮檔 |
 | 應用程式行程 | 13 | 釋出的執行檔能啟動、能服務、並能釋放資料庫 |
 | 所有已註冊的路由 | 17 | 從釋出的 Go 原始碼讀出的每一條路由，逐一實測 |
-| 在表單之間傳遞查詢結果 | 22 | 已儲存人物清單：一個表單存入的，另一個表單取回的 |
+| 在表單之間傳遞查詢結果 | 21 | 已儲存人物清單：一個表單存入的，另一個表單取回的 |
+| 關係人配對表單的中介人物 | 4 | 二節點查詢回報的每一個人，都位於兩位起點人物之間的路徑上——依回應本身的網絡判斷，四種查詢形式都檢查 |
 | 各頁面與其後端的對照 | 18 | 表單的前後兩半對於請求與回應是否一致——後端從不讀取的控制項、頁面讀不懂的回應、沒有任何入口的功能 |
 | 各頁面的 JavaScript 是否還能解析 | 30 | 表單把全部行為都放在單一的內嵌 script 裡，因此只要其中有一處語法錯誤，整頁的控制項就全部失效，而頁面本身照樣載入——這項檢查直接讀釋出的模板，不需要瀏覽器 |
 | 代碼與地址清單 | 38 | 各表單在查詢前提供的下拉選單 |
@@ -47,15 +54,18 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 | 具狀態的表單 | 19 | 親屬關係、社會網路、關係配對、群組資料——工作清單 |
 | 索引地址排序 | 12 | 唯一會改寫 CBDB 正式資料（而非暫存表）的端點 |
 | 每一個篩選條件，輸入取自資料本身 | 420 | 依釋出資料庫中實際有資料的組合各跑一次查詢，並將每個開關的兩種狀態都測過 |
-| 所有匯出按鈕 | 503 | 每個會產生檔案的端點都按過，並回讀所得檔案 |
-| 在真實瀏覽器中的頁面 | 12 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
+| 所有匯出按鈕 | 498 | 每個會產生檔案的端點都按過，並回讀所得檔案 |
+| 在真實瀏覽器中的頁面 | 25 | 每個頁面載入時不拋錯；等待使用者操作的控制項在條件滿足後確實解除停用 |
+| 英文、繁體與簡體標籤 | 110 | 從模板與畫面兩處檢查每個翻譯標籤：三種語言齊全、中文各用其字體，並與 CBDB 標籤對照表及其他表單一致 |
+| 隨附的原始碼 | 19 | Code/ 中隨附的 Go 原始碼確實是隨附 cbdb.exe 的原始碼 |
+| 開發者的修訂說明 | 8 | 隨附於檔案樹旁的說明文件忠實地轉成 Markdown，而且每次結果相同 |
 | 同時開兩個分頁 | 3 | 一次查詢是否會取代另一個分頁即將匯出的內容 |
 | 暫存工作表 | 7 | 各表單各自擁有哪些暫存表——從釋出的 Go 原始碼讀出並釘住 |
 | 本次執行自身的覆蓋率 | 5 | 釋出頁面能觸及的每一個端點，本次執行是否真的都請求過 |
 | 已協商擱置的項目 | 28 | 每一條擱置項目是否仍對應到本次執行中存在的檢查，以及套件中沒有其他地方私自容忍失敗 |
-| 本報告自身的依據 | 10 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
-| 本報告本身 | 27 | 本報告可由上述執行結果完整重現，不會憑空產生問題、也不會遺漏任何未經協商擱置的問題 |
-| 本次執行的全部測試 | 1381 |  |
+| 本報告自身的依據 | 19 | 以下每一項問題所引用的程式位置仍然存在，且中英文皆已填寫 |
+| 本報告本身 | 35 | 本報告可由上述執行結果完整重現，不會憑空產生問題、也不會遺漏任何未經協商擱置的問題 |
+| 本次執行的全部測試 | 1546 |  |
 
 ### 本次執行尚未涵蓋的部分
 
@@ -65,106 +75,58 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 
 | 編號 | 等級 | 本次執行狀態 | 問題 |
 | --- | --- | --- | --- |
-| CBDB-D-002 | P0 | 已確認 | 地點表單的「以ASCII（拼音）而非Unicode匯出」核取方塊，對「保存到GIS」與「保存到KML」完全沒有作用 |
-| CBDB-D-003 | P5 | 已確認 | 地點表單的 Pajek、Gephi/GUESS 與 UCINet 匯出已經實作，但頁面上沒有任何控制項會呼叫它們 |
+| CBDB-D-006 | P6 | 似已修復 | 三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字 |
 
 ## 目錄
 
-- [CBDB-D-002 — 地點表單的「以ASCII（拼音）而非Unicode匯出」核取方塊，對「保存到GIS」與「保存到KML」完全沒有作用](#cbdb-d-002--地點表單的「以ascii（拼音）而非unicode匯出」核取方塊，對「保存到gis」與「保存到kml」完全沒有作用)
-- [CBDB-D-003 — 地點表單的 Pajek、Gephi/GUESS 與 UCINet 匯出已經實作，但頁面上沒有任何控制項會呼叫它們](#cbdb-d-003--地點表單的-pajek、gephiguess-與-ucinet-匯出已經實作，但頁面上沒有任何控制項會呼叫它們)
+- [CBDB-D-006 — 三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字](#cbdb-d-006--三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字)
 - [嚴重等級說明](#嚴重等級說明)
 - [如何重現這份報告](#如何重現這份報告)
 
-## CBDB-D-002 — 地點表單的「以ASCII（拼音）而非Unicode匯出」核取方塊，對「保存到GIS」與「保存到KML」完全沒有作用
+## CBDB-D-006 — 三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字
 
-**涉及範圍：** 地點表單（/LookAtPlace）的「保存到GIS」與「保存到KML」兩種匯出
+**涉及範圍：** 兩兩關係、社會關係與著述頁面
 
-**嚴重等級：** P0 — 靜默的錯誤結果——程式回傳錯誤或空白的結果，或產生任何軟體都讀不了的檔案，而且沒有任何錯誤提示。
-
-**問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
-
-**本次執行狀態：** 已確認
-
-#### 問題描述
-
-地點表單在這個核取方塊旁的每一種匯出中，都會把它以 `encoding: "ascii"` 傳給後端（`getExportEncoding`）。這三個按鈕中，「導出Neo4j CSV」有遵照，另外兩個沒有：`handleExportGIS` 解析了 `Encoding` 卻從未讀取，兩個寫檔函式不論要求為何都會寫入中文欄位——`writePlaceTab` 把每個 `*Chn` 欄位與其拼音欄位並列寫出，`writePlaceKML` 則把 `NameChn` 寫進每個地標的說明。使用者勾選後按「保存到GIS」或「保存到KML」，拿到的是與 Unicode 版本逐位元組相同的檔案，而且沒有任何提示。
-
-同一表單的 Gephi 匯出只遵照了一部分：邊的標籤改為拼音，節點標籤仍是 `NameChn`。這個版本沒有任何按鈕能觸發該匯出（見 CBDB-D-003）；一併記錄在這裡，免得日後接上按鈕時帶著同樣的問題上線。
-
-#### 實測依據
-
-`test_an_export_asked_for_ascii_contains_only_ascii` 送出兩筆每個中文欄位都有 ASCII 拼音對應的資料，分別以 `encoding=unicode` 與 `encoding=ascii` 各送一次，並略過檔首的位元組順序標記後讀取檔案。以 ascii 送出時：`places:gis` 得到的 `places_export.tsv` 有 72 個大於 0x7F 的位元組，`places:kml` 得到的 `places_export.kml` 有 18 個——兩者都與 unicode 版本逐位元組相同。`places:gephi` 得到的 `network_ascii.gdf` 有 42 個，與它的 unicode 檔案不同。`places:neo4j` 與 `places:pajek` 通過（標記之後全為 ASCII）；`places:ucinet` 兩種模式都不寫入中文，無從判斷。
-
-#### 影響
-
-這個核取方塊是為了 GIS 或地圖工具無法讀取中文的使用者而設，而它恰恰對這兩種檔案不起作用。使用者明明要求不要中文，拿到的卻是 Unicode 名稱，檔案看起來又像是他們要的那一份，唯一的跡象是之後工具顯示出一堆亂碼。嚴重度列為中：對沒有勾選的人而言檔案並沒有錯，而且 Neo4j 匯出確實有遵照。
-
-#### 復現步驟
-
-1. 開啟地點表單，執行任何會回傳中文名稱的查詢。
-2. 勾選「以ASCII（拼音）而非Unicode匯出」。
-3. 按「保存到KML」，再另外按「保存到GIS」。
-4. 打開任一檔案：中文仍在其中——KML 在每個地標的說明裡，GIS 檔在各個 *Chn 欄位——而且與沒有勾選時存下的檔案完全相同。
-
-#### 建議修復方式
-
-在 `handleExportGIS` 中讀取 `Encoding` 並傳給兩個寫檔函式，ascii 模式下不寫入中文，就像 `buildPlaceNeo4jFiles` 已經做的那樣：`writePlaceTab` 省略或清空各個 `*Chn` 欄位，`writePlaceKML` 不把 `NameChn` 寫進說明。在 `handleExportGephi` 中，ascii 模式下以 `n.NamePY` 作為節點標籤，與它的邊標籤一致。
-
-#### 對應的程式位置
-
-- `Code/places_form_backend.go:handleExportGIS (decodes Encoding, never reads it)`
-- `Code/places_form_backend.go:writePlaceTab (every *Chn column beside its pinyin twin)`
-- `Code/places_form_backend.go:writePlaceKML (NameChn in the placemark description)`
-- `Code/places_form_backend.go:handleExportGephi (NameChn as the node label in both modes)`
-- `Templates/places/index.html:727 (getExportEncoding)`
-
-#### 對應的測試
-
-- 3 × 失敗: `test_an_export_asked_for_ascii_contains_only_ascii[places:gis]`, `test_an_export_asked_for_ascii_contains_only_ascii[places:kml]`, `test_an_export_asked_for_ascii_contains_only_ascii[places:gephi]`
-- 2 × 通過: `test_an_export_asked_for_ascii_contains_only_ascii[places:neo4j]`, `test_an_export_asked_for_ascii_contains_only_ascii[places:pajek]`
-- 1 × 略過: `test_an_export_asked_for_ascii_contains_only_ascii[places:ucinet]`
-
-## CBDB-D-003 — 地點表單的 Pajek、Gephi/GUESS 與 UCINet 匯出已經實作，但頁面上沒有任何控制項會呼叫它們
-
-**涉及範圍：** 地點表單（/LookAtPlace）的 Pajek、Gephi/GUESS 與 UCINet 三種網絡匯出
-
-**嚴重等級：** P5 — 無法觸及的功能——程式實作了某項功能，卻沒有任何頁面可以呼叫它。這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。
+**嚴重等級：** P6 — 用語問題——頁面上的標籤在三種顯示語言（英文、繁體、簡體中文）之一說錯了意思，或用錯了字體。依固定規則對照 CBDB 標籤對照表判定；不影響程式的計算結果，但可能讓讀者誤解控制項的作用。
 
 **問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
 
-**本次執行狀態：** 已確認
+**本次執行狀態：** 似已修復
+
+> 用來證明這項問題的測試已不再失敗。煩請確認後，本條即可撤下。
 
 #### 問題描述
 
-地點表單頁面定義了 `exportPajek`、`exportGephi` 與 `exportUCINet`，各自把查詢結果與 ASCII 選項送到對應的端點並下載回應，三個後端處理函式也都有路由、能夠回應。但頁面上沒有任何東西會呼叫這三個函式：它的按鈕只有執行查詢、儲存人物ID、導出查詢結果、保存到KML、保存到GIS 與導出Neo4j CSV，也沒有任何事件監聽或載入時執行的程式碼呼叫它們。因此這三種網絡匯出——其他網絡類表單都有提供的格式——前後端都已存在，卻沒有使用者到得了。至於輸出是否正確是另一個問題：Gephi 匯出在 ASCII 模式下仍保留中文節點標籤（見 CBDB-D-002）。
+共五個字串，都直接寫在 HTML 中，`setLanguage` 改寫不到。選擇「繁」時，社會關係顯示提示文字 `(关系)`，著述顯示 `(全部地点)`，都是簡體。選擇「简」時，社會關係保留寫死的雙語標題 `CBDB: Look At Associations / 查看關係`，著述保留欄位標題 `書名`，兩兩關係保留提示文字 `[漢字]`，都是繁體。比 20261021 版七個頁面 14 個字串減少，含繁體「數」的四個簡體標籤也已修正。開發者的慣例說明把這兩個原因列為跨表單的待辦事項：「社會關係與人物瀏覽的頁面標題是固定文字」，以及「每個表單上的提示文字……是英文或固定的中文」。
 
 #### 實測依據
 
-`test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does` 從每個頁面上所有可能執行的地方出發——按鈕、每個行內 `on...=` 處理函式、載入時執行的程式碼、以名稱註冊的事件監聽，以及彈出視窗回呼的 `window.X`——沿著頁面的呼叫關係走訪。在這個版本的所有頁面中，只有這三個端點是頁面提到、卻走訪不到的。純文字的普查（`test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it`）把它們算作「有呼叫」，因為 fetch 確實寫在頁面裡，只是位於沒有任何東西會執行的函式中。
+`test_each_chinese_language_shows_only_its_own_script` 在 Chromium 中按下每個頁面自己的「繁」與「简」按鈕，判讀畫面上的文字——只判讀出現在模板中、且不屬於翻譯表的字串，因此頁面上顯示的 CBDB 資料不在判讀之列，也不會重複計算。只有當 OpenCC 轉換為所選字體的每一種標準——大陸、台灣與香港——不論在上下文中或單獨看都會改動某個字時，該字才會被標出。翻譯表的檢查 `test_every_chinese_label_is_written_in_its_own_script` 在所有頁面上都通過。
 
 #### 影響
 
-在地點表單中工作的研究者，無法產生其他網絡類表單都能產生的 Pajek、Gephi 或 UCINet 檔案，頁面上也沒有任何跡象顯示這項功能存在。這不會給出錯誤的結果，只是功能到不了。
+選擇了某一種字體的讀者，在一個標題、兩個提示文字與一個欄位標題中看到另一種字體。屬於外觀問題，但正是選擇「繁」或「简」的讀者最先注意到的地方。
 
 #### 復現步驟
 
-1. 開啟地點表單，執行一個有結果的查詢。
-2. 尋找 Pajek、Gephi/GUESS 或 UCINet 匯出：一個都沒有，儘管頁面程式碼中定義了 exportPajek、exportGephi 與 exportUCINet。
+1. 開啟社會關係表單，按「简」。
+2. 閱讀標題列：CBDB: Look At Associations / 查看關係，仍是繁體字。
 
 #### 建議修復方式
 
-補上這三個函式原本要搭配的按鈕（親屬與網絡頁面都有），或者若地點表單本來就不打算提供這些格式，就刪除這些函式與後端處理函式。接上 Gephi 之前，請先修正它的 ASCII 標籤問題（CBDB-D-002）。
+為社會關係的標題、三個提示文字與著述的欄位標題，在頁面的翻譯表中加入對應的鍵，與其他標籤的做法一致。
 
 #### 對應的程式位置
 
-- `Templates/places/index.html:825 (exportUCINet, called by nothing)`
-- `Templates/places/index.html:842 (exportPajek, called by nothing)`
-- `Templates/places/index.html:859 (exportGephi, called by nothing)`
-- `Templates/places/index.html:92 (the page's action buttons)`
+- `Templates/associations/index.html:11 (the fixed title)`
+- `Templates/associations/index.html:38 (placeholder="(关系)")`
+- `Templates/texts/index.html:90 (placeholder="(全部地点)")`
+- `Templates/texts/index.html:170 (<th>書名</th>)`
+- `Templates/association_pairs/index.html:50 (placeholder="[漢字]")`
 
 #### 對應的測試
 
-- 1 × 失敗: `test_every_endpoint_a_page_calls_is_reachable_from_something_a_user_does`
+- 12 × 通過: `test_each_chinese_language_shows_only_its_own_script[association_pairs]`, `test_each_chinese_language_shows_only_its_own_script[associations]`, `test_each_chinese_language_shows_only_its_own_script[browser]`, `test_each_chinese_language_shows_only_its_own_script[entry]` (+8)
 
 ## 嚴重等級說明
 
@@ -174,6 +136,7 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 - **P3** — 封裝問題——釋出的檔案裡含有不該出現的內容，或缺少了應該有的內容。
 - **P4** — 資料完整性——釋出資料中存在無法解析的參照。
 - **P5** — 無法觸及的功能——程式實作了某項功能，卻沒有任何頁面可以呼叫它。這個級別只說明「沒有任何使用者到得了」。至於背後的程式碼是否正確，是另一個問題、也有另一個答案；因此一項既到不了、本身又有錯的功能會在兩處分別記錄，而不是在同一處爭論該算哪一種。
+- **P6** — 用語問題——頁面上的標籤在三種顯示語言（英文、繁體、簡體中文）之一說錯了意思，或用錯了字體。依固定規則對照 CBDB 標籤對照表判定；不影響程式的計算結果，但可能讓讀者誤解控制項的作用。
 
 ## 如何重現這份報告
 
@@ -183,7 +146,7 @@ _本報告產生於 2026-10-01 03:48 UTC，依據一次 1381 項測試的執行�
 .\run_tests.ps1
 ```
 
-這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1381 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
+這道指令會解開壓縮檔、以釋出資料庫的私有複本啟動釋出的執行檔、執行 1546 項測試，並重新產生這幾份檔案。測試套件不會寫入作為對照基準的 `Data/CBDB.db`——每次執行都使用各自的複本，因此跑完之後，發行檔與執行前完全相同。
 
 每一項問題底下都列出了對應的測試名稱。若只想執行其中一項：
 

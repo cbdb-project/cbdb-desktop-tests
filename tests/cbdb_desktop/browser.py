@@ -40,6 +40,7 @@ limit is the point of writing it down.
 from __future__ import annotations
 
 import contextlib
+import json
 import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Iterator
@@ -101,8 +102,83 @@ _STATE = """(ids) => Object.fromEntries(ids.map(id => {
 }))"""
 
 
+#: Make ``navigator.languages`` -- and ``navigator.language``, its first
+#: entry -- read as the list a test asked for, before any page script
+#: runs.  Playwright's ``locale=`` sets a single tag; the application's
+#: detection reads the whole ordered list and treats a bare ``zh`` at
+#: the top differently from one further down, so a single tag cannot
+#: pose the question the shipped code answers.  This is the same
+#: substitution the developers' own note tells a tester to make by hand
+#: ("change the browser's language order and reload the form").
+_LANGUAGES_HOOK = """([tags]) => {
+  Object.defineProperty(navigator, 'languages',
+                        {get: () => tags, configurable: true});
+  Object.defineProperty(navigator, 'language',
+                        {get: () => tags[0], configurable: true});
+}"""
+
+
 @contextlib.contextmanager
-def open_page(base_url: str, path: str) -> Iterator[tuple[Any, PageLog]]:
+def open_session(base_url: str, languages: list[str] | None = None):
+    """One Chromium context, in which several pages can be opened in turn.
+
+    ``open_page`` gives a page its own browser, which is the right unit
+    for almost everything here and the wrong one for anything that
+    travels *between* pages.  Since Build_20261102 the forms remember
+    the reader's display language in ``localStorage``, which is per
+    origin and per context: a choice made on one form is supposed to be
+    there on the next, and two separate browsers can never show that.
+
+    Yields ``open(path) -> (page, log)``.  Pages stay open until the
+    context closes, so a test can act on one and then on another, the
+    way a reader moves from form to form.
+
+    ``languages`` replaces what the pages see as the browser's language
+    preferences, in order, for every page opened in this context.
+    """
+    from playwright.sync_api import sync_playwright
+
+    root = base_url.replace("localhost", "127.0.0.1").rstrip("/")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(downloads_path=tempfile.mkdtemp())
+        try:
+            context = browser.new_context(accept_downloads=True)
+            if languages is not None:
+                context.add_init_script(
+                    f"({_LANGUAGES_HOOK})([{json.dumps(list(languages))}])")
+
+            def open(path: str) -> tuple[Any, PageLog]:
+                log = PageLog()
+                page = context.new_page()
+                page.on("console", lambda m: log.console_errors.append(
+                    f"{m.type}: {m.text}") if m.type == "error" else None)
+                page.on("pageerror", lambda e: log.page_errors.append(str(e)))
+                page.on("download",
+                        lambda d: log.downloads.append(d.suggested_filename))
+
+                url = root + path
+                page.goto(url, wait_until="networkidle")
+                failure = page.evaluate(
+                    "() => location.href.startsWith('chrome-error://')"
+                    " ? document.querySelector('.error-code')?.textContent"
+                    " : null")
+                if failure:
+                    raise RuntimeError(
+                        f"the browser could not load {url}: {failure}.  The "
+                        "application under test is not answering on that "
+                        "address.")
+                page.evaluate(_ATTEMPT_HOOK)
+                return page, log
+
+            yield open
+        finally:
+            browser.close()
+
+
+@contextlib.contextmanager
+def open_page(base_url: str, path: str,
+              languages: list[str] | None = None) -> Iterator[tuple[Any, PageLog]]:
     """A Chromium page on ``base_url + path``, with a log of what it did.
 
     ``127.0.0.1``, never ``localhost``: the two are not always the same
@@ -112,36 +188,15 @@ def open_page(base_url: str, path: str) -> Iterator[tuple[Any, PageLog]]:
     the application announces ``127.0.0.1`` itself and the driver passes
     that on, so the rewrite below is a no-op against it; it stays for a
     caller that builds a URL by hand, or a build that goes back.
+
+    Each call gets its own browser, and therefore its own empty
+    ``localStorage``: a language a previous test chose cannot leak into
+    this one.  To follow a choice from one page to the next -- which is
+    what Build_20261102's shared display language claims to do -- use
+    ``open_session``.
     """
-    from playwright.sync_api import sync_playwright
-
-    log = PageLog()
-    url = base_url.replace("localhost", "127.0.0.1").rstrip("/") + path
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(downloads_path=tempfile.mkdtemp())
-        try:
-            context = browser.new_context(accept_downloads=True)
-            page = context.new_page()
-            page.on("console", lambda m: log.console_errors.append(
-                f"{m.type}: {m.text}") if m.type == "error" else None)
-            page.on("pageerror", lambda e: log.page_errors.append(str(e)))
-            page.on("download",
-                    lambda d: log.downloads.append(d.suggested_filename))
-
-            page.goto(url, wait_until="networkidle")
-            failure = page.evaluate(
-                "() => location.href.startsWith('chrome-error://')"
-                " ? document.querySelector('.error-code')?.textContent : null")
-            if failure:
-                raise RuntimeError(
-                    f"the browser could not load {url}: {failure}.  The "
-                    "application under test is not answering on that "
-                    "address.")
-            page.evaluate(_ATTEMPT_HOOK)
-            yield page, log
-        finally:
-            browser.close()
+    with open_session(base_url, languages=languages) as open:
+        yield open(path)
 
 
 def control_states(page: Any, ids: list[str]) -> dict[str, str]:

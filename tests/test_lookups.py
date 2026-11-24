@@ -41,7 +41,7 @@ def _keys(rows: list[dict]) -> set[str]:
      {"code", "name", "nameChn", "startYear", "endYear"}, 85),
     ("/api/addresses",
      {"id", "name", "nameChn", "adminType", "belongsToChn", "belongsToPY",
-      "firstYear", "lastYear", "xCoord", "yCoord"}, 37_118),
+      "firstYear", "lastYear", "xCoord", "yCoord"}, 37_180),
     ("/api/texts/text-categories",
      {"nodeId", "parentId", "desc", "descChn", "level", "sortOrder"}, 51),
     # 20, not 22: the two BIOG_ADDR_CODES rows that are not real choices
@@ -189,8 +189,8 @@ def test_the_address_list_has_its_expected_size(app: CbdbApp):
     """
     rows = app.json("GET", "/api/addresses")
 
-    assert len(rows) == 37_118, len(rows)
-    assert len({row["id"] for row in rows}) == 29_932, \
+    assert len(rows) == 37_180, len(rows)
+    assert len({row["id"] for row in rows}) == 29_992, \
         len({row["id"] for row in rows})
 
 

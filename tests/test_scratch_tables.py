@@ -188,7 +188,10 @@ EXPECTED_OWNERS: dict[str, set[str]] = {
     "ZZ_KIN_LIST": {"browser", "kinship"},
     "ZZ_KIN_LIST_TMP": {"browser", "kinship", "networks"},
     "ZZ_SCRATCH_KIN": {"browser", "kinship"},
-    "ZZ_SCRATCH_KINNET": {"browser", "kinship"},
+    # Kinship's alone since Build_20261028: the Browser's kinship lookup
+    # stopped clearing it (it never read it) and now runs the three it
+    # does share inside a transaction it always rolls back.
+    "ZZ_SCRATCH_KINNET": {"kinship"},
 
     # -- one form each -----------------------------------------------------
     "ZZ_ADDRESSES": {"office"},
@@ -565,7 +568,9 @@ def test_no_query_asks_a_scratch_table_for_a_column_it_lacks(layout,
 #: column.  Read off the source below rather than listed here; this is
 #: only the count, pinned so that a declaration losing its constraint
 #: is read rather than silently reducing what this file checks.
-EXPECTED_UNIQUE_DECLARATIONS = 5
+#: 6 since Build_20261028, whose Association Pairs source declares the
+#: UNIQUE(c_person_id) that the shipped ZZ_SIP_ASSOC_PAIR already had.
+EXPECTED_UNIQUE_DECLARATIONS = 6
 
 #: Tables whose shipped definition has no such constraint even though a
 #: form declares one, with what it costs.  Exact, and empty is the goal.

@@ -1,0 +1,12 @@
+# Characters accepted in a script although OpenCC would convert them.
+#
+# The script rule in tests/cbdb_desktop/i18n.py flags a character in
+# Traditional text when every OpenCC conversion into Traditional changes
+# it (and the same for Simplified).  Some such characters are nonetheless
+# acceptable in that script by the maintainer's ruling; they are listed
+# here and never flagged -- not on the pages, not on screen, not in the
+# glossary's own self-check.
+#
+# One character per line: script (traditional | simplified) <TAB>
+# character <TAB> note.  Lines starting with # are comments.
+traditional	于	acceptable in Traditional Chinese (maintainer's ruling, 2026-10-22)

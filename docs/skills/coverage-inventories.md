@@ -35,6 +35,7 @@ of, and there was no mechanism that could notice the difference.
 | `cbdb_desktop/discovery.py` | populated `(code, dynasty)`, `(code, half-century)`, `(code, address)` combinations | the shipped database's row counts | `test_query_matrix.py::test_the_discovered_matrix_covers_every_form_and_dimension` |
 | `forms.TOGGLES` | every boolean and mode option, with the direction it must move the result | the request structs' own meaning | the switch sweep, plus its skips |
 | `test_ui_pages.PRECONDITIONS` | what un-greys each control that ships disabled | driven in a real Chromium | `test_every_disabled_control_has_a_declared_precondition`, over `UNDECLARED` |
+| `cbdb_desktop/i18n.py` | every translated label (English, 繁, 简) on every page with a language switch | the templates' `translations` / `T` / `LABELS` objects, plus the screen after 繁/简 is pressed | `test_translations.py::test_the_pages_with_a_language_switch_are_the_pages_checked` — see `translation-check.md` |
 
 Two of those are newer and shaped differently, so they get their own
 notes below: the switch sweep (§ *Options as well as values*) and the

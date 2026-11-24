@@ -312,6 +312,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("test_cross_form_channel.py",
      "Passing a result from one form to another",
      "The stored-person list: what one form stores, another recalls"),
+    ("test_assoc_pairs.py",
+     "The Association Pairs form's intermediaries",
+     "That every person a 2-node query reports lies on a path between "
+     "the two seeds, read off the reply's own network, in all four "
+     "shapes of the query"),
     ("test_page_contracts.py",
      "Each page against its own handler",
      "Whether the two halves of a form agree about the request and the "
@@ -366,6 +371,24 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "The pages in a real browser",
      "That every page loads without throwing, and that a control waiting "
      "on the user un-greys when they do it"),
+    ("test_translations.py",
+     "English, Traditional and Simplified labels",
+     "Every translated label, from the templates and from the screen: all "
+     "three languages present, each Chinese text in its own script, and "
+     "agreement with the CBDB label glossary and across forms"),
+    ("test_display_language.py",
+     "The language a form opens in",
+     "That every form opens in the language the reader's browser asks "
+     "for, applies the mapping the developers specified, and remembers "
+     "a choice made on one form when the next one is opened"),
+    ("test_build_provenance.py",
+     "The shipped source",
+     "That the Go source shipped in Code/ is the source of the shipped "
+     "cbdb.exe"),
+    ("test_release_notes.py",
+     "The developers' release notes",
+     "That the notes shipped beside the tree convert to Markdown "
+     "faithfully, and identically every time"),
     ("test_sessions.py",
      "Two tabs at once",
      "Whether one query can replace what another was about to export"),
@@ -398,6 +421,10 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
     "test_cross_form_channel.py": ("在表單之間傳遞查詢結果",
                                   "已儲存人物清單：一個表單存入的，"
                                   "另一個表單取回的"),
+    "test_assoc_pairs.py": ("關係人配對表單的中介人物",
+                            "二節點查詢回報的每一個人，都位於兩位起點人物"
+                            "之間的路徑上——依回應本身的網絡判斷，"
+                            "四種查詢形式都檢查"),
     "test_page_contracts.py": ("各頁面與其後端的對照",
                                "表單的前後兩半對於請求與回應是否一致——"
                                "後端從不讀取的控制項、頁面讀不懂的回應、"
@@ -438,6 +465,21 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
     "test_ui_pages.py": ("在真實瀏覽器中的頁面",
                          "每個頁面載入時不拋錯；等待使用者操作的控制項"
                          "在條件滿足後確實解除停用"),
+    "test_translations.py": ("英文、繁體與簡體標籤",
+                             "從模板與畫面兩處檢查每個翻譯標籤：三種語言"
+                             "齊全、中文各用其字體，並與 CBDB 標籤對照表及"
+                             "其他表單一致"),
+    "test_display_language.py": ("表單開啟時使用的語言",
+                                 "每個表單是否以讀者瀏覽器所要求的語言開啟、"
+                                 "是否依開發者所訂的對應規則判斷，以及在某個"
+                                 "表單上所做的語言選擇，開啟下一個表單時是否"
+                                 "仍然記得"),
+    "test_build_provenance.py": ("隨附的原始碼",
+                                 "Code/ 中隨附的 Go 原始碼確實是隨附 "
+                                 "cbdb.exe 的原始碼"),
+    "test_release_notes.py": ("開發者的修訂說明",
+                              "隨附於檔案樹旁的說明文件忠實地轉成 "
+                              "Markdown，而且每次結果相同"),
     "test_sessions.py": ("同時開兩個分頁",
                          "一次查詢是否會取代另一個分頁即將匯出的內容"),
     "test_scratch_tables.py": ("暫存工作表",

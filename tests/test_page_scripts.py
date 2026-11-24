@@ -42,6 +42,8 @@ without anyone remembering to add it.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from cbdb_desktop import controls, jsscan
@@ -155,26 +157,104 @@ def test_every_page_script_closes_every_string_it_opens(layout: AppLayout):
         f"control on the page inert: {detail}")
 
 
-def test_no_page_hides_its_javascript_where_this_check_cannot_read_it(
-        layout: AppLayout):
-    """Every page's JavaScript is inline, which is what makes the scan total.
+def _loaded_files(layout: AppLayout) -> dict[str, tuple[Path | None, list[str]]]:
+    """``{src: (staged file or None, [pages that load it])}``.
 
-    ``jsscan`` reads ``<script>`` bodies and skips ``<script src=...>``,
-    which is correct -- there is no body to read -- but it means a build
-    that moved a page's code into a file would be scanned clean while
-    checking nothing.  Pin the count at zero so that move fails here
-    rather than quietly narrowing the gate.
+    How the application serves a script is read from the one place that
+    decides it: ``main.go`` mounts ``http.FileServer(http.Dir(Static))``
+    under ``/static/``, so a ``src`` of ``/static/x`` is ``Static/x``
+    and nothing else is served as a file at all.  A ``src`` this cannot
+    place comes back with ``None``, which is a failure rather than a
+    silent omission -- the whole point of following these is that
+    nothing goes unread.
     """
-    external = {}
+    found: dict[str, tuple[Path | None, list[str]]] = {}
     for page, path in sorted(controls.pages(layout).items()):
         html = path.read_text(encoding="utf-8", errors="replace")
-        count = jsscan.external_scripts(html)
-        if count:
-            external[page] = count
-    assert not external, (
-        "these pages load JavaScript from a file, which this scan does "
-        f"not read: {external}.  Point it at the file, or say here why "
-        "the file needs no checking")
+        for src in jsscan.external_script_srcs(html):
+            prefix = "/static/"
+            resolved: Path | None = None
+            if src.lower().startswith(prefix) and len(src) > len(prefix):
+                candidate = layout.static_dir.joinpath(
+                    *src[len(prefix):].split("/"))
+                resolved = candidate if candidate.is_file() else None
+            found.setdefault(src, (resolved, []))[1].append(page)
+    return found
+
+
+def test_every_script_a_page_loads_from_a_file_is_followed_to_that_file(
+        layout: AppLayout):
+    """A page's JavaScript may live in a file, but it may not go unread.
+
+    ``jsscan`` reads ``<script>`` bodies and skips ``<script src=...>``,
+    which is correct -- there is no body to read -- so until
+    Build_20261102 this gate pinned the count of such tags at zero, on
+    the ground that every page kept all its behaviour inline.  That
+    build moved the display-language logic the twelve form pages share
+    into ``/static/cbdb_language.js``, which is a legitimate change and
+    the best possible argument for *not* answering it by widening the
+    pin: a file twelve pages load is the one whose syntax error breaks
+    all twelve at once, and a shared file is scanned once.
+
+    So the pin became a resolution.  Every ``src`` a page loads must
+    name a file this run can find in the staged tree; the test that
+    follows scans what this one resolved.  A ``src`` that cannot be
+    placed fails here, because a scan that quietly skipped it would
+    report a clean build having read nothing.
+    """
+    loaded = _loaded_files(layout)
+    unresolved = {src: pages for src, (path, pages) in sorted(loaded.items())
+                  if path is None}
+    assert not unresolved, (
+        "these pages load JavaScript from a file this check cannot place "
+        f"in the staged tree: {unresolved}.  The application serves files "
+        "only from Static/, under /static/ (main.go's FileServer), so a "
+        "src outside that is either a path this does not understand or a "
+        "script the build does not ship.  Teach _loaded_files how to "
+        "resolve it, or say here why the file needs no checking")
+
+
+def test_every_script_file_the_pages_load_closes_every_string_it_opens(
+        layout: AppLayout):
+    """The same scan as the pages', on the files they load.
+
+    A shared file earns this more than any one page does.  An inline
+    ``<script>`` that does not parse costs one form; ``cbdb_language.js``
+    is loaded by all twelve, before each page's own script, and the two
+    functions it defines are called from each page's load path -- so a
+    syntax error in it leaves twelve forms rendering completely and
+    doing nothing, with the same HTTP 200 and the same intact DOM that
+    makes this failure mode invisible to every request-level test.
+
+    An empty run is a failure, not a pass: if no page loaded a file,
+    the test above would have nothing to resolve and this would scan
+    nothing, so the count of files actually read is asserted.
+    """
+    loaded = _loaded_files(layout)
+    resolved = {src: path for src, (path, _pages) in sorted(loaded.items())
+                if path is not None}
+    if not loaded:
+        pytest.skip("no page in this build loads JavaScript from a file")
+    assert resolved, (
+        f"{len(loaded)} script file(s) are loaded by the pages and not one "
+        "of them resolved, so this scanned nothing: "
+        f"{sorted(loaded)}")
+
+    found: dict[str, list[jsscan.Unterminated]] = {}
+    for src, path in resolved.items():
+        findings = jsscan.unterminated_strings(
+            path.read_text(encoding="utf-8", errors="replace"))
+        if findings:
+            found[src] = findings
+
+    detail = "; ".join(
+        f"{src} (loaded by {', '.join(loaded[src][1])}) "
+        f"{[f.line for f in findings]}: {findings[0].text}"
+        for src, findings in sorted(found.items()))
+    assert not found, (
+        "these script files open a JavaScript string their line never "
+        "closes, which discards the whole file and leaves every page "
+        f"that loads it without the functions it defines: {detail}")
 
 
 #: Every page in this build keeps its behaviour in exactly one inline
@@ -355,6 +435,93 @@ def test_a_script_tag_with_an_unquoted_src_is_still_an_external_script():
     page = '<script src=main.js></script><script>var a = 1;</script>'
     assert jsscan.external_scripts(page) == 1
     assert len(jsscan.inline_scripts(page)) == 1
+    assert jsscan.external_script_srcs(page) == ["main.js"]
+
+
+@pytest.mark.parametrize("tag,expected", [
+    ('<script src="/static/cbdb_language.js"></script>',
+     "/static/cbdb_language.js"),
+    ("<script src='/static/cbdb_language.js'></script>",
+     "/static/cbdb_language.js"),
+    ('<script src=/static/cbdb_language.js></script>',
+     "/static/cbdb_language.js"),
+    ('<script defer src="/static/x.js" type="text/javascript"></script>',
+     "/static/x.js"),
+    ('<script src=""></script>', ""),
+])
+def test_the_src_reader_returns_the_path_the_page_wrote(tag, expected):
+    """Every spelling of the attribute, read back as written.
+
+    The value is what the gate resolves against the staged tree, so a
+    spelling it read as the empty string would silently become a file
+    nobody looked for -- which is why the empty ``src`` is in this list
+    rather than filtered out: it is a page loading itself, and it has
+    to arrive as a value the gate can refuse.
+    """
+    assert jsscan.external_script_srcs(tag) == [expected]
+
+
+def test_a_script_file_that_cannot_be_placed_is_a_failure_not_a_skip(tmp_path):
+    """The gate's own question, asked where the answer is written down.
+
+    A page that loads a file from somewhere this cannot resolve must
+    fail the resolution gate -- the whole value of following a ``src``
+    is that nothing goes unread, and the failure mode to prevent is a
+    build whose shared script is quietly skipped while the run reports
+    clean.  Built as a tree with the answer in it, because the gate
+    reads the staged build and the staged build must not be edited.
+    """
+    (tmp_path / "Static").mkdir()
+    (tmp_path / "Static" / "ok.js").write_text("var a = 1;\n",
+                                               encoding="utf-8")
+    pages = tmp_path / "Templates"
+    (pages / "good").mkdir(parents=True)
+    (pages / "bad").mkdir(parents=True)
+    (pages / "good" / "index.html").write_text(
+        '<script src="/static/ok.js"></script><script>var b = 2;</script>',
+        encoding="utf-8")
+    (pages / "bad" / "index.html").write_text(
+        '<script src="https://cdn.example/x.js"></script>'
+        '<script>var c = 3;</script>',
+        encoding="utf-8")
+
+    layout = AppLayout(root=tmp_path)
+    loaded = _loaded_files(layout)
+    assert loaded["/static/ok.js"][0] == tmp_path / "Static" / "ok.js"
+    assert loaded["https://cdn.example/x.js"][0] is None
+
+    with pytest.raises(AssertionError, match="cannot place"):
+        test_every_script_a_page_loads_from_a_file_is_followed_to_that_file(
+            layout)
+
+
+def test_a_broken_shared_script_is_found_through_the_page_that_loads_it(
+        tmp_path):
+    """And the scan that follows actually reads the file it resolved.
+
+    The companion to the test above: resolving a path proves nothing if
+    the contents are never scanned, and a gate that resolves without
+    reading is exactly the "coverage that looked good" shape AGENTS.md
+    warns about.  One file, one broken line, and the failure must name
+    the file *and* the page that loads it -- the reader needs both to
+    know how much of the build this costs.
+    """
+    (tmp_path / "Static").mkdir()
+    (tmp_path / "Static" / "shared.js").write_text(
+        "function hello() {\n  alert('unclosed);\n}\n", encoding="utf-8")
+    page = tmp_path / "Templates" / "entry"
+    page.mkdir(parents=True)
+    (page / "index.html").write_text(
+        '<script src="/static/shared.js"></script><script>var a = 1;</script>',
+        encoding="utf-8")
+
+    layout = AppLayout(root=tmp_path)
+    with pytest.raises(AssertionError) as raised:
+        test_every_script_file_the_pages_load_closes_every_string_it_opens(
+            layout)
+    message = str(raised.value)
+    assert "/static/shared.js" in message, message
+    assert "entry" in message, message
 
 
 def test_a_line_continuation_inside_a_slash_does_not_lose_a_line_either():
