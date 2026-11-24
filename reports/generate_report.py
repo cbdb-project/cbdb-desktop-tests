@@ -376,6 +376,11 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "Every translated label, from the templates and from the screen: all "
      "three languages present, each Chinese text in its own script, and "
      "agreement with the CBDB label glossary and across forms"),
+    ("test_display_language.py",
+     "The language a form opens in",
+     "That every form opens in the language the reader's browser asks "
+     "for, applies the mapping the developers specified, and remembers "
+     "a choice made on one form when the next one is opened"),
     ("test_build_provenance.py",
      "The shipped source",
      "That the Go source shipped in Code/ is the source of the shipped "
@@ -464,6 +469,11 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                              "從模板與畫面兩處檢查每個翻譯標籤：三種語言"
                              "齊全、中文各用其字體，並與 CBDB 標籤對照表及"
                              "其他表單一致"),
+    "test_display_language.py": ("表單開啟時使用的語言",
+                                 "每個表單是否以讀者瀏覽器所要求的語言開啟、"
+                                 "是否依開發者所訂的對應規則判斷，以及在某個"
+                                 "表單上所做的語言選擇，開啟下一個表單時是否"
+                                 "仍然記得"),
     "test_build_provenance.py": ("隨附的原始碼",
                                  "Code/ 中隨附的 Go 原始碼確實是隨附 "
                                  "cbdb.exe 的原始碼"),

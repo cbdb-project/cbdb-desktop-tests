@@ -2,9 +2,9 @@
 
 _自動化迴歸測試過程中發現的問題彙總，謹呈維護團隊斧正。_
 
-_受測版本：CBDB-Desktop_Build_20261028.7z_
+_受測版本：CBDB-Desktop_Build_20261102.7z_
 
-_本報告產生於 2026-10-29 06:06 UTC，依據一次 1546 項測試的執行結果（耗時 566 秒）。_
+_本報告產生於 2026-11-05 09:22 UTC，依據一次 1546 項測試的執行結果（耗時 566 秒）。_
 
 尊敬的維護者：
 
@@ -20,12 +20,18 @@ _本報告產生於 2026-10-29 06:06 UTC，依據一次 1546 項測試的執行�
 
 | 結果 | 數量 |
 | --- | --- |
-| 通過 | 1344 |
-| 失敗 | 3 |
+| 通過 | 1346 |
+| 失敗 | 1 |
 | 預期失敗（已協商暫時擱置） | 18 |
 | 略過 | 181 |
 
-3 項失敗全部都是用來證明下列問題的測試。
+在 1 項失敗中，有 **0** 項是用來證明下列問題的測試——這些問題正是由它們認定的，問題修好之後它們就會恢復通過。其餘 **1** 項在下方逐一交代，以免讀者拿這些數字去對照問題清單，卻發現兩邊對不起來。
+
+**本次執行有 1 項失敗尚未歸類。**它們既不屬於下列問題，也不屬於我們已知的覆蓋缺口——換句話說，這次執行發現了還沒有人看過的東西。它們可能是值得立案的缺陷，也可能是檢查本身的問題；請務必逐一閱讀，不要把下面的清單當成已經完整。
+
+| 對應檢查 | 回報的內容 |
+| --- | --- |
+| `test_no_page_hides_its_javascript_where_this_check_cannot_read_it` | these pages load JavaScript from a file, which this scan does not read: {'association_pairs': 1, 'associations': 1, 'browser': 1, 'entry': 1, 'group_data': 1, 'kinship': 1, 'networks': 1, 'office': 1, |
 
 ## 測試套件的涵蓋範圍
 
@@ -69,7 +75,7 @@ _本報告產生於 2026-10-29 06:06 UTC，依據一次 1546 項測試的執行�
 
 | 編號 | 等級 | 本次執行狀態 | 問題 |
 | --- | --- | --- | --- |
-| CBDB-D-006 | P6 | 已確認 | 三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字 |
+| CBDB-D-006 | P6 | 似已修復 | 三個頁面顯示的文字與所選語言的字體不符：寫死在頁面上、語言切換不會改寫的雙語標題與提示文字 |
 
 ## 目錄
 
@@ -85,7 +91,9 @@ _本報告產生於 2026-10-29 06:06 UTC，依據一次 1546 項測試的執行�
 
 **問題來源：** `software` — 程式本身的問題：cbdb.exe、其 Go 原始碼、頁面模板，或資料庫建置程式的邏輯。由 CBDB-Desktop 的開發者修正。
 
-**本次執行狀態：** 已確認
+**本次執行狀態：** 似已修復
+
+> 用來證明這項問題的測試已不再失敗。煩請確認後，本條即可撤下。
 
 #### 問題描述
 
@@ -118,8 +126,7 @@ _本報告產生於 2026-10-29 06:06 UTC，依據一次 1546 項測試的執行�
 
 #### 對應的測試
 
-- 3 × 失敗: `test_each_chinese_language_shows_only_its_own_script[association_pairs]`, `test_each_chinese_language_shows_only_its_own_script[associations]`, `test_each_chinese_language_shows_only_its_own_script[texts]`
-- 9 × 通過: `test_each_chinese_language_shows_only_its_own_script[browser]`, `test_each_chinese_language_shows_only_its_own_script[entry]`, `test_each_chinese_language_shows_only_its_own_script[group_data]`, `test_each_chinese_language_shows_only_its_own_script[kinship]` (+5)
+- 12 × 通過: `test_each_chinese_language_shows_only_its_own_script[association_pairs]`, `test_each_chinese_language_shows_only_its_own_script[associations]`, `test_each_chinese_language_shows_only_its_own_script[browser]`, `test_each_chinese_language_shows_only_its_own_script[entry]` (+8)
 
 ## 嚴重等級說明
 

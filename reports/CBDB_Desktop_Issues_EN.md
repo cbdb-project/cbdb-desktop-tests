@@ -2,9 +2,9 @@
 
 _A respectful summary of issues uncovered during automated regression testing._
 
-_Build under test: CBDB-Desktop_Build_20261028.7z_
+_Build under test: CBDB-Desktop_Build_20261102.7z_
 
-_Generated 2026-10-29 06:06 UTC from a run of 1546 tests (566s)._
+_Generated 2026-11-05 09:22 UTC from a run of 1546 tests (566s)._
 
 Dear maintainer,
 
@@ -18,12 +18,18 @@ We have not tried to set your priorities: the bands describe what we measured, n
 
 | outcome | count |
 | --- | --- |
-| passed | 1344 |
-| failed | 3 |
+| passed | 1346 |
+| failed | 1 |
 | xfailed (agreed to leave for now) | 18 |
 | skipped | 181 |
 
-Every one of the 3 failures is a test that demonstrates an issue below.
+Of the 1 failures, **0** are the tests that demonstrate the issues below -- they are how those issues are established, and they will pass again when the issues are fixed.  The remaining **1** are accounted for underneath, so that a reader does not have to reconcile these numbers against the list of issues and find that they do not add up.
+
+**1 failure(s) in this run are not yet classified.**  They are not among the issues below and they are not one of our known coverage gaps, which means this run found something nobody has looked at yet.  Each may turn out to be a defect worth filing or a problem with the check itself; please read them rather than trusting this list to be complete.
+
+| Check | What it reported |
+| --- | --- |
+| `test_no_page_hides_its_javascript_where_this_check_cannot_read_it` | these pages load JavaScript from a file, which this scan does not read: {'association_pairs': 1, 'associations': 1, 'browser': 1, 'entry': 1, 'group_data': 1, 'kinship': 1, 'networks': 1, 'office': 1, |
 
 ## What the suite covers
 
@@ -67,7 +73,7 @@ The table above counts what was checked; it is not a list of what the applicatio
 
 | ID | Priority | Status in this run | Issue |
 | --- | --- | --- | --- |
-| CBDB-D-006 | P6 | CONFIRMED | Three pages show text in the wrong script for the language chosen: a fixed bilingual title and placeholders written into the page that the language switch never rewrites |
+| CBDB-D-006 | P6 | APPARENTLY FIXED | Three pages show text in the wrong script for the language chosen: a fixed bilingual title and placeholders written into the page that the language switch never rewrites |
 
 ## Table of contents
 
@@ -83,7 +89,9 @@ The table above counts what was checked; it is not a list of what the applicatio
 
 **Where it comes from:** `software` — In the application: cbdb.exe, its Go sources, its page templates, or the database builder's logic.  Fixed by the CBDB-Desktop developers.
 
-**Status in this run:** CONFIRMED
+**Status in this run:** APPARENTLY FIXED
+
+> The tests that demonstrated this no longer fail. Please confirm, and this entry can be retired.
 
 #### Description
 
@@ -116,8 +124,7 @@ Give the Associations title, the three placeholders and the Texts column header 
 
 #### Demonstrated by
 
-- 3 × failed: `test_each_chinese_language_shows_only_its_own_script[association_pairs]`, `test_each_chinese_language_shows_only_its_own_script[associations]`, `test_each_chinese_language_shows_only_its_own_script[texts]`
-- 9 × passed: `test_each_chinese_language_shows_only_its_own_script[browser]`, `test_each_chinese_language_shows_only_its_own_script[entry]`, `test_each_chinese_language_shows_only_its_own_script[group_data]`, `test_each_chinese_language_shows_only_its_own_script[kinship]` (+5)
+- 12 × passed: `test_each_chinese_language_shows_only_its_own_script[association_pairs]`, `test_each_chinese_language_shows_only_its_own_script[associations]`, `test_each_chinese_language_shows_only_its_own_script[browser]`, `test_each_chinese_language_shows_only_its_own_script[entry]` (+8)
 
 ## Severity legend
 
