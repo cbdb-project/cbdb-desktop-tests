@@ -29,7 +29,7 @@ from cbdb_desktop.config import (
     load_config,
 )
 from cbdb_desktop import staging
-from cbdb_desktop.archives import Archive, ArchiveError, common_root
+from cbdb_desktop.archives import Archive, ArchiveError, common_root, long_path
 from cbdb_desktop.staging import (
     MANIFEST_NAME,
     VOLATILE_ENTRIES,
@@ -129,9 +129,13 @@ def _fake_distribution_7z(path: Path, *, root: str | None,
         member.parent.mkdir(parents=True, exist_ok=True)
         member.write_text(body, encoding="utf-8")
     if loose is not None:
-        (staged / loose).write_text("release notes\n", encoding="utf-8")
+        # ``loose`` may name a file inside a directory beside the
+        # wrapper, and a long one (Build_20261124's shape).
+        target = long_path(staged / loose)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("release notes\n", encoding="utf-8")
     with py7zr.SevenZipFile(path, "w") as archive:
-        for child in sorted(staged.iterdir()):
+        for child in sorted(long_path(staged).iterdir()):
             archive.writeall(child, child.name)
     return path
 
@@ -778,6 +782,58 @@ def test_a_file_beside_the_wrapper_reaches_the_staged_tree(tmp_path: Path):
     assert integrity_mismatches(layout, manifest) == [], (
         "the staged tree and the manifest written from the archive "
         "disagree, which is the corruption this test exists to catch")
+
+
+def test_a_directory_beside_the_wrapper_is_kept_only_on_the_archives_name():
+    """Build_20261124 ships ``CBDB-Desktop/`` beside ``Revision Documentation/``.
+
+    Two top-level directories used to be refused outright, which left
+    the tree one level deeper than the suite reads.  The archive's name
+    says which one is the tree; without that evidence, or when it names
+    neither, the refusal stands.
+    """
+    shipped = ["CBDB-Desktop/Data/CBDB.db", "CBDB-Desktop/cbdb.exe",
+               "Revision Documentation/notes.docx",
+               "Revision Documentation/Users Guide/guide.docx"]
+    assert common_root(shipped, stem="CBDB-Desktop_Build_20261124") \
+        == "CBDB-Desktop"
+    assert common_root(shipped) is None
+    assert common_root(shipped, stem="something-else") is None
+    # A directory beside the wrapper that would land on one inside it.
+    assert common_root(["CBDB-Desktop/Data/CBDB.db", "Data/extra.txt"],
+                       stem="CBDB-Desktop_1") is None
+
+
+def test_a_directory_beside_the_wrapper_reaches_the_staged_tree_past_260(
+        tmp_path: Path):
+    """The whole path through extraction, with Build_20261124's long names.
+
+    That build's User's Guide documents run to 278 characters once
+    staged, and with Windows' long-path support off -- its default --
+    staging died part way through writing one.  The assertion that
+    matters is the last: the tree agrees with its manifest, which is
+    also what proves the integrity walk can *see* the long file rather
+    than reporting it missing and restaging on every run.
+    """
+    long_name = ("Revision Documentation/Users Guide/"
+                 + "CBDB User's Guide → Simplified Chinese " + "x" * 180
+                 + ".docx")
+    seven = _fake_distribution_7z(
+        tmp_path / "CBDB-Desktop_Build_20261124.7z",
+        root="CBDB-Desktop", loose=long_name)
+    layout = stage(_config(tmp_path, seven), quiet=True)
+
+    layout.verify()
+    assert (layout.root / "Data").is_dir(), "the wrapper was not stripped"
+    beside = long_path(layout.root / long_name)
+    assert len(str(layout.root / long_name)) > 260, "the case is not long"
+    assert beside.is_file(), (
+        "the directory beside the wrapper did not reach the staged tree")
+    assert beside.read_text(encoding="utf-8") == "release notes\n"
+
+    manifest = read_manifest(layout.root)
+    assert manifest is not None
+    assert integrity_mismatches(layout, manifest) == []
 
 
 def test_a_corrupt_seven_zip_is_reported_not_crashed(tmp_path: Path):

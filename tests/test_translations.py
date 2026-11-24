@@ -61,14 +61,15 @@ from cbdb_desktop.staging import AppLayout
 GLOSSARY_ROWS = 643
 
 #: How many pages offer a choice of language: 11 on the 20261021 build,
-#: 12 on Build_20261028, whose Query Builder gained EN / 繁 / 简.
+#: 12 on Build_20261028, whose Query Builder gained EN / 繁 / 简, and
+#: 13 on Build_20261124, whose Index Address form did.
 #: The pages themselves are *derived* from the build at collection time
 #: (``pytest_generate_tests`` below) -- no page name is written here --
 #: and this count is the floor-free check on that derivation: a build
 #: that dropped a page's switch, or a reader that stopped recognising
 #: one, would otherwise shrink every per-page test below to fewer pages
 #: and stay green.
-TRANSLATED_PAGE_COUNT = 12
+TRANSLATED_PAGE_COUNT = 13
 
 
 def pytest_generate_tests(metafunc):
@@ -239,6 +240,10 @@ PAGES_WITHOUT_A_GLOSSARY_FORM = {
     # view, so the sheet has no rows for it -- the developers' note "QBE
     # translation 2026-10-28" says the same.
     "qbe": "the Access front end used Access's own Query Design view",
+    # Translated from Build_20261124 (its comment cites the developers'
+    # "Index Address form translation (Nov 9 2026)").  FormLabels has no
+    # rows for the Access form it replaces.
+    "index_addr": "FormLabels has no rows for the Access index-address form",
 }
 
 

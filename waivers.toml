@@ -135,10 +135,43 @@ agreed_on = 2026-10-29
 # whole sentences each written idiomatically for its own readers (與/和,
 # 至/到, 依/按, 會/将), which no word table should equate.
 
+#
+# Build_20261124 translated the Index Address form on the same convention
+# (its header comment, index_addr/index.html:125); its one remaining
+# difference is the same 與/和 this ruling names, so it is covered by it
+# rather than filed.  Extended 2026-11-24 on that precedent.
+
 [test_traditional_and_simplified_say_the_same_thing]
-params    = ["qbe"]
+params    = ["qbe", "index_addr"]
 raises    = "KnownShippedDefect"
-reason    = "Agreed 2026-10-29: the Query Builder's Traditional and Simplified texts are localised separately for Taiwan and mainland readers; the 13 remaining differences are idiomatic phrasing, not different meanings."
-reason_zh = "2026-10-29 協商：查詢建構器的繁體與簡體文字分別為台灣與大陸讀者在地化；剩下的 13 處差異是各自道地的措辭，意思並無不同。"
+reason    = "Agreed 2026-10-29: the Query Builder's Traditional and Simplified texts are localised separately for Taiwan and mainland readers; the 13 remaining differences are idiomatic phrasing, not different meanings.  Extended 2026-11-24 to the Index Address form, translated on the same convention, whose one difference is 與/和."
+reason_zh = "2026-10-29 協商：查詢建構器的繁體與簡體文字分別為台灣與大陸讀者在地化；剩下的 13 處差異是各自道地的措辭，意思並無不同。2026-11-24 依同一原則延伸至指數地址表單：它以相同慣例翻譯，唯一的差異是「與／和」。"
 agreed_by = "maintainer"
 agreed_on = 2026-10-29
+
+
+# --- The packaging 7z's cbdb.exe ---------------------------------------------
+#
+# CBDB-Desktop_Build_<date>.7z is the packaging bundle; what is distributed
+# is dist/CBDB-Desktop-win-x64.zip (and the two macOS archives) beside it
+# (the maintainer, 2026-11-24).  On Build_20261124 the 7z carries the
+# Go source with the Kinship fix for a distance limit of 0 and, still, the
+# cbdb.exe every build since 20261021 has shipped (SHA-256 19a72c9a...),
+# which replaces a 0 with a default.  The dist binary (SHA-256
+# 065d3da0..., 2026-11-24) passes both tests below on the same database.
+# The tests keep running against the 7z: the day it carries a rebuilt
+# binary they pass, and the unexpected pass retires these entries.
+
+[test_a_zero_limit_admits_no_step_of_its_kind]
+raises    = "KnownShippedDefect"
+reason    = "Agreed 2026-11-24: the 7z is the packaging bundle, not the distribution.  Its cbdb.exe predates the Kinship fix for a 0 distance limit; the distributed dist/CBDB-Desktop-win-x64.zip binary has it and passes this test."
+reason_zh = "2026-11-24 協商：7z 只是封裝用的檔案，不是發行版。其中的 cbdb.exe 早於親屬表單「距離上限為 0」的修正；實際發行的 dist/CBDB-Desktop-win-x64.zip 中的執行檔已包含修正，並通過此測試。"
+agreed_by = "maintainer"
+agreed_on = 2026-11-24
+
+[test_with_every_limit_zero_no_relative_is_any_step_away]
+raises    = "KnownShippedDefect"
+reason    = "The same agreement: the 7z's cbdb.exe predates the fix; the distributed binary passes."
+reason_zh = "同一項協商：7z 中的 cbdb.exe 早於修正；實際發行的執行檔通過此測試。"
+agreed_by = "maintainer"
+agreed_on = 2026-11-24

@@ -113,6 +113,15 @@ EXPECTED_BUTTONS = {
     "status": 15,
     "texts": 17,
 }
+#: Build_20261124 gave every translated page a Help button (``btnHelp``,
+#: ``openHelp()``), which opens a PDF from Static/HelpFiles and reaches
+#: no endpoint -- tests/test_help_files.py drives it -- and translated
+#: Index Address, which gained EN / 繁 / 简 besides.
+for _page in ("association_pairs", "associations", "browser", "entry",
+              "group_data", "index_addr", "kinship", "networks", "office",
+              "places", "qbe", "status", "texts"):
+    EXPECTED_BUTTONS[_page] += 1
+EXPECTED_BUTTONS["index_addr"] += 3
 
 #: How many distinct ``/api/`` endpoints the shipped pages can reach.
 #: Pinned so that the gate below cannot certify coverage of a reachable
