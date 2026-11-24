@@ -381,6 +381,10 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
      "That every form opens in the language the reader's browser asks "
      "for, applies the mapping the developers specified, and remembers "
      "a choice made on one form when the next one is opened"),
+    ("test_help_files.py",
+     "Each form's Help button",
+     "That every help file a page names is served, and that Help opens "
+     "the file for the language on screen"),
     ("test_build_provenance.py",
      "The shipped source",
      "That the Go source shipped in Code/ is the source of the shipped "
@@ -474,6 +478,9 @@ COVERAGE_ZH: dict[str, tuple[str, str]] = {
                                  "是否依開發者所訂的對應規則判斷，以及在某個"
                                  "表單上所做的語言選擇，開啟下一個表單時是否"
                                  "仍然記得"),
+    "test_help_files.py": ("每個表單的說明按鈕",
+                           "頁面所列的每個說明文件都能取得，且按下說明時開啟的"
+                           "是畫面上所選語言的文件"),
     "test_build_provenance.py": ("隨附的原始碼",
                                  "Code/ 中隨附的 Go 原始碼確實是隨附 "
                                  "cbdb.exe 的原始碼"),

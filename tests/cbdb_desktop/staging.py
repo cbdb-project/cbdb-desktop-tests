@@ -49,7 +49,7 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from .archives import Archive, ArchiveError
+from .archives import Archive, ArchiveError, long_path
 from .config import Config, load_config
 
 MANIFEST_NAME = "_stage_manifest.json"
@@ -380,8 +380,13 @@ def integrity_mismatches(layout: AppLayout, manifest: dict,
     guarantee at all.
     """
     out: list[str] = []
+    # Every path through the long form: a shipped document under
+    # ``Revision Documentation/`` runs past 260 characters, and without
+    # it ``is_file()`` answers False and the tree would be reported
+    # incomplete -- and restaged -- on every run.
+    root = long_path(layout.root)
     for entry in immutable_entries(manifest):
-        path = layout.root / str(entry["name"])
+        path = root / str(entry["name"])
         if not path.is_file():
             out.append(f"{entry['name']}: missing")
             continue
@@ -425,10 +430,10 @@ def integrity_mismatches(layout: AppLayout, manifest: dict,
     db_name = next((str(e["name"]) for e in manifest["entries"]
                     if str(e["name"]).lower().endswith("cbdb.db")), "Data/CBDB.db")
     expected_names |= {db_name, db_name + "-wal", db_name + "-shm"}
-    for path in sorted(layout.root.rglob("*")):
+    for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        name = path.relative_to(layout.root).as_posix()
+        name = path.relative_to(root).as_posix()
         if name in expected_names:
             continue
         out.append(f"{name}: not part of the distribution")
@@ -496,7 +501,7 @@ def _rmtree(path: Path, *, attempts: int = 5) -> None:
     """
     for attempt in range(attempts):
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(long_path(path))
             return
         except FileNotFoundError:
             return
@@ -766,7 +771,7 @@ def stage(config: Config, *, force: bool = False, quiet: bool = False) -> AppLay
             os.replace(app_dir, superseded)
         os.replace(partial, app_dir)
     except BaseException:
-        shutil.rmtree(partial, ignore_errors=True)
+        shutil.rmtree(long_path(partial), ignore_errors=True)
         if superseded is not None and not app_dir.exists():
             # The swap failed after the old tree was moved aside: put it
             # back rather than leaving the machine with no staged build.

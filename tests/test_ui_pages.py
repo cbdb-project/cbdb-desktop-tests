@@ -774,10 +774,12 @@ def test_every_button_is_wired_to_a_function_that_exists(app: CbdbApp,
     # Copy SQL, Save SQL (QBE-3) and the join dialog's + Add fields (QBE-4).
     # Build_20261028 added four inline buttons and removed one: the Query
     # Builder's EN / 繁 / 简, the Places form's All Places (PLC-7), and
-    # Status lost its Help button (STA-5).
-    assert (inline, listeners) == (204, 44), (
+    # Status lost its Help button (STA-5).  Build_20261124 added sixteen
+    # inline buttons: a Help button (openHelp) on each of the thirteen
+    # translated pages, and Index Address's EN / 繁 / 简.
+    assert (inline, listeners) == (220, 44), (
         f"{inline} buttons are wired with an inline onclick and "
-        f"{listeners} with addEventListener, against 204 and 44.  Only "
+        f"{listeners} with addEventListener, against 220 and 44.  Only "
         "the first kind can be checked here -- a listener's function "
         "need never be global -- so a build that moved them would "
         "shrink this test without failing it")

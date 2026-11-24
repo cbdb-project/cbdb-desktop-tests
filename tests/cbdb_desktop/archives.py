@@ -58,9 +58,42 @@ def _unsafe(name: str) -> bool:
             or (len(name) > 1 and name[1] == ":"))
 
 
+def long_path(path: Path) -> Path:
+    """``path`` in a form Windows will open past 260 characters.
+
+    Build_20261124 ships its developers' documentation in a
+    ``Revision Documentation/Users Guide/`` folder whose file names alone
+    run past 130 characters; under ``work/stage/<key>.partial-...`` the
+    longest is 278, and with long paths disabled (the Windows default)
+    every open, rename and delete of it fails -- staging died with a
+    ``FileNotFoundError`` naming a file it was in the middle of writing.
+    The ``\\\\?\\`` prefix asks Windows not to apply that limit.  It must
+    be absolute and use backslashes, which ``os.path.abspath`` gives.
+
+    Elsewhere this is the identity, so callers apply it unconditionally.
+    """
+    if os.name != "nt":
+        return Path(path)
+    text = str(path)
+    if text.startswith("\\\\?\\"):
+        return Path(text)
+    return Path("\\\\?\\" + os.path.abspath(text))
+
+
 def root_level_files(names: list[str]) -> list[str]:
     """Members that sit at the archive root rather than in a directory."""
     return sorted(name for name in names if "/" not in name)
+
+
+def _named_after(stem: str | None, directory: str) -> bool:
+    """True if an archive called ``stem`` is named after ``directory``."""
+    return stem is not None and (
+        stem == directory or stem.startswith(f"{directory}_"))
+
+
+def beside_root(names: list[str], root: str) -> list[str]:
+    """Top-level entries -- files *and* directories -- beside the wrapper."""
+    return sorted({name.split("/", 1)[0] for name in names} - {root})
 
 
 def common_root(names: list[str], stem: str | None = None) -> str | None:
@@ -86,13 +119,24 @@ def common_root(names: list[str], stem: str | None = None) -> str | None:
     at the root looks exactly like a wrapped build with one loose file.
     An earlier attempt keyed on structure alone and would have stripped
     ``Data/`` out of every zip build; the test below caught it.
+
+    The same name buys the same exception for a *directory* beside the
+    wrapper.  Build_20261124 ships ``CBDB-Desktop/`` beside
+    ``Revision Documentation/``; of two directories, the one the archive
+    is named after is the tree, and the other is carried into the staged
+    tree as it stands.  Without a stem, or when the stem names neither
+    or both, two directories are still refused.
     """
     if not names:
         return None
     dirs = {name.split("/", 1)[0] for name in names if "/" in name}
-    if len(dirs) != 1:
-        return None
-    root = dirs.pop()
+    if len(dirs) == 1:
+        root = next(iter(dirs))
+    else:
+        named = [d for d in dirs if _named_after(stem, d)]
+        if len(named) != 1:
+            return None
+        root = named[0]
     if root in ("", ".", "..") or _unsafe(root):
         # Not a directory that can be stripped.  Stripping ".." would
         # also turn a traversal member into an innocent-looking one --
@@ -101,13 +145,12 @@ def common_root(names: list[str], stem: str | None = None) -> str | None:
         return None
 
     loose = root_level_files(names)
-    if not loose:
-        return root
     if root in loose:          # a file carrying the directory's own name
         return None
-    named_after_it = stem is not None and (
-        stem == root or stem.startswith(f"{root}_"))
-    if not named_after_it:
+    beside = set(beside_root(names, root))
+    if not beside:
+        return root
+    if not _named_after(stem, root):
         return None
     # Top-level entries inside the wrapper, not full paths: a loose
     # file named ``Data`` beside a ``Data/`` directory collides just as
@@ -115,7 +158,7 @@ def common_root(names: list[str], stem: str | None = None) -> str | None:
     # it by putting the file *inside* the directory as ``Data/Data``.
     inside = {name[len(root) + 1:].split("/", 1)[0] for name in names
               if name.startswith(f"{root}/")}
-    if set(loose) & inside:
+    if beside & inside:
         # Flattening would put two shipped members at one path and
         # have to choose between them.
         return None
@@ -139,7 +182,7 @@ def _replace_with_retry(source: Path, dest: Path, *, attempts: int = 15) -> None
     """
     for attempt in range(attempts):
         try:
-            os.replace(source, dest)
+            os.replace(long_path(source), long_path(dest))
             return
         except OSError as exc:
             if attempt == attempts - 1:
@@ -191,10 +234,12 @@ class Archive:
             # afterwards can return an empty list, which would move no
             # loose file, raise nothing, and leave the staged tree
             # short of a member the manifest declares.
-            self._loose = root_level_files([name for name, _, _ in raw])
+            self._loose = (beside_root([name for name, _, _ in raw], self.root)
+                           if self.root else [])
             prefix = f"{self.root}/" if self.root else ""
             # A member inside the wrapper is named relative to it.  A
-            # loose file beside the wrapper keeps its own name, which is
+            # loose file or directory beside the wrapper keeps its own
+            # name, which is
             # where extract_to puts it in the staged tree.
             self.members = [
                 Member(
@@ -256,6 +301,7 @@ class Archive:
         self.check_safe()
         if dest.exists():
             raise ArchiveError(f"refusing to extract over an existing tree: {dest}")
+        dest = long_path(dest)
         if not self.root:
             self._extractall(dest)
             return

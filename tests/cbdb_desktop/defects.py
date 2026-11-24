@@ -629,6 +629,164 @@ _DEFECTS: tuple[Defect, ...] = (
         ),
         tests=("test_an_export_produces_a_well_formed_file",),
     ),
+    Defect(
+        key="CBDB-D-009",
+        priority="P0", severity="high", origin="release",
+        title="The Kinship fix for a distance limit of 0 is in the shipped "
+              "source but not in the shipped cbdb.exe, which is still the "
+              "binary every build since 20261021 has carried",
+        title_zh="親屬表單「距離上限為 0」的修正只在釋出的原始碼中，不在釋出的 "
+                 "cbdb.exe 中——後者仍是 20261021 以來每個版本附帶的同一個執行檔",
+        area="Kinship form (/LookAtKinship): /api/kinship/query; the "
+             "archive's cbdb.exe",
+        area_zh="親屬表單（/LookAtKinship）的 /api/kinship/query；壓縮檔中的 "
+                "cbdb.exe",
+        summary="Build_20261124 ships a `Code/kinship_form_backend.go` whose "
+                "`handleQuery` uses the four distance limits exactly as "
+                "sent, so that 0 means \"no steps of this kind\".  The "
+                "`cbdb.exe` in the same archive was not rebuilt from it: it "
+                "is byte-identical (SHA-256 19a72c9a…) to the binary in "
+                "20261021, 20261028 and 20261102, and it still replaces a 0 "
+                "with 2 (ancestors, descendants) or 1 (collateral, "
+                "marriage).  The `cbdb.exe` dated 2026-11-23 that sits "
+                "beside the archive in the release folder (SHA-256 "
+                "d5b57260…) does honour 0: every test below passes against "
+                "it.  So does the binary actually distributed, in "
+                "dist/CBDB-Desktop-win-x64.zip (SHA-256 065d3da0…, "
+                "2026-11-24): the 7z is the packaging bundle, and the "
+                "maintainer waived this on 2026-11-24 on that basis.",
+        summary_zh="Build_20261124 附帶的 `Code/kinship_form_backend.go` 中，"
+                   "`handleQuery` 會照送來的值使用四個距離上限，0 表示「不走這一類"
+                   "的步數」。但同一個壓縮檔裡的 `cbdb.exe` 並沒有用這份原始碼重新"
+                   "建置：它與 20261021、20261028、20261102 的執行檔逐位元組相同"
+                   "（SHA-256 19a72c9a…），仍把 0 換成 2（先世、後世）或 1（旁系、"
+                   "姻親）。發行資料夾中壓縮檔旁、日期為 2026-11-23 的 `cbdb.exe`"
+                   "（SHA-256 d5b57260…）則會遵守 0：以下測試對它全部通過。實際"
+                   "發行的 dist/CBDB-Desktop-win-x64.zip 中的執行檔（SHA-256 "
+                   "065d3da0…，2026-11-24）同樣通過：7z 只是封裝用的檔案，維護者"
+                   "已於 2026-11-24 據此豁免。",
+        evidence="`test_a_zero_limit_admits_no_step_of_its_kind` sets each "
+                 "limit to 0 with the other three at 2 and checks the step "
+                 "counts every returned relative carries; "
+                 "`test_with_every_limit_zero_no_relative_is_any_step_away` "
+                 "sets all four to 0.  Against the archive's binary all five "
+                 "fail: for person 14, 150 of 174 relatives are ancestors "
+                 "with maxUp=0, and with every limit at 0, 85 of 86 "
+                 "relatives are still steps away.  Against the 2026-11-23 "
+                 "binary all five pass on the same database.  "
+                 "`test_the_shipped_source_is_the_source_of_the_shipped_"
+                 "binary` cannot see this: it compares function names, and "
+                 "this fix removed lines inside a function, not a function.",
+        evidence_zh="`test_a_zero_limit_admits_no_step_of_its_kind` 把其中一個"
+                    "上限設為 0、其餘三個設為 2，檢查每位回傳親屬所帶的步數；"
+                    "`test_with_every_limit_zero_no_relative_is_any_step_away` "
+                    "把四個都設為 0。對壓縮檔中的執行檔，五個測試全部失敗：以人物 "
+                    "14 為例，maxUp=0 時 174 位親屬中有 150 位是先世；四個上限都"
+                    "為 0 時，86 位中仍有 85 位與本人相隔若干步。對 2026-11-23 的"
+                    "執行檔，在同一個資料庫上五個全部通過。"
+                    "`test_the_shipped_source_is_the_source_of_the_shipped_"
+                    "binary` 看不出這個問題：它比對的是函式名稱，而這次修正刪除的"
+                    "是函式內的幾行，不是函式。",
+        impact="A historian who types 0 into Max Ancestor Generations (先世"
+               "值≤) to leave out ancestors gets two generations of them, "
+               "and nothing on the page says the 0 was replaced.  Anyone "
+               "reading the shipped source to check the behaviour is told "
+               "the opposite of what the program does.",
+        impact_zh="研究者在「先世值≤」輸入 0 以排除先世，卻得到兩代先世，頁面上也"
+                  "沒有任何提示說明 0 已被替換。閱讀釋出原始碼來確認行為的人，"
+                  "看到的正好與程式實際的行為相反。",
+        fix="Rebuild cbdb.exe from the shipped Code/ (or ship the "
+            "2026-11-23 binary already beside the archive) and repackage.",
+        fix_zh="以釋出的 Code/ 重新建置 cbdb.exe（或直接改用壓縮檔旁已有的 "
+               "2026-11-23 執行檔），再重新封裝。",
+        steps=(
+            "Open Kinship, choose a person with parents in CBDB, and set "
+            "Max Ancestor Generations to 0.",
+            "Run the query: parents and grandparents are listed.",
+        ),
+        steps_zh=(
+            "開啟親屬表單，選擇一位在 CBDB 中有父母記錄的人物，把「先世值≤」"
+            "設為 0。",
+            "執行查詢：結果中仍列出父母與祖父母。",
+        ),
+        source=(
+            "Code/kinship_form_backend.go:747 (the source: 0 is used as "
+            "sent)",
+            "Code/kinship_form_backend.go:1010 (where the limits cut the "
+            "traversal)",
+            "Templates/kinship/index.html:55 (the page accepts 0: min=\"0\")",
+            "cbdb.exe",
+        ),
+        tests=("test_a_zero_limit_admits_no_step_of_its_kind",
+               "test_with_every_limit_zero_no_relative_is_any_step_away"),
+    ),
+    Defect(
+        key="CBDB-D-010",
+        priority="P6", severity="low", origin="software",
+        title="The newly translated Index Address form joins the two ranks "
+              "of its duplicate-type message with 與 in Traditional and 和 "
+              "in Simplified",
+        title_zh="新翻譯的指數地址表單，其「地址類別重複」訊息在繁體中以「與」、"
+                 "在簡體中以「和」連接兩個排名",
+        area="Index Address form (/IndexAddr): the duplicateType message",
+        area_zh="指數地址表單（/IndexAddr）的 duplicateType 訊息",
+        summary="Build_20261124 translates the Index Address form for the "
+                "first time.  Every label's 繁 and 简 now say the same thing "
+                "except one: \"The same address type is used in ranks {a} "
+                "and {b}\" is 排名 {a} 與排名 {b} … in Traditional and 排名 {a} "
+                "和排名 {b} … in Simplified.  The page's own header comment "
+                "says Traditional uses Taiwan terms and Simplified mainland "
+                "ones; 與/和 is not one of the pairs it names, and both "
+                "words are used on both sides of the strait, so this reads "
+                "as a choice made separately in each column rather than a "
+                "regional term.  The smallest possible finding: if the "
+                "maintainer rules it regional, a line in "
+                "docs/labels/regional_terms.tsv retires it.",
+        summary_zh="Build_20261124 首次翻譯指數地址表單。所有標籤的繁體與簡體"
+                   "現在都說同一件事，只有一個例外：「The same address type is "
+                   "used in ranks {a} and {b}」在繁體中是「排名 {a} 與排名 {b} …」，"
+                   "在簡體中是「排名 {a} 和排名 {b} …」。頁面自己的說明註解表示繁體"
+                   "採用台灣用語、簡體採用大陸用語；「與／和」不在它列出的詞對之中，"
+                   "而且兩岸都同時使用這兩個字，因此看起來是兩欄各自選詞，而不是"
+                   "地區用語差異。這是最小的一類問題：若維護者判定屬地區用語，在 "
+                   "docs/labels/regional_terms.tsv 加一行即可撤銷。",
+        evidence="`test_traditional_and_simplified_say_the_same_thing` "
+                 "reduces both to Simplified, allowing OpenCC's "
+                 "Taiwan/mainland phrase tables and the pairs in "
+                 "regional_terms.tsv -- including the six this build's "
+                 "Index Address comment declares or implies (預設/默认, "
+                 "設定/设置, 載入/加载, 網路/网络, 目前/当前, 依序/依次) -- and "
+                 "finds this one label still different, on index_addr only.",
+        evidence_zh="`test_traditional_and_simplified_say_the_same_thing` 把兩者"
+                    "都轉成簡體比較，並容許 OpenCC 的兩岸詞彙對照，以及 "
+                    "regional_terms.tsv 中的詞對——包括這個版本指數地址註解所宣告"
+                    "或隱含的六對（預設/默认、設定/设置、載入/加载、網路/网络、"
+                    "目前/当前、依序/依次）——之後仍只有指數地址頁面上的這一個標籤"
+                    "不同。",
+        impact="None on what the form does; a reader switching between "
+               "繁 and 简 sees the one alert worded differently.",
+        impact_zh="不影響表單的功能；在繁、簡之間切換的讀者會看到這一則警示的"
+                  "措辭不同。",
+        fix="Use one conjunction in both columns (與 / 与, or 和 / 和), or "
+            "rule the pair regional.",
+        fix_zh="兩欄使用同一個連接詞（與／与，或 和／和），或判定這對詞屬地區"
+               "用語。",
+        steps=(
+            "Open Index Address, choose 繁, and give two ranks the same "
+            "address type; read the message.",
+            "Choose 简 and do the same.",
+        ),
+        steps_zh=(
+            "開啟指數地址表單，選擇「繁」，讓兩個排名使用相同的地址類別，"
+            "閱讀訊息。",
+            "選擇「简」，重複一次。",
+        ),
+        source=(
+            "Templates/index_addr/index.html:168 (English)",
+            "Templates/index_addr/index.html:125 (the stated convention)",
+        ),
+        tests=("test_traditional_and_simplified_say_the_same_thing",),
+    ),
 )
 
 #: What the report iterates.  Keyed by ``Defect.key`` (CBDB-D-0NN),

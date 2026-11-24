@@ -66,9 +66,19 @@ class Note:
     title: str
 
 
+#: Directories that shipped beside the wrapper to hold the notes.
+#: Build_20261124 moved them from the archive root into
+#: ``Revision Documentation/`` (staged at the tree root, like any entry
+#: beside the wrapper).  Only the files directly inside count: its
+#: ``Help Files/``, ``Users Guide/`` and ``Fonts/`` are the product's own
+#: documentation, not a claim about what this build changed.
+NOTE_DIRS = ("Revision Documentation",)
+
+
 def find_notes(root: Path) -> list[Path]:
     """The notes at the root of a staged tree, sorted by name."""
-    return sorted((p for p in root.iterdir()
+    places = [root] + [root / d for d in NOTE_DIRS if (root / d).is_dir()]
+    return sorted((p for place in places for p in place.iterdir()
                    if p.is_file() and p.suffix.lower() in NOTE_SUFFIXES),
                   key=lambda p: p.name.lower())
 

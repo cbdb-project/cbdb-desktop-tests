@@ -519,9 +519,26 @@ def _value(cur: _Cursor):
     """A string, a nested object, or ``None`` for anything else."""
     c = cur.peek()
     if c in "'\"`":
-        return _string(cur)
+        start = cur.pos
+        parts = [_string(cur)]
+        # A long label split across lines: Build_20261124's Index Address
+        # table writes ``notesHtml: "<p>Rank 1 ..." + "sequentially ..."``.
+        # Only literal + literal is a label; anything else joined in is
+        # an expression, and is skipped like any other.
+        while cur.peek() == "+":
+            cur.pos += 1
+            if cur.peek() not in "'\"`":
+                cur.pos = start
+                return _skip(cur)
+            parts.append(_string(cur))
+        return "".join(parts)
     if c == "{":
         return _object(cur)
+    return _skip(cur)
+
+
+def _skip(cur: _Cursor) -> None:
+    """Skip a value that is not a label, to the next ``,`` or ``}``."""
     # Anything else (a number, an identifier, a call, an arrow function)
     # is not a label.  Skip it to the next ``,`` or ``}`` at this depth.
     depth = 0

@@ -48,11 +48,20 @@ This repo runs that binary and asks it questions over HTTP. It exists to
 catch what a data refresh or a rebuild breaks, and to hand the CBDB team
 a report they can act on.
 
-**Current state: 1546 tests collected against
-`CBDB-Desktop_Build_20261028.7z`, and the defect registry holds this
-round's six findings, five of them waived** (the last canonical run:
-1344 passed, 3 failed, 181 skipped, 18 waived -- the three failures are
-the one unwaived finding raising its signature).  That build's
+**Current state: 1619 tests collected against
+`CBDB-Desktop_Build_20261124.7z`** (last canonical run: 1414 passed,
+0 failed, 181 skipped, 24 waived).  That build changed the Kinship
+source so a distance limit of 0 means "none" -- and shipped it beside an
+unrebuilt `cbdb.exe` in the 7z.  **The 7z is the packaging bundle; the
+distribution is `dist/CBDB-Desktop-win-x64.zip` beside it** (the
+maintainer, 2026-11-24), whose binary passes, so that finding is waived.
+Check the dist binary before filing anything about the 7z's.  It also
+added a Help button to every form (`test_help_files.py`), translated
+Index Address, and moved the notes into `Revision Documentation/`, whose
+User's Guide file names push staged paths past Windows' 260 characters
+-- `archives.long_path` is why staging still works.
+
+The paragraph below describes Build_20261028's round.  That build's
 `cbdb.exe` and `cbdb.db` are byte-identical to 20261021's; it changed
 the page templates (the developers' label review of 2026-10-26/28) and
 shipped the binary's own source, which retired the previous round's

@@ -630,9 +630,25 @@ def _without_comments(page: str) -> str:
     is one grep away from being disproved, while a false "called" hides
     a finding and looks like success.
     """
-    page = re.sub(r"<!--.*?-->", " ", page, flags=re.DOTALL)
-    page = re.sub(r"/\*.*?\*/", " ", page, flags=re.DOTALL)
-    return re.sub(r"(?m)//.*$", " ", page)
+    # One pass, so whichever comment *starts* first wins.  Three passes
+    # (block comments first) read the ``/*`` inside Networks' line
+    # comment ``// old gFromDynasty/gToDynasty/*Begin/*End globals.`` as
+    # an opener; harmless while nothing closed it, and from
+    # Build_20261124 the Help code's ``/* try the next file */`` 1,500
+    # lines later did -- blanking every call on the page, so all sixteen
+    # Networks endpoints read as called by nothing.
+    return re.sub(r"<!--.*?-->|/\*.*?\*/|//[^\n]*", " ", page,
+                  flags=re.DOTALL)
+
+
+def test_a_block_comment_opener_inside_a_line_comment_opens_nothing():
+    """The Networks shape that cost the whole page its calls on 20261124."""
+    page = ("// gToDynasty/*Begin/*End globals.\n"
+            "fetch('/api/networks/query');\n"
+            "try {} catch (e) { /* next */ }\n")
+    kept = _without_comments(page)
+    assert "/api/networks/query" in kept
+    assert "gToDynasty" not in kept and "next" not in kept
 
 
 def test_every_api_endpoint_the_build_routes_has_a_page_that_calls_it(

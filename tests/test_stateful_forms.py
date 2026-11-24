@@ -396,6 +396,115 @@ def test_a_deeper_kinship_query_reaches_at_least_as_far(
         f"searching further lost {len(near - far)} relatives"
 
 
+#: The Kinship form's four distance limits, each with the field of a
+#: returned relative that counts steps of that kind.  The keys are the
+#: request's own field names, so a parametrised key *is* the payload.
+_KIN_LIMITS = {"maxUp": "up", "maxDown": "down",
+               "maxCol": "collateral", "maxMarr": "marriage"}
+
+
+@pytest.fixture(scope="module")
+def kin_ego(sqlite_conn) -> int:
+    """A person with a direct relative of every kind inside limit 2.
+
+    Chosen from the data, so each limit has something to cut; nothing
+    about the result is predicted from this query.  "Inside limit 2"
+    matters: person 6's only collateral relative is a BSSS, three
+    generations down, which the open query never reaches -- and then the
+    collateral limit has nothing to cut.
+    """
+    near = ("c.c_upstep <= 2 AND c.c_dwnstep <= 2 "
+            "AND c.c_marstep <= 2 AND c.c_colstep <= 2")
+    row = sqlite_conn.execute(
+        "SELECT k.c_personid FROM KIN_DATA k "
+        "JOIN KINSHIP_CODES c ON c.c_kincode = k.c_kin_code "
+        "GROUP BY k.c_personid "
+        "HAVING COUNT(*) BETWEEN 4 AND 15 "
+        f"   AND SUM(c.c_upstep > 0 AND {near}) > 0 "
+        f"   AND SUM(c.c_dwnstep > 0 AND {near}) > 0 "
+        f"   AND SUM(c.c_marstep > 0 AND {near}) > 0 "
+        f"   AND SUM(c.c_colstep > 0 AND {near}) > 0 "
+        "ORDER BY k.c_personid LIMIT 1").fetchone()
+    assert row, "no person has a relative of every kind -- check the query"
+    return row[0]
+
+
+def _kin_records(app: CbdbApp, person: int, limits: dict) -> list[dict]:
+    app.post("/api/kinship/set-person", json={"personId": person})
+    return app.json("POST", "/api/kinship/query",
+                    json={**limits, "mourningCircle": False})["kinRecords"]
+
+
+def _steps(row: dict) -> str:
+    return ", ".join(f"{f}={row.get(f)}" for f in _KIN_LIMITS.values())
+
+
+@pytest.mark.parametrize("limit", list(_KIN_LIMITS))
+def test_a_zero_limit_admits_no_step_of_its_kind(
+        app: CbdbApp, kin_ego, clean_lists, limit):
+    """``0`` in a distance box means *none of those steps*, not *the default*.
+
+    The page accepts it (``min="0"`` on all four boxes), and the label
+    says what it means: 先世值≤ 0 is "no ancestors".  Until
+    Build_20261124's source, ``handleQuery`` replaced a 0 with 2 (up,
+    down) or 1 (collateral, marriage), so a user who asked for no
+    ancestors got two generations of them and no sign of the swap.
+
+    The oracle is in each returned row: it carries its own step counts,
+    and none may exceed the limit sent.  The same query with the limit
+    at 2 must reach a relative of that kind -- otherwise this input
+    could not tell a dead limit from an honoured one -- and closing the
+    limit may only remove relatives, never add one.
+    """
+    step = _KIN_LIMITS[limit]
+    open_limits = {key: 2 for key in _KIN_LIMITS}
+    wide = _kin_records(app, kin_ego, open_limits)
+    assert any((row.get(step) or 0) > 0 for row in wide), (
+        f"person {kin_ego} reached no relative with {step} > 0 at every "
+        f"limit 2, so this input cannot judge {limit}")
+
+    closed = _kin_records(app, kin_ego, {**open_limits, limit: 0})
+    over = [row for row in closed if (row.get(step) or 0) > 0]
+    if over:
+        raise KnownShippedDefect(
+            f"{limit}=0 was not applied: {len(over)} of {len(closed)} "
+            f"relatives of person {kin_ego} have {step} > 0 (first: kinId "
+            f"{over[0].get('kinId')} {over[0].get('kinRel')!r}, "
+            f"{_steps(over[0])}).  The handler substituted a default for "
+            f"the 0 the user typed -- the 'if params.{limit[0].upper()}"
+            f"{limit[1:]} == 0' block of handleQuery in "
+            f"kinship_form_backend.go.  Request: {open_limits} with "
+            f"{limit}=0, person {kin_ego}.")
+    gained = ({row.get("kinId") for row in closed}
+              - {row.get("kinId") for row in wide})
+    assert not gained, (
+        f"closing {limit} to 0 reached {len(gained)} relatives the open "
+        f"query did not: {sorted(gained)[:10]}")
+
+
+def test_with_every_limit_zero_no_relative_is_any_step_away(
+        app: CbdbApp, kin_ego, clean_lists):
+    """All four boxes at 0: whatever the data, nobody is a step away.
+
+    The combination whose correct answer does not depend on CBDB's
+    contents (AGENTS.md: *find the combination whose correct answer is
+    fixed*).  The person is still there -- the traversal seeds ego --
+    and so may be a relative coded with no steps at all; anyone else
+    would have had to be reached through a link the request forbade.
+    """
+    rows = _kin_records(app, kin_ego, {key: 0 for key in _KIN_LIMITS})
+    stepped = [row for row in rows
+               if any((row.get(f) or 0) > 0 for f in _KIN_LIMITS.values())]
+    if stepped:
+        raise KnownShippedDefect(
+            f"every limit was 0 and {len(stepped)} of {len(rows)} "
+            f"relatives of person {kin_ego} are still steps away (first: "
+            f"kinId {stepped[0].get('kinId')} "
+            f"{stepped[0].get('kinRel')!r}, {_steps(stepped[0])}).  The "
+            f"handler substituted defaults for the zeros -- handleQuery "
+            f"in kinship_form_backend.go.")
+
+
 def _kinship_export_files(app: CbdbApp) -> dict[str, str]:
     """``{filename: contents}`` from one *Export Query Results*.
 

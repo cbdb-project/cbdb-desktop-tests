@@ -49,3 +49,16 @@
 拖曳	拖动	drag
 執行	运行	run
 開啟	打开	open
+# Added for Build_20261124: the Help alert on every form says 說明文件 in
+# Traditional and 帮助文件 in Simplified -- Help is 說明 in Taiwan software
+# (the Help menu of zh-TW Windows) and 帮助 on the mainland.
+說明	帮助	help (說明文件 / 帮助文件, a help file)
+# Added for Build_20261124's Index Address translation, whose header
+# comment (index_addr/index.html:125) says Traditional uses the Taiwan
+# term and Simplified the mainland one, naming the first four pairs.
+預設	默认	default (恢復預設設定 / 恢复默认设置)
+設定	设置	setting
+載入	加载	load
+網路	网络	network
+目前	当前	currently (目前啟用 / 当前启用)
+依序	依次	in order, sequentially
